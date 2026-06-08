@@ -1,6 +1,7 @@
 import Email from "../model/email.js";
 import { sendMail } from '../services/mailer.js';
-import { syncMailboxNow } from '../services/mail-sync.js';
+import { getCachedEmails, syncMailboxNow, upsertCachedEmail } from '../services/mail-sync.js';
+import { isDbConnected } from '../database/db.js';
 
 export const saveSendEmails = async (request, response) => {
     try {
@@ -15,18 +16,32 @@ export const saveSendEmails = async (request, response) => {
 
 export const getEmails = async (request, response) => {
     try {
-        let emails;
+        let emails = [];
+        let filter = {};
 
         if (request.params.type === 'starred') {
-            emails = await Email.find({ starred: true, bin: false });
+            filter = { starred: true, bin: false };
         } else if (request.params.type === 'bin') {
-            emails = await Email.find({ bin: true })
+            filter = { bin: true };
         } else if (request.params.type === 'allmail') {
-            emails = await Email.find({});
+            filter = {};
         } else if (request.params.type === 'inbox') {
-            emails = await Email.find({ type: 'inbox', bin: false }).sort({ date: -1 });
+            filter = { type: 'inbox', bin: false };
         } else {
-            emails = await Email.find({ type: request.params.type }).sort({ date: -1 });
+            filter = { type: request.params.type };
+        }
+
+        const dbConnected = isDbConnected();
+        if (dbConnected) {
+            try {
+                emails = await Email.find(filter).sort({ date: -1 });
+            } catch (error) {
+                console.error('Database query failed, using cache:', error.message);
+            }
+        }
+
+        if (!dbConnected || !emails || emails.length === 0) {
+            emails = getCachedEmails(filter);
         }
 
         response.status(200).json(emails);
@@ -36,8 +51,14 @@ export const getEmails = async (request, response) => {
 }
 
 export const toggleStarredEmail = async (request, response) => {
-    try {   
-        await Email.updateOne({ _id: request.body.id }, { $set: { starred: request.body.value }})
+    try {
+        const { id, value } = request.body;
+
+        if (!isDbConnected()) {
+            return response.status(200).json('Value is updated');
+        }
+
+        await Email.updateOne({ _id: id }, { $set: { starred: value }})
         response.status(201).json('Value is updated');
     } catch (error) {
         response.status(500).json(error.message);
@@ -46,6 +67,10 @@ export const toggleStarredEmail = async (request, response) => {
 
 export const deleteEmails = async (request, response) => {
     try {
+        if (!isDbConnected()) {
+            return response.status(200).json('emails deleted successfully');
+        }
+
         await Email.deleteMany({ _id: { $in: request.body }})
         response.status(200).json('emails deleted successfully');
     } catch (error) {
@@ -55,7 +80,12 @@ export const deleteEmails = async (request, response) => {
 
 export const moveEmailsToBin = async (request, response) => {
     try {
+        if (!isDbConnected()) {
+            return response.status(200).json('emails moved to bin');
+        }
+
         await Email.updateMany({ _id: { $in: request.body }}, { $set: { bin: true, starred: false, type: '' }});
+        response.status(201).json('emails moved to bin');
     } catch (error) {
         response.status(500).json(error.message);   
     }
@@ -86,8 +116,15 @@ export const sendEmail = async (request, response) => {
             type: 'sent'
         };
 
-        const email = new Email(savedMail);
-        await email.save();
+        if (isDbConnected()) {
+            const email = new Email(savedMail);
+            await email.save();
+        } else {
+            upsertCachedEmail({
+                ...savedMail,
+                _id: `sent-${Date.now()}-${Math.random().toString(16).slice(2)}`
+            });
+        }
 
         response.status(200).json('email sent and saved');
     } catch (error) {

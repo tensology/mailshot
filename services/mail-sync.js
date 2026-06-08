@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import Email from '../model/email.js';
+import { isDbConnected } from '../database/db.js';
 
 const createAddressString = (addressObject = {}) => {
     if (!addressObject) return '';
@@ -28,10 +29,39 @@ const getSyncConfig = () => ({
 const getMailboxUser = () => (process.env.MAILBOX_USER || process.env.MAIL_USERNAME || '').toLowerCase();
 
 let syncInterval;
+const mailboxCache = [];
 
 const parseNameFromAddress = (value = '') => {
     const match = /^\"?([^<>"]+)\"?\s*<[^>]+>$/.exec(value || '');
     return match ? match[1].trim() : (value || '').split('@')[0] || 'Unknown';
+};
+
+const persistCachedEmail = (payload = {}) => {
+    const existing = mailboxCache.findIndex(item => item.messageId === payload.messageId);
+    const normalized = {
+        _id: payload._id || `cache-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        ...payload,
+        date: new Date(payload.date || Date.now())
+    };
+
+    if (existing >= 0) {
+        mailboxCache[existing] = { ...mailboxCache[existing], ...normalized };
+    } else {
+        mailboxCache.push(normalized);
+    }
+
+    return normalized;
+};
+
+export const getCachedEmails = (filter = {}) => {
+    return mailboxCache
+        .filter((item) => {
+            if (filter.bin !== undefined && filter.bin !== item.bin) return false;
+            if (filter.starred !== undefined && filter.starred !== item.starred) return false;
+            if (filter.type && filter.type !== item.type) return false;
+            return true;
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
 const syncOnce = async () => {
@@ -87,21 +117,27 @@ const syncOnce = async () => {
                         messageId
                     };
 
-                    const existing = await Email.findOne({ messageId: payload.messageId });
-                    if (existing) {
-                        skipped++;
-                        continue;
-                    }
+                    if (isDbConnected()) {
+                        const existing = await Email.findOne({ messageId: payload.messageId });
+                        if (existing) {
+                            skipped++;
+                            continue;
+                        }
 
-                    const emailDoc = await Email.create(payload);
-                    synced++;
-
-                    if (!emailDoc) {
-                        skipped++;
+                        const emailDoc = await Email.create(payload);
+                        if (!emailDoc) {
+                            skipped++;
+                        } else {
+                            synced++;
+                        }
+                    } else {
+                        persistCachedEmail(payload);
+                        synced++;
                     }
                 } catch (error) {
                     skipped++;
-                    console.error('Error parsing/saving IMAP message:', error.message);
+                    const errorMessage = error?.message || 'Error parsing/saving IMAP message';
+                    console.error('Error parsing/saving IMAP message:', errorMessage);
                 }
             }
         } finally {
@@ -119,6 +155,17 @@ const syncOnce = async () => {
     }
 };
 
+export const upsertCachedEmail = (mail) => {
+    if (!mail) return null;
+
+    const payload = {
+        ...mail,
+        date: new Date(mail.date || Date.now())
+    };
+
+    return persistCachedEmail(payload);
+};
+
 export const startMailboxSync = (options = {}) => {
     const intervalMs = Number(options.intervalMs || 60000);
     const enabled = String(options.enabled ?? 'true') === 'true';
@@ -134,4 +181,3 @@ export const startMailboxSync = (options = {}) => {
 };
 
 export const syncMailboxNow = async () => syncOnce();
-

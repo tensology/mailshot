@@ -16,11 +16,19 @@ const Emails = () => {
     const { type } = useParams();
 
     const getEmailsService = useApi(API_URLS.getEmailFromType);
+    const syncMailboxService = useApi(API_URLS.syncMailbox);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
 
     useEffect(() => {
-        getEmailsService.call({}, type);
+        const loadEmails = async () => {
+            if (type === 'allmail' || type === 'inbox' || type === 'starred' || type === 'bin') {
+                await syncMailboxService.call();
+            }
+            await getEmailsService.call({}, type);
+        };
+
+        loadEmails();
     }, [type, starredEmail])
 
     const selectAllEmails = (e) => {
@@ -52,7 +60,7 @@ const Emails = () => {
                     getEmailsService?.response?.map(email => (
                         <Email 
                             email={email} 
-                            key={email.id}
+                            key={email._id || email.messageId}
                             setStarredEmail={setStarredEmail} 
                             selectedEmails={selectedEmails}
                             setSelectedEmails={setSelectedEmails}
