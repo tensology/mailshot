@@ -151,7 +151,13 @@ const syncOnce = async () => {
             await client.logout();
         } catch (ignored) {}
 
-        return { synced, skipped, error: error.message };
+        return {
+            synced,
+            skipped,
+            error: error?.message || 'Command failed',
+            code: error?.code,
+            command: error?.command
+        };
     }
 };
 
