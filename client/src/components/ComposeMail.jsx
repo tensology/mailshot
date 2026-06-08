@@ -54,15 +54,8 @@ const SendButton = styled(Button)`
 
 const ComposeMail = ({ open, setOpenDrawer }) => {
     const [data, setData] = useState({});
-    const sentEmailService = useApi(API_URLS.saveSentEmails);
+    const sendEmailService = useApi(API_URLS.sendEmail);
     const saveDraftService = useApi(API_URLS.saveDraftEmails);
-
-    const config = {
-        Username: "myrealid2805@gmail.com",
-        Password: "0BD8462FDCC0C9ECA907291753515157FBD5",
-        Host: 'smtp.elasticemail.com',
-        Port: 2525,
-    }
 
     const onValueChange = (e) => {
         setData({ ...data, [e.target.name]: e.target.value })
@@ -71,21 +64,9 @@ const ComposeMail = ({ open, setOpenDrawer }) => {
     const sendEmail = async (e) => {
         e.preventDefault();
 
-        if (window.Email) {
-            window.Email.send({
-                ...config,
-                To : data.to,
-                From : "myrealid2805@gmail.com",
-                Subject : data.subject,
-                Body : data.body
-            }).then(
-                message => alert(message)
-            );
-        }
-
         const payload = {
             to : data.to,
-            from : "myrealid2805@gmail.com",
+            from : process.env.REACT_APP_MAIL_FROM,
             subject : data.subject,
             body : data.body,
             date: new Date(),
@@ -95,9 +76,9 @@ const ComposeMail = ({ open, setOpenDrawer }) => {
             type: 'sent'
         }
 
-        sentEmailService.call(payload);
+        await sendEmailService.call(payload);
 
-        if (!sentEmailService.error) {
+        if (!sendEmailService.error) {
             setOpenDrawer(false);
             setData({});
         } else {
@@ -110,7 +91,7 @@ const ComposeMail = ({ open, setOpenDrawer }) => {
 
         const payload = {
             to : data.to,
-            from : "myrealid2805@gmail.com",
+            from : process.env.REACT_APP_MAIL_FROM,
             subject : data.subject,
             body : data.body,
             date: new Date(),

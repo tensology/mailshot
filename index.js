@@ -3,6 +3,7 @@ import cors from 'cors';
 import Connection from './database/db.js';
 import routes from './routes/route.js';
 import path from 'path';
+import { startMailboxSync } from './services/mail-sync.js';
 
 const __dirname = path.resolve();
 
@@ -26,5 +27,9 @@ app.get('*', function (_, res){
 const PORT = process.env.PORT || 8000;
 
 Connection();
+startMailboxSync({
+    intervalMs: Number(process.env.MAILBOX_POLL_INTERVAL_MS || 60000),
+    enabled: String(process.env.MAILBOX_SYNC_ENABLED ?? 'true') !== 'false'
+});
 
 app.listen(PORT, () => console.log(`Server started on PORT ${PORT}`));

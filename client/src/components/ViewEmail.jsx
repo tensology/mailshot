@@ -1,9 +1,12 @@
 
 
-import { Box, Typography, styled } from '@mui/material';
+import { useState } from 'react';
+import { Box, Typography, styled, Button, TextField } from '@mui/material';
 import { useOutletContext, useLocation } from 'react-router-dom';
 import { emptyProfilePic } from '../constants/constant';
 import { ArrowBack, Delete } from '@mui/icons-material';
+import useApi from '../hooks/useApi';
+import { API_URLS } from '../services/api.urls';
 
 const IconWrapper = styled(Box)({
     padding: 15
@@ -53,10 +56,32 @@ const Date = styled(Typography)({
 
 const ViewEmail = () => {
 
+    
     const { openDrawer } = useOutletContext();
+    const sendEmailService = useApi(API_URLS.sendEmail);
+    const [replyOpen, setReplyOpen] = useState(false);
+    const [replyBody, setReplyBody] = useState('');
     
     const { state } = useLocation();
     const { email } = state;
+
+    const subject = email?.subject || 'No Subject';
+    const body = email?.body || '';
+
+    const replyTo = () => {
+        setReplyBody(`\n\nOn ${(new window.Date(email.date)).toLocaleString()}, ${email.from} wrote:\n${body}`);
+        setReplyOpen(true);
+    };
+
+    const sendReply = async () => {
+        const payload = {
+            to: email.from,
+            subject: `Re: ${subject}`,
+            body: replyBody
+        };
+
+        await sendEmailService.call(payload);
+    };
 
     return (
         <Box style={openDrawer ? { marginLeft: 250, width: '100%' } : { width: '100%' } }>
@@ -64,14 +89,14 @@ const ViewEmail = () => {
                 <ArrowBack fontSize='small' color="action" onClick={() => window.history.back() } />
                 <Delete fontSize='small' color="action" style={{ marginLeft: 40 }} />
             </IconWrapper>
-            <Subject>{email.subject} <Indicator component="span">Inbox</Indicator></Subject>
+            <Subject>{subject} <Indicator component="span">{email.type || 'Inbox'}</Indicator></Subject>
             <Box style={{ display: 'flex' }}>
                 <Image src={emptyProfilePic} alt="profile" />
                 <Container>
                     <Box>
                         <Typography>    
-                            {email.to.split('@')[0]} 
-                            <Box component="span">&nbsp;&#60;{email.to}&#62;</Box>
+                            {email.from.split('@')[0]} 
+                            <Box component="span">&nbsp;&#60;{email.from}&#62;</Box>
                         </Typography>
                         <Date>
                             {(new window.Date(email.date)).getDate()}&nbsp;
@@ -79,7 +104,26 @@ const ViewEmail = () => {
                             {(new window.Date(email.date)).getFullYear()} 
                         </Date>
                     </Box>
-                    <Typography style={{ marginTop: 20 }}>{email.body}</Typography>
+                    <Typography style={{ marginTop: 20 }}>{body}</Typography>
+                    <Box style={{ marginTop: 20 }}>
+                        <Button variant="contained" onClick={replyTo}>Reply</Button>
+                    </Box>
+                    {replyOpen && (
+                        <Box style={{ marginTop: 20 }}>
+                            <TextField
+                                multiline
+                                minRows={6}
+                                fullWidth
+                                value={replyBody}
+                                onChange={(e) => setReplyBody(e.target.value)}
+                                placeholder="Write a reply"
+                            />
+                            <Box style={{ marginTop: 10, display: 'flex', gap: 10 }}>
+                                <Button variant="contained" onClick={sendReply}>Send</Button>
+                                <Button onClick={() => setReplyOpen(false)}>Close</Button>
+                            </Box>
+                        </Box>
+                    )}
                 </Container>
             </Box>
         </Box>

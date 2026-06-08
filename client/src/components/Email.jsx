@@ -68,7 +68,7 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) =>
                     <StarBorder fontSize="small" style={{ marginRight: 10 }} onClick={() => toggleStarredEmail()} /> 
             }
             <Box onClick={() => navigate(routes.view.path, { state: { email: email }})}>
-                <Typography style={{ width: 200 }}>To:{email.to.split('@')[0]}</Typography>
+                <Typography style={{ width: 200 }}>{email.type === 'inbox' ? `From: ${email.from.split('@')[0]}` : `To: ${email.to.split('@')[0]}`}</Typography>
                 <Indicator>Inbox</Indicator>
                 <Typography>{email.subject} {email.body && '-'} {email.body}</Typography>
                 <Date>

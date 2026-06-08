@@ -1,4 +1,8 @@
 export const API_URLS = {
+    sendEmail: {
+        endpoint: 'send',
+        method: 'POST'
+    },
     saveSentEmails: {
         endpoint: 'save',
         method: 'POST'
@@ -21,6 +25,10 @@ export const API_URLS = {
     },
     moveEmailsToBin: {
         endpoint: 'bin',
+        method: 'POST'
+    },
+    syncMailbox: {
+        endpoint: 'sync',
         method: 'POST'
     }
 }

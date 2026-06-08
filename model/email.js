@@ -33,6 +33,12 @@ const EmailSchema = mongoose.Schema({
     type: {
         type: String,
         required: true,
+    },
+    messageId: {
+        type: String,
+        index: true,
+        unique: true,
+        sparse: true
     }
 })
 
