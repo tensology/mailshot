@@ -25,7 +25,7 @@ app.get('*', function (_, res){
 
 const PORT = process.env.PORT || 8000;
 
-await Connection();
+Connection();
 
 const syncEnabled = String(process.env.MAILBOX_SYNC_ENABLED ?? 'true') !== 'false';
 if (isDbConnected()) {

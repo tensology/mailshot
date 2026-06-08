@@ -33,7 +33,7 @@ export const getDbStatus = () => ({
     uriConfigured: !!buildConnectionString()
 });
 
-const Connection = async () => {
+const Connection = () => {
     const DB_URI = buildConnectionString();
 
     if (!DB_URI) {
@@ -43,22 +43,21 @@ const Connection = async () => {
         return { connected: false };
     }
 
-    try {
-        await mongoose.connect(DB_URI, {
+    mongoose.connect(DB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true
-        });
+    }).then(() => {
         mongoose.set('strictQuery', false);
         isConnected = true;
         lastError = null;
         console.log('Database connected sucessfully');
-        return { connected: true, uri: DB_URI };
-    } catch (error) {
+    }).catch((error) => {
         isConnected = false;
         lastError = error;
         console.log('Error while connecting with the database', error.message);
-        return { connected: false, error };
-    }
+    });
+
+    return { connected: false };
 }
 
 export default Connection;
