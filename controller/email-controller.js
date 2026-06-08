@@ -135,6 +135,10 @@ export const sendEmail = async (request, response) => {
 export const syncMailbox = async (_, response) => {
     try {
         const result = await syncMailboxNow();
+        if (result?.error) {
+            console.error('Mailbox sync failed:', result);
+        }
+
         response.status(200).json(result);
     } catch (error) {
         response.status(500).json(error.message);
