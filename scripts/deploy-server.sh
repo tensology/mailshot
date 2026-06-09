@@ -35,6 +35,9 @@ if [ -f "$AUTH_FILE" ]; then
     auth_hash_before=$(sha256sum "$AUTH_FILE" | awk '{print $1}')
 fi
 
+# Rebuilt artifacts may differ locally; reset only tracked build output, never secrets.
+git checkout -- client/build 2>/dev/null || true
+
 git pull origin main
 
 if [ -f "$ENV_FILE" ] && [ -n "$env_hash_before" ]; then
