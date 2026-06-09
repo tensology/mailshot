@@ -287,11 +287,14 @@ const Emails = () => {
 
         if (result.error) {
             setLoadError(result.error);
-            await fetchEmailList({ silent: true });
+            await fetchEmailList(); // Re-fetch with silent: false to show errors
             return;
         }
 
-        await fetchEmailList({ silent: true });
+        if (!isPermanentDelete) {
+            clearEmailListCache(); // Clear all caches to ensure bin updates
+        }
+        await fetchEmailList(); // Re-fetch with silent: false to update current view
     };
 
     return (
