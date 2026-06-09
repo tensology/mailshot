@@ -2,7 +2,7 @@
 
 import { routes } from "../routes/routes"
 import { Photo, StarOutline, SendOutlined, InsertDriveFileOutlined, DeleteOutlined,
-    MailOutlined } from '@mui/icons-material';
+    MailOutlined, ArchiveOutlined } from '@mui/icons-material';
 
 export const SIDEBAR_DATA = [
     {
@@ -39,6 +39,12 @@ export const SIDEBAR_DATA = [
         name: 'allmail',
         title: 'All Mail',
         icon: MailOutlined,
+        path: routes.emails.path
+    },
+    {
+        name: 'archived',
+        title: 'Archived',
+        icon: ArchiveOutlined,
         path: routes.emails.path
     }
 ];

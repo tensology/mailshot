@@ -34,11 +34,26 @@ To run this project locally, follow these steps:
    npm install
 3. **Set Up MongoDB:**
    Create a MongoDB database and configure the connection string in the `.env` file.
-4. **Run the Application:**
-   ```bash'
+4. **Configure environment:**
+   Copy `.env.example` to `.env` and `client/.env.example` to `client/.env.development.local`.
+   For local debug, set `REACT_APP_API_URL=http://localhost:8000` in `client/.env.development.local`.
+   Mail IMAP/SMTP credentials in `.env` point at your mail server (e.g. `mailshot.tensology.com`).
+
+5. **Run the Application (debug mode):**
+   ```bash
+   npm install && cd client && npm install && cd ..
+   npm run debug
+   cd client && npm start
+   ```
+   Backend API: http://localhost:8000  
+   React dev UI: http://localhost:3000
+
+6. **Production build:**
+   ```bash
+   cd client && npm run build && cd ..
    npm start
-5. **Open in Browser:**
-   Open your browser and go to http://localhost:8000 to access the Gmail-Clone application.
+   ```
+   Open http://localhost:8000 (or deploy to your server).
 
 ## How to Contribute 🚀
 

@@ -1,7 +1,27 @@
+import crypto from 'crypto';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
+import { parseMailAttachments } from './attachments.js';
+
+const buildStableId = (prefix, messageId) => {
+    if (!messageId) {
+        return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    const digest = crypto.createHash('sha1').update(`${prefix}:${messageId}`).digest('hex').slice(0, 20);
+    return `${prefix}-${digest}`;
+};
+
+const buildStableCacheId = (messageId) => buildStableId('cache', messageId);
+
+export const buildStableSentId = (messageId) => buildStableId('sent', messageId);
+
+export const isCachedEmailId = (id) => {
+    const value = String(id || '');
+    return value.startsWith('cache-') || value.startsWith('sent-');
+};
 
 const createAddressString = (addressObject = {}) => {
     if (!addressObject) return '';
@@ -21,12 +41,10 @@ const getSyncConfig = () => ({
     port: Number(process.env.MAIL_IMAP_PORT || 993),
     secure: true,
     auth: {
-        user: process.env.MAILBOX_USER || process.env.MAIL_USERNAME,
-        pass: process.env.MAILBOX_PASSWORD || process.env.MAIL_PASSWORD
+        user: process.env.MAILBOX_USER || process.env.MAIL_USERNAME || process.env.MAIL_IMAP_USERNAME,
+        pass: process.env.MAILBOX_PASSWORD || process.env.MAIL_PASSWORD || process.env.MAIL_IMAP_PASSWORD
     }
 });
-
-const getMailboxUser = () => (process.env.MAILBOX_USER || process.env.MAIL_USERNAME || '').toLowerCase();
 
 let syncInterval;
 const mailboxCache = [];
@@ -60,31 +78,116 @@ const isMailboxSender = (address = '') => {
 };
 
 const persistCachedEmail = (payload = {}) => {
-    const existing = mailboxCache.findIndex(item => item.messageId === payload.messageId);
+    const existingIndex = payload._id
+        ? mailboxCache.findIndex(item => item._id === payload._id)
+        : mailboxCache.findIndex(item => item.messageId && item.messageId === payload.messageId);
+
+    const existing = existingIndex >= 0 ? mailboxCache[existingIndex] : null;
+
     const normalized = {
-        _id: payload._id || `cache-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        read: false,
+        labels: [],
+        attachments: [],
+        archived: false,
+        body_html: '',
+        in_reply_to: '',
+        references: [],
         ...payload,
+        _id: payload._id || existing?._id || buildStableCacheId(payload.messageId),
         date: new Date(payload.date || Date.now())
     };
 
-    if (existing >= 0) {
-        mailboxCache[existing] = { ...mailboxCache[existing], ...normalized };
-    } else {
-        mailboxCache.push(normalized);
+    if (existingIndex >= 0) {
+        mailboxCache[existingIndex] = { ...mailboxCache[existingIndex], ...normalized };
+        return mailboxCache[existingIndex];
     }
 
+    mailboxCache.push(normalized);
     return normalized;
+};
+
+const matchesFilter = (item, filter = {}) => {
+    if (filter.bin !== undefined && filter.bin !== item.bin) return false;
+    if (filter.archived !== undefined && filter.archived !== item.archived) return false;
+    if (filter.starred !== undefined && filter.starred !== item.starred) return false;
+    if (filter.type && filter.type !== item.type) return false;
+    if (filter.label && !(item.labels || []).includes(filter.label)) return false;
+    if (filter.search) {
+        const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
+        if (!haystack.includes(filter.search.toLowerCase())) return false;
+    }
+    return true;
 };
 
 export const getCachedEmails = (filter = {}) => {
     return mailboxCache
-        .filter((item) => {
-            if (filter.bin !== undefined && filter.bin !== item.bin) return false;
-            if (filter.starred !== undefined && filter.starred !== item.starred) return false;
-            if (filter.type && filter.type !== item.type) return false;
-            return true;
-        })
+        .filter((item) => matchesFilter(item, filter))
         .sort((a, b) => new Date(b.date) - new Date(a.date));
+};
+
+export const getCachedEmailById = (id) => {
+    return mailboxCache.find((item) => item._id === id) || null;
+};
+
+export const findEmailRecord = async (id) => {
+    const cached = getCachedEmailById(id);
+    if (cached) {
+        return { email: cached, source: 'cache' };
+    }
+
+    if (!isDbConnected() || isCachedEmailId(id)) {
+        return null;
+    }
+
+    if (!/^[a-f\d]{24}$/i.test(String(id))) {
+        return null;
+    }
+
+    try {
+        const doc = await Email.findById(id);
+        if (doc) {
+            return { email: doc, source: 'db' };
+        }
+    } catch (error) {
+        return null;
+    }
+
+    return null;
+};
+
+export const updateCachedEmail = (id, updates = {}) => {
+    const index = mailboxCache.findIndex((item) => item._id === id);
+    if (index < 0) return null;
+    mailboxCache[index] = { ...mailboxCache[index], ...updates };
+    return mailboxCache[index];
+};
+
+export const deleteCachedEmails = (ids = []) => {
+    const idSet = new Set(ids);
+    for (let i = mailboxCache.length - 1; i >= 0; i -= 1) {
+        if (idSet.has(mailboxCache[i]._id)) {
+            mailboxCache.splice(i, 1);
+        }
+    }
+};
+
+export const buildEmailFilter = (type, query = {}) => {
+    if (type === 'starred') {
+        return { starred: true, bin: false, archived: false };
+    }
+    if (type === 'bin') {
+        return { bin: true };
+    }
+    if (type === 'archived') {
+        return { archived: true, bin: false };
+    }
+    if (type === 'allmail') {
+        return query.label ? { label: query.label } : {};
+    }
+    if (type === 'inbox') {
+        return { type: 'inbox', bin: false, archived: false, ...(query.label ? { label: query.label } : {}) };
+    }
+    return { type, ...(query.label ? { label: query.label } : {}) };
 };
 
 const syncOnce = async () => {
@@ -123,19 +226,27 @@ const syncOnce = async () => {
                     const subject = parsed.subject || msg.envelope?.subject || '';
                     const messageId = parsed.messageId || `${msg.uid}-${mailbox}`;
                     const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
+                    const attachments = parseMailAttachments(parsed.attachments || []);
 
                     const payload = {
                         to: toValue,
                         from: fromValue,
                         subject,
                         body: parsed.text || stripHtml(parsed.html || ''),
+                        body_html: typeof parsed.html === 'string' ? parsed.html : '',
                         date: msg.internalDate || parsed.date || new Date(),
                         image: '',
                         name: parseNameFromAddress(fromValue),
                         starred: false,
                         bin: false,
+                        archived: false,
+                        read: false,
                         type: emailType,
-                        messageId
+                        messageId,
+                        in_reply_to: parsed.inReplyTo || '',
+                        references: Array.isArray(parsed.references) ? parsed.references : [],
+                        labels: [],
+                        attachments
                     };
 
                     if (isDbConnected()) {

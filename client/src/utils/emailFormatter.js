@@ -20,22 +20,54 @@ export const normalizeText = (value) => {
         .trim();
 };
 
-export const formatListPreview = ({ subject, body }, limit = 140) => {
-    const normalizedSubject = normalizeText(subject) || 'No Subject';
-    const normalizedBody = normalizeText(body);
+export const stripHtml = (value = '') => {
+    return normalizeText(
+        String(value)
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+    );
+};
+
+export const parseSenderName = (fromValue = '') => {
+    const value = String(fromValue || '').trim();
+    const quotedMatch = /^"([^"]+)"\s*</.exec(value);
+    if (quotedMatch) {
+        return quotedMatch[1];
+    }
+
+    const bracketMatch = /^(.*?)\s*<[^>]+>$/.exec(value);
+    if (bracketMatch && bracketMatch[1]) {
+        return bracketMatch[1].replace(/"/g, '').trim();
+    }
+
+    if (value.includes('@')) {
+        return value.split('@')[0];
+    }
+
+    return value || 'Unknown';
+};
+
+export const parseSenderEmail = (fromValue = '') => {
+    const value = String(fromValue || '').trim();
+    const bracketMatch = /<([^>]+)>/.exec(value);
+    if (bracketMatch) {
+        return bracketMatch[1];
+    }
+    return value;
+};
+
+export const formatListPreview = ({ subject, body, body_html }, limit = 140) => {
+    const normalizedSubject = normalizeText(subject) || '(no subject)';
+    const normalizedBody = stripHtml(body_html || body);
 
     if (!normalizedBody) {
         return normalizedSubject;
     }
 
-    if (normalizedSubject.length + 3 >= limit) {
-        return truncateText(normalizedSubject, limit);
-    }
-
-    const availableForBody = limit - normalizedSubject.length - 3;
-    const previewBody = truncateText(normalizedBody, availableForBody);
-
-    return normalizedSubject + ' - ' + previewBody;
+    const combined = `${normalizedSubject} - ${normalizedBody}`;
+    return truncateText(combined, limit);
 };
 
 export const formatEmailBody = (value) => {
@@ -43,4 +75,42 @@ export const formatEmailBody = (value) => {
         .split('\n')
         .map((line) => line.trimEnd())
         .join('\n');
+};
+
+export const extractHtmlBody = (html = '') => {
+    const source = String(html || '').trim();
+    if (!source) {
+        return '';
+    }
+
+    const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(source);
+    if (bodyMatch) {
+        return bodyMatch[1].trim();
+    }
+
+    return source
+        .replace(/<!doctype[^>]*>/gi, '')
+        .replace(/<\/?html[^>]*>/gi, '')
+        .replace(/<head[\s\S]*?<\/head>/gi, '')
+        .trim();
+};
+
+export const formatEmailDate = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    if (isToday) {
+        return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    const isThisYear = date.getFullYear() === now.getFullYear();
+    if (isThisYear) {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    return date.toLocaleDateString();
 };

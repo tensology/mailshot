@@ -29,5 +29,13 @@ export const EMPTY_TABS = {
     bin: {
         heading: 'No conversations in Bin.',
         subHeading: ''
+    },
+    allmail: {
+        heading: 'No mail to show',
+        subHeading: 'All messages in your mailbox appear here.'
+    },
+    archived: {
+        heading: 'No archived messages',
+        subHeading: 'Archived messages are hidden from your inbox until you move them back.'
     }
 }

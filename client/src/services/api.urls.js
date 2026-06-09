@@ -1,7 +1,20 @@
 export const API_URLS = {
+    authLogin: {
+        endpoint: 'auth/login',
+        method: 'POST'
+    },
+    authLogout: {
+        endpoint: 'auth/logout',
+        method: 'POST'
+    },
+    authMe: {
+        endpoint: 'auth/me',
+        method: 'GET'
+    },
     sendEmail: {
         endpoint: 'send',
-        method: 'POST'
+        method: 'POST',
+        isMultipart: true
     },
     saveSentEmails: {
         endpoint: 'save',
@@ -15,8 +28,28 @@ export const API_URLS = {
         endpoint: 'emails',
         method: 'GET'
     },
+    getEmailById: {
+        endpoint: 'email',
+        method: 'GET',
+        pathBuilder: (id) => `email/${id}`
+    },
+    searchEmails: {
+        endpoint: 'emails/search',
+        method: 'GET',
+        pathBuilder: () => 'emails/search'
+    },
+    downloadAttachment: {
+        endpoint: 'email',
+        method: 'GET',
+        pathBuilder: (path) => `email/${path}`,
+        responseType: 'blob'
+    },
     toggleStarredMails: {
         endpoint: 'starred',
+        method: 'POST'
+    },
+    toggleReadMail: {
+        endpoint: 'read',
         method: 'POST'
     },
     deleteEmails: {
@@ -27,8 +60,62 @@ export const API_URLS = {
         endpoint: 'bin',
         method: 'POST'
     },
+    archiveEmails: {
+        endpoint: 'archive',
+        method: 'POST'
+    },
     syncMailbox: {
         endpoint: 'sync',
         method: 'POST'
+    },
+    getLabels: {
+        endpoint: 'labels',
+        method: 'GET',
+        pathBuilder: () => 'labels'
+    },
+    createLabel: {
+        endpoint: 'labels',
+        method: 'POST',
+        pathBuilder: () => 'labels'
+    },
+    updateLabel: {
+        endpoint: 'labels',
+        method: 'PUT',
+        pathBuilder: (id) => `labels/${id}`
+    },
+    deleteLabel: {
+        endpoint: 'labels',
+        method: 'DELETE',
+        pathBuilder: (id) => `labels/${id}`
+    },
+    updateEmailLabels: {
+        endpoint: 'email',
+        method: 'POST',
+        pathBuilder: (path) => `email/${path}`
+    },
+    getContacts: {
+        endpoint: 'contacts',
+        method: 'GET',
+        pathBuilder: () => 'contacts'
+    },
+    getContactById: {
+        endpoint: 'contacts',
+        method: 'GET',
+        pathBuilder: (id) => `contacts/${id}`
+    },
+    createContact: {
+        endpoint: 'contacts',
+        method: 'POST',
+        pathBuilder: () => 'contacts'
+    },
+    updateContact: {
+        endpoint: 'contacts',
+        method: 'PUT',
+        pathBuilder: (id) => `contacts/${id}`
+    },
+    deleteContact: {
+        endpoint: 'contacts',
+        method: 'DELETE',
+        pathBuilder: (id) => `contacts/${id}`
     }
-}
+};

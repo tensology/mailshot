@@ -4,3 +4,6 @@
 /client/node_modules
 /client/package-lock.json
 /client/.env
+/client/.env.development.local
+/auth.config.json
+/storage

@@ -1,12 +1,13 @@
 import nodemailer from 'nodemailer';
+import fs from 'fs';
 
 const getMailerConfig = () => ({
     host: process.env.MAIL_SMTP_HOST,
     port: Number(process.env.MAIL_SMTP_PORT || 587),
     secure: String(process.env.MAIL_SMTP_SECURE || 'false') === 'true',
     auth: {
-        user: process.env.MAILBOX_USER || process.env.MAIL_USERNAME,
-        pass: process.env.MAILBOX_PASSWORD || process.env.MAIL_PASSWORD
+        user: process.env.MAILBOX_USER || process.env.MAIL_USERNAME || process.env.MAIL_IMAP_USERNAME,
+        pass: process.env.MAILBOX_PASSWORD || process.env.MAIL_PASSWORD || process.env.MAIL_IMAP_PASSWORD
     },
     tls: {
         rejectUnauthorized: String(process.env.MAIL_SMTP_REJECT_UNAUTHORIZED || 'true') === 'true'
@@ -15,7 +16,7 @@ const getMailerConfig = () => ({
 
 const getDefaultFrom = () => process.env.MAIL_FROM || process.env.MAILBOX_USER || process.env.MAIL_USERNAME || '';
 
-export const sendMail = async ({ to, subject = '', body = '', inReplyTo, references }) => {
+export const sendMail = async ({ to, subject = '', body = '', html = '', inReplyTo, references, attachments = [] }) => {
     const config = getMailerConfig();
     if (!config.host || !config.auth.user || !config.auth.pass) {
         throw new Error('SMTP settings are not configured. Set MAIL_SMTP_HOST, MAILBOX_USER, MAILBOX_PASSWORD in .env.');
@@ -40,13 +41,21 @@ export const sendMail = async ({ to, subject = '', body = '', inReplyTo, referen
         throw new Error(`SMTP verification failed for ${config.host}:${config.port}. ${error.message}`);
     }
 
+    const mailAttachments = attachments.map((item) => ({
+        filename: item.filename,
+        content: item.content || (item.storage_path ? fs.readFileSync(item.storage_path) : undefined),
+        contentType: item.content_type
+    })).filter((item) => item.content);
+
     const info = await transporter.sendMail({
         from: getDefaultFrom(),
         to: toValue,
         subject,
         text: body,
+        html: html || undefined,
         inReplyTo,
         references,
+        attachments: mailAttachments,
         envelope: {
             from: config.auth.user,
             to: toValue

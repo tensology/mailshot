@@ -1,5 +1,13 @@
 import mongoose from 'mongoose';
 
+const AttachmentSchema = mongoose.Schema({
+    attachment_id: { type: String, required: true },
+    filename: { type: String, required: true },
+    content_type: { type: String, default: 'application/octet-stream' },
+    size: { type: Number, default: 0 },
+    storage_path: { type: String, required: true }
+}, { _id: false });
+
 const EmailSchema = mongoose.Schema({
     to: {
         type: String,
@@ -11,6 +19,7 @@ const EmailSchema = mongoose.Schema({
     },
     subject: String,
     body: String,
+    body_html: String,
     date: {
         type: Date,
         required: true
@@ -30,6 +39,14 @@ const EmailSchema = mongoose.Schema({
         required: true,
         default: false
     },
+    archived: {
+        type: Boolean,
+        default: false
+    },
+    read: {
+        type: Boolean,
+        default: false
+    },
     type: {
         type: String,
         required: true,
@@ -39,8 +56,20 @@ const EmailSchema = mongoose.Schema({
         index: true,
         unique: true,
         sparse: true
+    },
+    in_reply_to: String,
+    references: [String],
+    labels: {
+        type: [String],
+        default: []
+    },
+    attachments: {
+        type: [AttachmentSchema],
+        default: []
     }
-})
+});
+
+EmailSchema.index({ subject: 'text', body: 'text', from: 'text', to: 'text' });
 
 const email = mongoose.model('emails', EmailSchema);
 

@@ -1,17 +1,88 @@
 import express from 'express';
+import multer from 'multer';
 
-import { saveSendEmails, getEmails, toggleStarredEmail, deleteEmails, 
-    moveEmailsToBin, sendEmail, syncMailbox } from '../controller/email-controller.js';
+import {
+    saveSendEmails,
+    getEmails,
+    getEmailById,
+    searchEmails,
+    downloadAttachment,
+    toggleStarredEmail,
+    toggleReadEmail,
+    deleteEmails,
+    moveEmailsToBin,
+    archiveEmails,
+    sendEmail,
+    syncMailbox,
+    isMailTypeRoute
+} from '../controller/email-controller.js';
+
+import {
+    getLabels,
+    createLabel,
+    updateLabel,
+    deleteLabel,
+    updateEmailLabels,
+    getEmailLabels
+} from '../controller/label-controller.js';
+
+import {
+    getContacts,
+    getContactById,
+    createContact,
+    updateContact,
+    deleteContact
+} from '../controller/contact-controller.js';
+
+import {
+    login,
+    logout,
+    getCurrentSession,
+    getAuthStatus
+} from '../controller/auth-controller.js';
+
+import { requireAuth } from '../middleware/auth.js';
 
 const routes = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+routes.get('/auth/status', getAuthStatus);
+routes.post('/auth/login', login);
+routes.get('/auth/me', getCurrentSession);
+routes.post('/auth/logout', logout);
+
+routes.use(requireAuth);
 
 routes.post('/save', saveSendEmails);
-routes.post('/send', sendEmail);
+routes.post('/send', upload.array('attachments', 10), sendEmail);
 routes.post('/save-draft', saveSendEmails);
-routes.get('/emails/:type', getEmails);
+routes.get('/emails/search', searchEmails);
+routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);
+routes.get('/email/:id/labels', getEmailLabels);
+routes.post('/email/:id/labels', updateEmailLabels);
+routes.get('/email/:id', getEmailById);
+routes.get('/emails/:type', (request, response, next) => {
+    if (!isMailTypeRoute(request.params.type)) {
+        return response.status(404).json('Unknown mailbox type');
+    }
+    return getEmails(request, response, next);
+});
 routes.post('/starred', toggleStarredEmail);
+routes.post('/read', toggleReadEmail);
 routes.delete('/delete', deleteEmails);
 routes.post('/bin', moveEmailsToBin);
+routes.post('/archive', archiveEmails);
 routes.post('/sync', syncMailbox);
+
+routes.get('/labels', getLabels);
+routes.post('/labels', createLabel);
+routes.put('/labels/:id', updateLabel);
+routes.delete('/labels/:id', deleteLabel);
+
+routes.get('/contacts', getContacts);
+routes.get('/contacts/:id', getContactById);
+routes.post('/contacts', createContact);
+routes.put('/contacts/:id', updateContact);
+routes.delete('/contacts/:id', deleteContact);
 
 export default routes;
