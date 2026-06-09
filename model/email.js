@@ -13,6 +13,10 @@ const EmailSchema = mongoose.Schema({
         type: String,
         required: true
     },
+    cc: {
+        type: String,
+        default: ''
+    },
     from: {
         type: String,
         required: true

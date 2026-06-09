@@ -5,6 +5,7 @@ import {
     saveSendEmails,
     getEmails,
     getEmailById,
+    getEmailThread,
     searchEmails,
     downloadAttachment,
     toggleStarredEmail,
@@ -60,6 +61,7 @@ routes.get('/emails/search', searchEmails);
 routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);
 routes.get('/email/:id/labels', getEmailLabels);
 routes.post('/email/:id/labels', updateEmailLabels);
+routes.get('/email/:id/thread', getEmailThread);
 routes.get('/email/:id', getEmailById);
 routes.get('/emails/:type', (request, response, next) => {
     if (!isMailTypeRoute(request.params.type)) {

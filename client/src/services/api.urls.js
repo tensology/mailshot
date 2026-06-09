@@ -33,6 +33,11 @@ export const API_URLS = {
         method: 'GET',
         pathBuilder: (id) => `email/${id}`
     },
+    getEmailThread: {
+        endpoint: 'email',
+        method: 'GET',
+        pathBuilder: (path) => `email/${path}`
+    },
     searchEmails: {
         endpoint: 'emails/search',
         method: 'GET',

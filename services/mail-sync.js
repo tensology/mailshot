@@ -85,7 +85,6 @@ const persistCachedEmail = (payload = {}) => {
     const existing = existingIndex >= 0 ? mailboxCache[existingIndex] : null;
 
     const normalized = {
-        read: false,
         labels: [],
         attachments: [],
         archived: false,
@@ -94,7 +93,13 @@ const persistCachedEmail = (payload = {}) => {
         references: [],
         ...payload,
         _id: payload._id || existing?._id || buildStableCacheId(payload.messageId),
-        date: new Date(payload.date || Date.now())
+        date: new Date(payload.date || Date.now()),
+        read: existing ? Boolean(existing.read || payload.read) : Boolean(payload.read),
+        starred: payload.starred !== undefined ? payload.starred : (existing?.starred ?? false),
+        bin: payload.bin !== undefined ? payload.bin : (existing?.bin ?? false),
+        labels: Array.isArray(payload.labels) && payload.labels.length > 0
+            ? payload.labels
+            : (existing?.labels || [])
     };
 
     if (existingIndex >= 0) {
@@ -218,7 +223,7 @@ const syncOnce = async () => {
             const unseen = await client.search({ seen: false });
             const fetchSet = (unseen && unseen.length > 0) ? unseen.join(',') : '1:*';
 
-            for await (const msg of client.fetch(fetchSet, { uid: true, source: true, envelope: true, internalDate: true })) {
+            for await (const msg of client.fetch(fetchSet, { uid: true, source: true, envelope: true, internalDate: true, flags: true })) {
                 try {
                     const parsed = await simpleParser(msg.source);
                     const fromValue = createAddressString(parsed.from);
@@ -228,8 +233,11 @@ const syncOnce = async () => {
                     const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
                     const attachments = parseMailAttachments(parsed.attachments || []);
 
+                    const ccValue = createAddressString(parsed.cc);
+
                     const payload = {
                         to: toValue,
+                        cc: ccValue,
                         from: fromValue,
                         subject,
                         body: parsed.text || stripHtml(parsed.html || ''),
@@ -240,7 +248,7 @@ const syncOnce = async () => {
                         starred: false,
                         bin: false,
                         archived: false,
-                        read: false,
+                        read: Boolean(msg.flags?.has('\\Seen')),
                         type: emailType,
                         messageId,
                         in_reply_to: parsed.inReplyTo || '',
@@ -319,3 +327,44 @@ export const startMailboxSync = (options = {}) => {
 };
 
 export const syncMailboxNow = async () => syncOnce();
+
+export const getThreadForEmail = (anchorEmail) => {
+    if (!anchorEmail) {
+        return [];
+    }
+
+    const allEmails = [...mailboxCache];
+    const relatedIds = new Set(
+        [anchorEmail.messageId, anchorEmail.in_reply_to, ...(anchorEmail.references || [])].filter(Boolean)
+    );
+
+    let expanded = true;
+    while (expanded) {
+        expanded = false;
+        for (const item of allEmails) {
+            if (!item.messageId || relatedIds.has(item.messageId)) {
+                continue;
+            }
+
+            const references = item.references || [];
+            const matchesThread = relatedIds.has(item.in_reply_to)
+                || references.some((ref) => relatedIds.has(ref));
+
+            if (matchesThread) {
+                relatedIds.add(item.messageId);
+                references.forEach((ref) => relatedIds.add(ref));
+                expanded = true;
+            }
+        }
+    }
+
+    const thread = allEmails
+        .filter((item) => item.messageId && relatedIds.has(item.messageId))
+        .sort((left, right) => new Date(left.date) - new Date(right.date));
+
+    if (!thread.some((item) => item._id === anchorEmail._id)) {
+        return [anchorEmail, ...thread].sort((left, right) => new Date(left.date) - new Date(right.date));
+    }
+
+    return thread;
+};

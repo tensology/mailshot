@@ -16,7 +16,17 @@ const getMailerConfig = () => ({
 
 const getDefaultFrom = () => process.env.MAIL_FROM || process.env.MAILBOX_USER || process.env.MAIL_USERNAME || '';
 
-export const sendMail = async ({ to, subject = '', body = '', html = '', inReplyTo, references, attachments = [] }) => {
+export const sendMail = async ({
+    to,
+    cc = '',
+    bcc = '',
+    subject = '',
+    body = '',
+    html = '',
+    inReplyTo,
+    references,
+    attachments = []
+}) => {
     const config = getMailerConfig();
     if (!config.host || !config.auth.user || !config.auth.pass) {
         throw new Error('SMTP settings are not configured. Set MAIL_SMTP_HOST, MAILBOX_USER, MAILBOX_PASSWORD in .env.');
@@ -47,9 +57,14 @@ export const sendMail = async ({ to, subject = '', body = '', html = '', inReply
         contentType: item.content_type
     })).filter((item) => item.content);
 
+    const ccValue = String(cc || '').trim();
+    const bccValue = String(bcc || '').trim();
+
     const info = await transporter.sendMail({
         from: getDefaultFrom(),
         to: toValue,
+        cc: ccValue || undefined,
+        bcc: bccValue || undefined,
         subject,
         text: body,
         html: html || undefined,
@@ -58,7 +73,7 @@ export const sendMail = async ({ to, subject = '', body = '', html = '', inReply
         attachments: mailAttachments,
         envelope: {
             from: config.auth.user,
-            to: toValue
+            to: [toValue, ccValue, bccValue].filter(Boolean).join(', ')
         }
     });
 

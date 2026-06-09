@@ -8,7 +8,8 @@ import {
     syncMailboxNow,
     upsertCachedEmail,
     buildEmailFilter,
-    buildStableSentId
+    buildStableSentId,
+    getThreadForEmail
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
 import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
@@ -74,7 +75,19 @@ export const getEmails = async (request, response) => {
             emails = getCachedEmails(filter);
         }
 
-        response.status(200).json(emails.map(serializeEmail));
+        const page = Math.max(1, Number(request.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
+        const total = emails.length;
+        const offset = (page - 1) * limit;
+        const paginated = emails.slice(offset, offset + limit);
+
+        response.status(200).json({
+            emails: paginated.map(serializeEmail),
+            total,
+            page,
+            limit,
+            total_pages: Math.max(1, Math.ceil(total / limit))
+        });
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -87,18 +100,109 @@ export const searchEmails = async (request, response) => {
             return response.status(200).json([]);
         }
 
+        const page = Math.max(1, Number(request.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
+
+        let emails = [];
         if (isDbConnected()) {
-            const emails = await Email.find({
+            emails = await Email.find({
                 $text: { $search: query }
-            }).sort({ date: -1 }).limit(50);
-            return response.status(200).json(emails.map(serializeEmail));
+            }).sort({ date: -1 });
+        } else {
+            emails = getCachedEmails({ search: query });
         }
 
-        const emails = getCachedEmails({ search: query });
-        return response.status(200).json(emails.map(serializeEmail));
+        const total = emails.length;
+        const offset = (page - 1) * limit;
+        const paginated = emails.slice(offset, offset + limit);
+
+        return response.status(200).json({
+            emails: paginated.map(serializeEmail),
+            total,
+            page,
+            limit,
+            total_pages: Math.max(1, Math.ceil(total / limit))
+        });
     } catch (error) {
         const emails = getCachedEmails({ search: String(request.query.q || '').trim() });
-        response.status(200).json(emails.map(serializeEmail));
+        const page = Math.max(1, Number(request.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
+        const total = emails.length;
+        const offset = (page - 1) * limit;
+        response.status(200).json({
+            emails: emails.slice(offset, offset + limit).map(serializeEmail),
+            total,
+            page,
+            limit,
+            total_pages: Math.max(1, Math.ceil(total / limit))
+        });
+    }
+};
+
+const markThreadRead = async (thread, source) => {
+    for (const item of thread) {
+        const itemId = String(item._id);
+        if (source === 'db') {
+            await Email.updateOne({ _id: item._id }, { $set: { read: true } });
+        } else {
+            updateCachedEmail(itemId, { read: true });
+        }
+        item.read = true;
+    }
+};
+
+const findDbThread = async (anchorEmail) => {
+    const relatedIds = new Set(
+        [anchorEmail.messageId, anchorEmail.in_reply_to, ...(anchorEmail.references || [])].filter(Boolean)
+    );
+
+    let expanded = true;
+    while (expanded) {
+        expanded = false;
+        const matches = await Email.find({
+            $or: [
+                { messageId: { $in: [...relatedIds] } },
+                { in_reply_to: { $in: [...relatedIds] } },
+                { references: { $in: [...relatedIds] } }
+            ]
+        });
+
+        for (const item of matches) {
+            if (item.messageId && !relatedIds.has(item.messageId)) {
+                relatedIds.add(item.messageId);
+                (item.references || []).forEach((ref) => relatedIds.add(ref));
+                expanded = true;
+            }
+        }
+    }
+
+    return Email.find({ messageId: { $in: [...relatedIds] } }).sort({ date: 1 });
+};
+
+export const getEmailThread = async (request, response) => {
+    try {
+        const resolved = await findEmailRecord(request.params.id);
+        if (!resolved) {
+            return response.status(404).json('Email not found');
+        }
+
+        const { email, source } = resolved;
+        let thread = [];
+
+        if (source === 'cache') {
+            thread = getThreadForEmail(email);
+        } else if (isDbConnected()) {
+            thread = await findDbThread(email);
+        }
+
+        if (!thread.length) {
+            thread = [email];
+        }
+
+        await markThreadRead(thread, source);
+        response.status(200).json(thread.map(serializeEmail));
+    } catch (error) {
+        response.status(500).json(error.message);
     }
 };
 
@@ -290,6 +394,8 @@ export const sendEmail = async (request, response) => {
 
         const payload = {
             to: request.body.to,
+            cc: request.body.cc || '',
+            bcc: request.body.bcc || '',
             subject: request.body.subject,
             body: request.body.body,
             html: request.body.html || '',

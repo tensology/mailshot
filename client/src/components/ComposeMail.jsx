@@ -40,13 +40,15 @@ const getWindowStyles = (composeState) => {
 
     return {
         width: 560,
-        height: 520
+        height: 560
     };
 };
 
 const ComposeMail = ({ onSent }) => {
-    const { isOpen, composeState, initialTo, closeCompose, setComposeState } = useCompose();
-    const [data, setData] = useState({ to: '', subject: '', body: '' });
+    const { isOpen, composeState, draft, closeCompose, setComposeState } = useCompose();
+    const [data, setData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '' });
+    const [showCc, setShowCc] = useState(false);
+    const [showBcc, setShowBcc] = useState(false);
     const [attachments, setAttachments] = useState([]);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const sendEmailService = useApi(API_URLS.sendEmail);
@@ -55,16 +57,28 @@ const ComposeMail = ({ onSent }) => {
     const [contactOptions, setContactOptions] = useState([]);
 
     useEffect(() => {
-        if (isOpen) {
-            setData((prev) => ({ ...prev, to: initialTo || prev.to }));
-            getContactsService.call().then((result) => {
-                if (!result.error && Array.isArray(result.data)) {
-                    setContactOptions(result.data);
-                }
-            });
+        if (!isOpen) {
+            return;
         }
+
+        setData({
+            to: draft.to || '',
+            cc: draft.cc || '',
+            bcc: draft.bcc || '',
+            subject: draft.subject || '',
+            body: draft.body || ''
+        });
+        setShowCc(Boolean(draft.show_cc || draft.cc));
+        setShowBcc(Boolean(draft.show_bcc || draft.bcc));
+        setAttachments([]);
+
+        getContactsService.call().then((result) => {
+            if (!result.error && Array.isArray(result.data)) {
+                setContactOptions(result.data);
+            }
+        });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, initialTo]);
+    }, [isOpen, draft]);
 
     const onValueChange = (event) => {
         setData({ ...data, [event.target.name]: event.target.value });
@@ -75,7 +89,9 @@ const ComposeMail = ({ onSent }) => {
     };
 
     const resetForm = () => {
-        setData({ to: '', subject: '', body: '' });
+        setData({ to: '', cc: '', bcc: '', subject: '', body: '' });
+        setShowCc(false);
+        setShowBcc(false);
         setAttachments([]);
     };
 
@@ -94,8 +110,20 @@ const ComposeMail = ({ onSent }) => {
 
         const payload = new FormData();
         payload.append('to', data.to);
+        if (data.cc?.trim()) {
+            payload.append('cc', data.cc);
+        }
+        if (data.bcc?.trim()) {
+            payload.append('bcc', data.bcc);
+        }
         payload.append('subject', data.subject);
         payload.append('body', data.body || '');
+        if (draft.in_reply_to) {
+            payload.append('inReplyTo', draft.in_reply_to);
+        }
+        if (draft.references?.length) {
+            payload.append('references', draft.references.join(','));
+        }
         attachments.forEach((file) => payload.append('attachments', file));
 
         const result = await sendEmailService.call(payload);
@@ -180,7 +208,7 @@ const ComposeMail = ({ onSent }) => {
                 onClick={isMinimized ? () => setComposeState('normal') : undefined}
             >
                 <Typography sx={{ fontSize: 14, fontWeight: 500, px: 0.5 }}>
-                    New Message
+                    {draft.title || 'New Message'}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     {!isMinimized && (
@@ -217,22 +245,46 @@ const ComposeMail = ({ onSent }) => {
 
             {!isMinimized && (
                 <>
-                    <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed' }}>
+                    <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography sx={{ fontSize: 13, color: '#5f6368', minWidth: 28 }}>To</Typography>
                         <InputBase
                             fullWidth
-                            placeholder="Recipients"
                             name="to"
                             list="compose-contact-suggestions"
                             onChange={onValueChange}
                             value={data.to}
                             sx={{ fontSize: 14, py: 0.5 }}
                         />
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            {!showCc && (
+                                <Button size="small" sx={{ minWidth: 0, textTransform: 'none', color: '#5f6368' }} onClick={() => setShowCc(true)}>
+                                    Cc
+                                </Button>
+                            )}
+                            {!showBcc && (
+                                <Button size="small" sx={{ minWidth: 0, textTransform: 'none', color: '#5f6368' }} onClick={() => setShowBcc(true)}>
+                                    Bcc
+                                </Button>
+                            )}
+                        </Box>
                         <datalist id="compose-contact-suggestions">
                             {contactOptions.map((contact) => (
                                 <option key={contact._id} value={contact.email}>{contact.name}</option>
                             ))}
                         </datalist>
                     </Box>
+                    {showCc && (
+                        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontSize: 13, color: '#5f6368', minWidth: 28 }}>Cc</Typography>
+                            <InputBase fullWidth name="cc" onChange={onValueChange} value={data.cc} sx={{ fontSize: 14, py: 0.5 }} />
+                        </Box>
+                    )}
+                    {showBcc && (
+                        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontSize: 13, color: '#5f6368', minWidth: 28 }}>Bcc</Typography>
+                            <InputBase fullWidth name="bcc" onChange={onValueChange} value={data.bcc} sx={{ fontSize: 14, py: 0.5 }} />
+                        </Box>
+                    )}
                     <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed' }}>
                         <InputBase
                             fullWidth
@@ -245,7 +297,7 @@ const ComposeMail = ({ onSent }) => {
                     </Box>
                     <TextField
                         multiline
-                        minRows={composeState === 'expanded' ? 18 : 12}
+                        minRows={composeState === 'expanded' ? 16 : 10}
                         name="body"
                         onChange={onValueChange}
                         value={data.body}

@@ -12,6 +12,25 @@ import { readEmailListCache, writeEmailListCache } from '../utils/emailListCache
 import ConfirmDialog from './common/ConfirmDialog';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
+const PAGE_SIZE = 50;
+
+const normalizeEmailListResponse = (data) => {
+    if (Array.isArray(data)) {
+        return {
+            emails: data,
+            total: data.length,
+            page: 1,
+            total_pages: 1
+        };
+    }
+
+    return {
+        emails: Array.isArray(data?.emails) ? data.emails : [],
+        total: Number(data?.total) || 0,
+        page: Number(data?.page) || 1,
+        total_pages: Number(data?.total_pages) || 1
+    };
+};
 
 const Emails = () => {
     const [starredEmail, setStarredEmail] = useState(false);
@@ -22,6 +41,9 @@ const Emails = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [hasCache, setHasCache] = useState(false);
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalEmails, setTotalEmails] = useState(0);
 
     const { openDrawer } = useOutletContext();
     const { type } = useParams();
@@ -49,9 +71,9 @@ const Emails = () => {
 
         let fetchResult;
         if (searchFilter) {
-            fetchResult = await searchEmailsService.call({ q: searchFilter }, '', { silent: true });
+            fetchResult = await searchEmailsService.call({ q: searchFilter, page, limit: PAGE_SIZE }, '', { silent: true });
         } else {
-            const query = labelFilter ? { label: labelFilter } : {};
+            const query = { page, limit: PAGE_SIZE, ...(labelFilter ? { label: labelFilter } : {}) };
             fetchResult = await getEmailsService.call(query, activeTab, { silent: true });
         }
 
@@ -67,13 +89,15 @@ const Emails = () => {
             return false;
         }
 
-        const nextEmails = Array.isArray(fetchResult.data) ? fetchResult.data : [];
-        setEmails(nextEmails);
+        const normalized = normalizeEmailListResponse(fetchResult.data);
+        setEmails(normalized.emails);
+        setTotalEmails(normalized.total);
+        setTotalPages(normalized.total_pages);
         setLoadError('');
-        writeEmailListCache(cacheParams, nextEmails);
+        writeEmailListCache(cacheParams, normalized.emails);
         setHasCache(true);
         return true;
-    }, [activeTab, labelFilter, searchFilter, emails.length, getEmailsService, hasCache, searchEmailsService]);
+    }, [activeTab, labelFilter, searchFilter, emails.length, getEmailsService, hasCache, page, searchEmailsService]);
 
     const syncInBackground = useCallback(async () => {
         if (searchFilter || !SYNC_TYPES.has(activeTab)) {
@@ -122,10 +146,11 @@ const Emails = () => {
     useEffect(() => {
         loadEmails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, labelFilter, searchFilter, starredEmail]);
+    }, [activeTab, labelFilter, searchFilter, starredEmail, page]);
 
     useEffect(() => {
         setSelectedEmails([]);
+        setPage(1);
     }, [activeTab, labelFilter, searchFilter]);
 
     const showBlockingLoader = (isFetching || isSyncing) && emails.length === 0 && !hasCache;
@@ -253,6 +278,22 @@ const Emails = () => {
                 <NoMails message={searchFilter
                     ? { heading: 'No messages found', subHeading: `No results for "${searchFilter}"` }
                     : EMPTY_TABS[activeTab]} />
+            )}
+
+            {emails.length > 0 && totalPages > 1 && (
+                <Box sx={{ px: 2, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="text.secondary">
+                        {totalEmails} messages · page {page} of {totalPages}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button size="small" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+                            Newer
+                        </Button>
+                        <Button size="small" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>
+                            Older
+                        </Button>
+                    </Box>
+                </Box>
             )}
 
             {searchFilter && (

@@ -51,6 +51,37 @@ export const writeEmailListCache = ({ activeTab, labelFilter, searchFilter }, em
     }
 };
 
+export const markEmailReadInCache = (emailId) => {
+    try {
+        Object.keys(sessionStorage).forEach((key) => {
+            if (!key.startsWith(CACHE_PREFIX)) {
+                return;
+            }
+
+            const raw = sessionStorage.getItem(key);
+            if (!raw) {
+                return;
+            }
+
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed?.emails)) {
+                return;
+            }
+
+            const nextEmails = parsed.emails.map((email) => (
+                email._id === emailId ? { ...email, read: true } : email
+            ));
+
+            sessionStorage.setItem(key, JSON.stringify({
+                ...parsed,
+                emails: nextEmails
+            }));
+        });
+    } catch {
+        // ignore cache update errors
+    }
+};
+
 export const clearEmailListCache = () => {
     try {
         Object.keys(sessionStorage).forEach((key) => {
