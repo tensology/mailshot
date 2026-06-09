@@ -55,6 +55,18 @@ To run this project locally, follow these steps:
    ```
    Open http://localhost:8000 (or deploy to your server).
 
+## Production deploy
+
+**Never run `git reset --hard` on the server.** It can destroy local secrets.
+
+`.env` and `auth.config.json` are **gitignored** and **server-local only**. Deploys must not read, write, or restore them. Set credentials once on the server and leave them alone.
+
+```bash
+ssh root@tensology.com 'bash /root/repos/mailshot-app/scripts/deploy-server.sh'
+```
+
+The deploy script pulls code, rebuilds the client, restarts the service, and **aborts if `.env` or `auth.config.json` changed**.
+
 ## How to Contribute 🚀
 
 1. Fork this repository.

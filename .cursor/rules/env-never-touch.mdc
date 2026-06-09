@@ -1,0 +1,27 @@
+---
+description: Server and local .env files are immutable during agent work unless the user explicitly asks to change credentials
+alwaysApply: true
+---
+
+# Never touch .env or auth.config.json
+
+## Forbidden without explicit user request
+
+- Do not read, write, edit, append, restore, copy over, or delete `.env`, `client/.env`, `client/.env.development.local`, or `auth.config.json`
+- Do not run `git reset --hard` on the server or locally
+- Do not commit `.env` or `auth.config.json` (only `.env.example` and `auth.config.example.json`)
+- Do not SSH to production and rewrite credentials "to fix" deploys — use `scripts/deploy-server.sh` only
+
+## Deploying to production
+
+Use:
+
+```bash
+ssh root@tensology.com 'bash /root/repos/mailshot-app/scripts/deploy-server.sh'
+```
+
+The deploy script verifies `.env` and `auth.config.json` checksums before and after `git pull`. If they change, deploy aborts.
+
+## If login breaks after deploy
+
+Ask the user to verify server-side `.env` / `auth.config.json` manually. Do not overwrite their credentials.
