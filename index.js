@@ -26,37 +26,32 @@ const isBrowserNavigation = (req) => {
         || (acceptHeader.includes('text/html') && !acceptHeaderAsJson);
 };
 
-app.get('/contacts', (req, res, next) => {
-    if (req.method === 'GET' && isBrowserNavigation(req)) {
-        return res.sendFile(SPA_ENTRY_POINT);
-    }
-    return next();
-});
+const serveSpa = (req, res) => res.sendFile(SPA_ENTRY_POINT);
 
-app.get('/emails/:type/:id', (req, res, next) => {
+const maybeServeSpa = (req, res, next) => {
     if (req.method === 'GET' && isBrowserNavigation(req)) {
-        return res.sendFile(SPA_ENTRY_POINT);
+        return serveSpa(req, res);
     }
     return next();
-});
+};
 
-app.get('/emails/:type', (req, res, next) => {
-    if (req.method === 'GET' && isBrowserNavigation(req)) {
-        return res.sendFile(SPA_ENTRY_POINT);
-    }
-    return next();
-});
+// Static assets and index.html must be served before authenticated API routes.
+app.use(express.static(path.join(__dirname, './client/build')));
+
+app.get('/login', maybeServeSpa);
+app.get('/contacts', maybeServeSpa);
+app.get('/emails/:type/:id', maybeServeSpa);
+app.get('/emails/:type', maybeServeSpa);
 
 app.use('/', routes);
 app.use('/api', routes);
 
-app.use(express.static(path.join(__dirname, './client/build')));
-
-app.get('*', function (_, res){
-    res.sendFile(SPA_ENTRY_POINT, function(err){
-        res.status(500).send(err);
-    })
-})
+app.get('*', (req, res, next) => {
+    if (req.method === 'GET' && isBrowserNavigation(req)) {
+        return serveSpa(req, res);
+    }
+    return next();
+});
 
 const PORT = process.env.PORT || 8000;
 
