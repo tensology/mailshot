@@ -256,28 +256,60 @@ const formatSyncError = (error) => {
     return 'Mailbox sync failed';
 };
 
+const createImapClient = (config) => new ImapFlow({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: config.auth,
+    tls: {
+        rejectUnauthorized: false
+    },
+    logger: false
+});
+
+const shouldRetryImapOnLocalhost = (error, host, fallbackHost) => {
+    if (host === fallbackHost) {
+        return false;
+    }
+
+    const code = String(error?.code || '');
+    return code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'EHOSTUNREACH';
+};
+
+const connectImapClient = async (config) => {
+    const fallbackHost = process.env.MAIL_IMAP_FALLBACK_HOST || '127.0.0.1';
+    const client = createImapClient(config);
+
+    try {
+        await client.connect();
+        return client;
+    } catch (error) {
+        try {
+            await client.logout();
+        } catch (ignored) {}
+
+        if (!shouldRetryImapOnLocalhost(error, config.host, fallbackHost)) {
+            throw error;
+        }
+
+        const fallbackClient = createImapClient({ ...config, host: fallbackHost });
+        await fallbackClient.connect();
+        return fallbackClient;
+    }
+};
+
 const syncOnce = async () => {
     const config = getSyncConfig();
     if (!config.host || !config.auth.user || !config.auth.pass) {
         return { synced: 0, skipped: 0, error: 'IMAP settings are not configured (MAIL_IMAP_HOST, MAILBOX_USER, MAILBOX_PASSWORD)' };
     }
 
-    const client = new ImapFlow({
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        auth: config.auth,
-        tls: {
-            rejectUnauthorized: false
-        },
-        logger: false
-    });
-
     let synced = 0;
     let skipped = 0;
+    let client;
 
     try {
-        await client.connect();
+        client = await connectImapClient(config);
         const mailbox = 'INBOX';
         const lock = await client.getMailboxLock(mailbox);
         try {
@@ -380,10 +412,18 @@ const syncOnce = async () => {
         }
 
         await client.logout();
-        return { synced, skipped, mailbox: mailbox, uid_window: SYNC_RECENT_UID_WINDOW };
+        return {
+            synced,
+            skipped,
+            mailbox: mailbox,
+            uid_window: SYNC_RECENT_UID_WINDOW,
+            synced_at: new Date().toISOString()
+        };
     } catch (error) {
         try {
-            await client.logout();
+            if (client) {
+                await client.logout();
+            }
         } catch (ignored) {}
 
         const message = formatSyncError(error);

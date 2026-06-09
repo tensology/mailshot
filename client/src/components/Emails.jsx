@@ -8,11 +8,17 @@ import Email from './Email';
 import { DeleteOutline, ArchiveOutlined, Refresh } from '@mui/icons-material';
 import NoMails from './common/NoMails';
 import { EMPTY_TABS } from '../constants/constant';
-import { readEmailListCache, writeEmailListCache, removeEmailsFromListCache } from '../utils/emailListCache';
+import {
+    readEmailListCache,
+    writeEmailListCache,
+    removeEmailsFromListCache,
+    clearEmailListCache
+} from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
+const BACKGROUND_SYNC_MS = 60000;
 
 const normalizeEmailListResponse = (data) => {
     if (Array.isArray(data)) {
@@ -45,6 +51,7 @@ const Emails = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [totalEmails, setTotalEmails] = useState(0);
     const [syncError, setSyncError] = useState('');
+    const [syncNotice, setSyncNotice] = useState('');
 
     const { openDrawer } = useOutletContext();
     const { type } = useParams();
@@ -59,22 +66,24 @@ const Emails = () => {
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
 
     const syncRequestId = useRef(0);
+    const syncNoticeTimer = useRef(null);
 
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
 
-    const fetchEmailList = useCallback(async ({ silent = false } = {}) => {
+    const fetchEmailList = useCallback(async ({ silent = false, pageOverride } = {}) => {
         const cacheParams = { activeTab, labelFilter, searchFilter };
+        const listPage = pageOverride ?? page;
         if (!silent) {
             setIsFetching(true);
         }
 
         let fetchResult;
         if (searchFilter) {
-            fetchResult = await searchEmailsService.call({ q: searchFilter, page, limit: PAGE_SIZE }, '', { silent: true });
+            fetchResult = await searchEmailsService.call({ q: searchFilter, page: listPage, limit: PAGE_SIZE }, '', { silent: true });
         } else {
-            const query = { page, limit: PAGE_SIZE, ...(labelFilter ? { label: labelFilter } : {}) };
+            const query = { page: listPage, limit: PAGE_SIZE, ...(labelFilter ? { label: labelFilter } : {}) };
             fetchResult = await getEmailsService.call(query, activeTab, { silent: true });
         }
 
@@ -100,7 +109,7 @@ const Emails = () => {
         return true;
     }, [activeTab, labelFilter, searchFilter, emails.length, getEmailsService, hasCache, page, searchEmailsService]);
 
-    const runMailboxSync = useCallback(async ({ silent = true } = {}) => {
+    const runMailboxSync = useCallback(async ({ silent = true, listPage } = {}) => {
         if (searchFilter || !SYNC_TYPES.has(activeTab)) {
             return { ok: true };
         }
@@ -125,6 +134,7 @@ const Emails = () => {
 
         if (errorMessage) {
             setSyncError(errorMessage);
+            setSyncNotice('');
             if (!hasCache && emails.length === 0) {
                 setLoadError(errorMessage);
             }
@@ -132,8 +142,17 @@ const Emails = () => {
         }
 
         setSyncError('');
-        await fetchEmailList({ silent: true });
-        return { ok: true };
+        await fetchEmailList({ silent: true, pageOverride: listPage });
+
+        const syncedCount = Number(syncPayload?.synced) || 0;
+        const skippedCount = Number(syncPayload?.skipped) || 0;
+
+        return {
+            ok: true,
+            synced: syncedCount,
+            skipped: skippedCount,
+            synced_at: syncPayload?.synced_at || null
+        };
     }, [activeTab, emails.length, fetchEmailList, hasCache, searchFilter, syncMailboxService]);
 
     const syncInBackground = useCallback(() => runMailboxSync({ silent: true }), [runMailboxSync]);
@@ -157,14 +176,60 @@ const Emails = () => {
         await Promise.all([fetchPromise, syncPromise]);
     }, [activeTab, labelFilter, searchFilter, fetchEmailList, runMailboxSync]);
 
+    const showSyncNotice = useCallback((message) => {
+        setSyncNotice(message);
+        if (syncNoticeTimer.current) {
+            clearTimeout(syncNoticeTimer.current);
+        }
+        syncNoticeTimer.current = setTimeout(() => {
+            setSyncNotice('');
+        }, 4000);
+    }, []);
+
     const refreshMailbox = useCallback(async () => {
-        await runMailboxSync({ silent: false });
-    }, [runMailboxSync]);
+        clearEmailListCache();
+        setSyncNotice('');
+        setSyncError('');
+
+        if (page !== 1) {
+            setPage(1);
+        }
+
+        const result = await runMailboxSync({ silent: false, listPage: 1 });
+        if (!result.ok) {
+            return;
+        }
+
+        if (result.synced > 0) {
+            showSyncNotice(`${result.synced} new message${result.synced === 1 ? '' : 's'}`);
+            return;
+        }
+
+        showSyncNotice('Up to date');
+    }, [page, runMailboxSync, showSyncNotice]);
 
     useEffect(() => {
         loadEmails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, labelFilter, searchFilter, starredEmail, page]);
+
+    useEffect(() => {
+        if (searchFilter || !SYNC_TYPES.has(activeTab)) {
+            return undefined;
+        }
+
+        const intervalId = setInterval(() => {
+            syncInBackground();
+        }, BACKGROUND_SYNC_MS);
+
+        return () => clearInterval(intervalId);
+    }, [activeTab, searchFilter, syncInBackground]);
+
+    useEffect(() => () => {
+        if (syncNoticeTimer.current) {
+            clearTimeout(syncNoticeTimer.current);
+        }
+    }, []);
 
     useEffect(() => {
         setSelectedEmails([]);
@@ -275,7 +340,12 @@ const Emails = () => {
                         Checking for new mail...
                     </Typography>
                 )}
-                {!isSyncing && syncError && (
+                {!isSyncing && syncNotice && (
+                    <Typography variant="caption" color="success.main" sx={{ ml: 1 }}>
+                        {syncNotice}
+                    </Typography>
+                )}
+                {!isSyncing && !syncNotice && syncError && (
                     <Typography variant="caption" color="error" sx={{ ml: 1, maxWidth: 520 }}>
                         {syncError}
                     </Typography>
