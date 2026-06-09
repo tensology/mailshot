@@ -237,10 +237,29 @@ export const buildEmailFilter = (type, query = {}) => {
     return { type, ...(query.label ? { label: query.label } : {}) };
 };
 
+const SYNC_RECENT_UID_WINDOW = Number(process.env.MAILBOX_SYNC_UID_WINDOW || 200);
+
+const buildFetchUidSet = (mailboxStatus = {}) => {
+    const uidNext = Number(mailboxStatus.uidNext || 1);
+    const startUid = Math.max(1, uidNext - SYNC_RECENT_UID_WINDOW);
+    return `${startUid}:*`;
+};
+
+const formatSyncError = (error) => {
+    const response = String(error?.response || '');
+    if (response.includes('AUTHENTICATIONFAILED') || response.includes('Authentication failed')) {
+        return 'IMAP authentication failed. Update MAILBOX_PASSWORD in server .env with your mailbox password.';
+    }
+    if (error?.message) {
+        return error.message;
+    }
+    return 'Mailbox sync failed';
+};
+
 const syncOnce = async () => {
     const config = getSyncConfig();
     if (!config.host || !config.auth.user || !config.auth.pass) {
-        return { synced: 0, skipped: 0, error: 'IMAP settings are not configured' };
+        return { synced: 0, skipped: 0, error: 'IMAP settings are not configured (MAIL_IMAP_HOST, MAILBOX_USER, MAILBOX_PASSWORD)' };
     }
 
     const client = new ImapFlow({
@@ -262,8 +281,8 @@ const syncOnce = async () => {
         const mailbox = 'INBOX';
         const lock = await client.getMailboxLock(mailbox);
         try {
-            const unseen = await client.search({ seen: false });
-            const fetchSet = (unseen && unseen.length > 0) ? unseen.join(',') : '1:*';
+            const mailboxStatus = await client.status(mailbox, { uidNext: true, messages: true, unseen: true });
+            const fetchSet = buildFetchUidSet(mailboxStatus);
 
             for await (const msg of client.fetch(fetchSet, { uid: true, source: true, envelope: true, internalDate: true, flags: true })) {
                 try {
@@ -361,18 +380,22 @@ const syncOnce = async () => {
         }
 
         await client.logout();
-        return { synced, skipped };
+        return { synced, skipped, mailbox: mailbox, uid_window: SYNC_RECENT_UID_WINDOW };
     } catch (error) {
         try {
             await client.logout();
         } catch (ignored) {}
 
+        const message = formatSyncError(error);
+        console.error('Mailbox sync failed:', message, error?.response || '');
+
         return {
             synced,
             skipped,
-            error: error?.message || 'Command failed',
+            error: message,
             code: error?.code,
-            command: error?.command
+            command: error?.command,
+            response: error?.response
         };
     }
 };

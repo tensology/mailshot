@@ -44,6 +44,7 @@ const Emails = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalEmails, setTotalEmails] = useState(0);
+    const [syncError, setSyncError] = useState('');
 
     const { openDrawer } = useOutletContext();
     const { type } = useParams();
@@ -99,34 +100,47 @@ const Emails = () => {
         return true;
     }, [activeTab, labelFilter, searchFilter, emails.length, getEmailsService, hasCache, page, searchEmailsService]);
 
-    const syncInBackground = useCallback(async () => {
+    const runMailboxSync = useCallback(async ({ silent = true } = {}) => {
         if (searchFilter || !SYNC_TYPES.has(activeTab)) {
-            return;
+            return { ok: true };
         }
 
         const requestId = ++syncRequestId.current;
         setIsSyncing(true);
+        if (!silent) {
+            setSyncError('');
+        }
 
         const syncResult = await syncMailboxService.call({}, '', { silent: true });
 
         if (requestId !== syncRequestId.current) {
-            return;
+            return { ok: false };
         }
 
         setIsSyncing(false);
 
-        if (syncResult.error) {
+        const syncPayload = syncResult.data;
+        const errorMessage = syncResult.error
+            || (syncPayload && typeof syncPayload === 'object' && syncPayload.error ? String(syncPayload.error) : '');
+
+        if (errorMessage) {
+            setSyncError(errorMessage);
             if (!hasCache && emails.length === 0) {
-                setLoadError(syncResult.error);
+                setLoadError(errorMessage);
             }
-            return;
+            return { ok: false, error: errorMessage };
         }
 
+        setSyncError('');
         await fetchEmailList({ silent: true });
+        return { ok: true };
     }, [activeTab, emails.length, fetchEmailList, hasCache, searchFilter, syncMailboxService]);
+
+    const syncInBackground = useCallback(() => runMailboxSync({ silent: true }), [runMailboxSync]);
 
     const loadEmails = useCallback(async () => {
         setLoadError('');
+        setSyncError('');
 
         const cacheParams = { activeTab, labelFilter, searchFilter };
         const cachedEmails = readEmailListCache(cacheParams);
@@ -138,10 +152,14 @@ const Emails = () => {
         }
 
         const fetchPromise = fetchEmailList({ silent: Boolean(cachedEmails?.length) });
-        const syncPromise = syncInBackground();
+        const syncPromise = runMailboxSync({ silent: Boolean(cachedEmails?.length) });
 
         await Promise.all([fetchPromise, syncPromise]);
-    }, [activeTab, labelFilter, searchFilter, fetchEmailList, syncInBackground]);
+    }, [activeTab, labelFilter, searchFilter, fetchEmailList, runMailboxSync]);
+
+    const refreshMailbox = useCallback(async () => {
+        await runMailboxSync({ silent: false });
+    }, [runMailboxSync]);
 
     useEffect(() => {
         loadEmails();
@@ -226,7 +244,7 @@ const Emails = () => {
                 />
                 <IconButton
                     size="small"
-                    onClick={loadEmails}
+                    onClick={refreshMailbox}
                     disabled={isRefreshing}
                     title="Refresh"
                     aria-label="Refresh"
@@ -255,6 +273,11 @@ const Emails = () => {
                 {isSyncing && emails.length > 0 && (
                     <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
                         Checking for new mail...
+                    </Typography>
+                )}
+                {!isSyncing && syncError && (
+                    <Typography variant="caption" color="error" sx={{ ml: 1, maxWidth: 520 }}>
+                        {syncError}
                     </Typography>
                 )}
             </Box>
