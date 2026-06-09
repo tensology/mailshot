@@ -32,8 +32,31 @@ let syncInterval;
 const mailboxCache = [];
 
 const parseNameFromAddress = (value = '') => {
-    const match = /^\"?([^<>"]+)\"?\s*<[^>]+>$/.exec(value || '');
+    const match = /^"?([^<>"]+)"?\s*<[^>]+>$/.exec(value || '');
     return match ? match[1].trim() : (value || '').split('@')[0] || 'Unknown';
+};
+
+const normalizeAddress = (value = '') => {
+    const plain = String(value || '').trim().toLowerCase();
+    const bracketMatch = /<([^>]+)>/.exec(plain);
+    return (bracketMatch ? bracketMatch[1] : plain).trim();
+};
+
+const getMailboxIdentityAddresses = () => {
+    const candidates = [
+        process.env.MAILBOX_USER,
+        process.env.MAIL_USERNAME,
+        process.env.MAIL_FROM
+    ];
+
+    return [...new Set(candidates.filter(Boolean).map((value) => normalizeAddress(value)))];
+};
+
+const mailboxIdentity = getMailboxIdentityAddresses();
+
+const isMailboxSender = (address = '') => {
+    const normalized = normalizeAddress(address);
+    return normalized && mailboxIdentity.includes(normalized);
 };
 
 const persistCachedEmail = (payload = {}) => {
@@ -91,7 +114,6 @@ const syncOnce = async () => {
         try {
             const unseen = await client.search({ seen: false });
             const fetchSet = (unseen && unseen.length > 0) ? unseen.join(',') : '1:*';
-            const mailboxUser = getMailboxUser();
 
             for await (const msg of client.fetch(fetchSet, { uid: true, source: true, envelope: true, internalDate: true })) {
                 try {
@@ -100,8 +122,7 @@ const syncOnce = async () => {
                     const toValue = createAddressString(parsed.to);
                     const subject = parsed.subject || msg.envelope?.subject || '';
                     const messageId = parsed.messageId || `${msg.uid}-${mailbox}`;
-                    const normalizedFrom = fromValue.toLowerCase();
-                    const emailType = normalizedFrom === mailboxUser ? 'sent' : 'inbox';
+                    const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
 
                     const payload = {
                         to: toValue,

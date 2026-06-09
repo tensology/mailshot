@@ -16,10 +16,13 @@ const StyledDivider = styled(Divider)({
 })
 
 const NoMails = ({ message }) => {
+    const title = message?.heading || 'No mails to show';
+    const subtitle = message?.subHeading || '';
+
     return (
         <Component>
-            <Typography>{message.heading}</Typography>
-            <Typography>{message.subHeading}</Typography>
+            <Typography>{title}</Typography>
+            <Typography>{subtitle}</Typography>
             <StyledDivider />
         </Component>
     )

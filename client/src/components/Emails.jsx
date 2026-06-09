@@ -11,6 +11,7 @@ import { EMPTY_TABS } from '../constants/constant';
 const Emails = () => {
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
+    const [loadError, setLoadError] = useState('');
 
     const { openDrawer } = useOutletContext();
     const { type } = useParams();
@@ -20,16 +21,23 @@ const Emails = () => {
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
 
+    const activeTab = EMPTY_TABS[type] ? type : 'inbox';
+
     useEffect(() => {
         const loadEmails = async () => {
-            if (type === 'allmail' || type === 'inbox' || type === 'starred' || type === 'bin') {
+            if (activeTab === 'allmail' || activeTab === 'inbox' || activeTab === 'starred' || activeTab === 'bin') {
                 await syncMailboxService.call();
             }
-            await getEmailsService.call({}, type);
+
+            setLoadError('');
+            await getEmailsService.call({}, activeTab);
+            if (getEmailsService.error) {
+                setLoadError(getEmailsService.error);
+            }
         };
 
         loadEmails();
-    }, [type, starredEmail])
+    }, [activeTab, starredEmail]);
 
     const selectAllEmails = (e) => {
         if (e.target.checked) {
@@ -69,8 +77,14 @@ const Emails = () => {
                 }
             </List> 
             {
-                getEmailsService?.response?.length === 0 &&
-                    <NoMails message={EMPTY_TABS[type]} />
+                loadError &&
+                    <Box style={{ padding: 30 }}>
+                        <NoMails message={{ heading: 'Could not load messages', subHeading: loadError }} />
+                    </Box>
+            }
+            {
+                !loadError && getEmailsService?.response?.length === 0 &&
+                    <NoMails message={EMPTY_TABS[activeTab]} />
             }
         </Box>
     )

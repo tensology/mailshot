@@ -7,18 +7,35 @@ import { startMailboxSync } from './services/mail-sync.js';
 import { isDbConnected, getDbStatus } from './database/db.js';
 
 const __dirname = path.resolve();
+const SPA_ENTRY_POINT = path.join(__dirname, './client/build/index.html');
 
 const app = express();
 
 app.use(cors());
 app.use(express.urlencoded());
 app.use(express.json());
-app.use('/', routes);
 
-app.use(express.static(path.join(__dirname, "./client/build")));
+app.get('/emails/:type', (req, res, next) => {
+    const acceptHeader = String(req.get('accept') || '').toLowerCase();
+    const acceptHeaderAsJson = acceptHeader.includes('application/json');
+    const isBrowserNavigation = req.headers['sec-fetch-mode'] === 'navigate'
+        || req.headers['sec-fetch-dest'] === 'document'
+        || (acceptHeader.includes('text/html') && !acceptHeaderAsJson);
+
+    if (req.method === 'GET' && isBrowserNavigation) {
+        return res.sendFile(SPA_ENTRY_POINT);
+    }
+
+    return next();
+});
+
+app.use('/', routes);
+app.use('/api', routes);
+
+app.use(express.static(path.join(__dirname, './client/build')));
 
 app.get('*', function (_, res){
-    res.sendFile(path.join(__dirname, "./client/build/index.html"), function(err){
+    res.sendFile(SPA_ENTRY_POINT, function(err){
         res.status(500).send(err);
     })
 })

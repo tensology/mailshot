@@ -1,11 +1,10 @@
-
-
 import { ListItem, Checkbox, Typography, Box, styled } from "@mui/material";
-import { StarBorder, Star } from '@mui/icons-material';
-import useApi from '../hooks/useApi';
+import { StarBorder, Star } from "@mui/icons-material";
+import useApi from "../hooks/useApi";
 import { API_URLS } from "../services/api.urls";
 import { useNavigate } from "react-router-dom";
 import { routes } from "../routes/routes";
+import { formatListPreview } from "../utils/emailFormatter";
 
 const Wrapper = styled(ListItem)`
     padding: 0 0 0 10px;
@@ -13,7 +12,7 @@ const Wrapper = styled(ListItem)`
     cursor: pointer;
     & > div {
         display: flex;
-        width: 100%
+        width: 100%;
     }
     & > div > p {
         font-size: 14px;
@@ -29,52 +28,64 @@ const Indicator = styled(Typography)`
     padding: 0 4px;
 `;
 
-const Date = styled(Typography)({
-    marginLeft: 'auto',
+const DateText = styled(Typography)({
+    marginLeft: "auto",
     marginRight: 20,
     fontSize: 12,
-    color: '#5F6368'
-})
+    color: "#5F6368"
+});
+
+const PreviewText = styled(Typography)({
+    maxWidth: 500,
+    display: "block",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
+});
 
 const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) => {
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
-    
+
     const navigate = useNavigate();
+    const sender = email?.from ? String(email.from) : "Unknown";
+    const recipient = String(email?.to || "Unknown");
+
+    const labelText = email.type === "inbox" ? ("From: " + sender) : ("To: " + recipient);
+    const preview = formatListPreview(email, 140);
 
     const toggleStarredEmail = () => {
         toggleStarredEmailService.call({ id: email._id, value: !email.starred });
-        setStarredEmail(prevState => !prevState);
+        setStarredEmail((prevState) => !prevState);
     }
 
     const handleChange = () => {
         if (selectedEmails.includes(email._id)) {
-            setSelectedEmails(prevState => prevState.filter(id => id !== email._id));
+            setSelectedEmails((prevState) => prevState.filter(id => id !== email._id));
         } else {
-            setSelectedEmails(prevState => [...prevState, email._id]);
+            setSelectedEmails((prevState) => [...prevState, email._id]);
         }
     }
 
     return (
         <Wrapper>
-            <Checkbox 
-                size="small" 
+            <Checkbox
+                size="small"
                 checked={selectedEmails.includes(email._id)}
-                onChange={() => handleChange()} 
+                onChange={() => handleChange()}
             />
-            { 
-                email.starred ? 
+            {
+                email.starred ?
                     <Star fontSize="small" style={{ marginRight: 10 }} onClick={() => toggleStarredEmail()} />
-                : 
-                    <StarBorder fontSize="small" style={{ marginRight: 10 }} onClick={() => toggleStarredEmail()} /> 
+                :
+                    <StarBorder fontSize="small" style={{ marginRight: 10 }} onClick={() => toggleStarredEmail()} />
             }
-            <Box onClick={() => navigate(routes.view.path, { state: { email: email }})}>
-                <Typography style={{ width: 200 }}>{email.type === 'inbox' ? `From: ${email.from.split('@')[0]}` : `To: ${email.to.split('@')[0]}`}</Typography>
+            <Box onClick={() => navigate(routes.view.path, { state: { email: email } })}>
+                <Typography style={{ width: 200 }}>{labelText}</Typography>
                 <Indicator>Inbox</Indicator>
-                <Typography>{email.subject} {email.body && '-'} {email.body}</Typography>
-                <Date>
-                    {(new window.Date(email.date)).getDate()}&nbsp;
-                    {(new window.Date(email.date)).toLocaleString('default', { month: 'long' })}
-                </Date>
+                <PreviewText title={preview}>{preview}</PreviewText>
+                <DateText>
+                    {(new window.Date(email.date)).toLocaleDateString()}
+                </DateText>
             </Box>
         </Wrapper>
     )

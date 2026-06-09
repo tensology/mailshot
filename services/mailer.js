@@ -46,7 +46,11 @@ export const sendMail = async ({ to, subject = '', body = '', inReplyTo, referen
         subject,
         text: body,
         inReplyTo,
-        references
+        references,
+        envelope: {
+            from: config.auth.user,
+            to: toValue
+        }
     });
 
     return info;
