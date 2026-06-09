@@ -34,7 +34,26 @@ const createAddressString = (addressObject = {}) => {
     return '';
 };
 
-const stripHtml = (value = '') => String(value).replace(/<[^>]*>/g, '\n').replace(/\n{2,}/g, '\n').trim();
+const decodeHtmlEntities = (value = '') => {
+    return String(value)
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+        .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'");
+};
+
+const stripHtml = (value = '') => decodeHtmlEntities(
+    String(value)
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+).trim();
 
 const getSyncConfig = () => ({
     host: process.env.MAIL_IMAP_HOST,
@@ -48,6 +67,17 @@ const getSyncConfig = () => ({
 
 let syncInterval;
 const mailboxCache = [];
+const suppressedMessageIds = new Set();
+
+export const suppressMessageId = (messageId) => {
+    if (messageId) {
+        suppressedMessageIds.add(String(messageId));
+    }
+};
+
+export const isMessageSuppressed = (messageId) => {
+    return messageId ? suppressedMessageIds.has(String(messageId)) : false;
+};
 
 const parseNameFromAddress = (value = '') => {
     const match = /^"?([^<>"]+)"?\s*<[^>]+>$/.exec(value || '');
@@ -84,28 +114,37 @@ const persistCachedEmail = (payload = {}) => {
 
     const existing = existingIndex >= 0 ? mailboxCache[existingIndex] : null;
 
+    if (existingIndex >= 0) {
+        const current = mailboxCache[existingIndex];
+        const merged = {
+            ...current,
+            ...payload,
+            _id: current._id,
+            read: Boolean(current.read || payload.read),
+            starred: current.starred,
+            bin: current.bin,
+            archived: current.archived,
+            labels: current.labels?.length ? current.labels : (payload.labels || []),
+            date: new Date(payload.date || current.date || Date.now())
+        };
+        mailboxCache[existingIndex] = merged;
+        return merged;
+    }
+
     const normalized = {
+        read: false,
         labels: [],
         attachments: [],
         archived: false,
         body_html: '',
         in_reply_to: '',
         references: [],
+        starred: false,
+        bin: false,
         ...payload,
-        _id: payload._id || existing?._id || buildStableCacheId(payload.messageId),
-        date: new Date(payload.date || Date.now()),
-        read: existing ? Boolean(existing.read || payload.read) : Boolean(payload.read),
-        starred: payload.starred !== undefined ? payload.starred : (existing?.starred ?? false),
-        bin: payload.bin !== undefined ? payload.bin : (existing?.bin ?? false),
-        labels: Array.isArray(payload.labels) && payload.labels.length > 0
-            ? payload.labels
-            : (existing?.labels || [])
+        _id: payload._id || buildStableCacheId(payload.messageId),
+        date: new Date(payload.date || Date.now())
     };
-
-    if (existingIndex >= 0) {
-        mailboxCache[existingIndex] = { ...mailboxCache[existingIndex], ...normalized };
-        return mailboxCache[existingIndex];
-    }
 
     mailboxCache.push(normalized);
     return normalized;
@@ -171,6 +210,9 @@ export const deleteCachedEmails = (ids = []) => {
     const idSet = new Set(ids);
     for (let i = mailboxCache.length - 1; i >= 0; i -= 1) {
         if (idSet.has(mailboxCache[i]._id)) {
+            if (mailboxCache[i].messageId) {
+                suppressMessageId(mailboxCache[i].messageId);
+            }
             mailboxCache.splice(i, 1);
         }
     }
@@ -235,44 +277,78 @@ const syncOnce = async () => {
 
                     const ccValue = createAddressString(parsed.cc);
 
+                    if (isMessageSuppressed(messageId)) {
+                        skipped++;
+                        continue;
+                    }
+
                     const payload = {
                         to: toValue,
                         cc: ccValue,
                         from: fromValue,
-                        subject,
+                        subject: decodeHtmlEntities(subject),
                         body: parsed.text || stripHtml(parsed.html || ''),
                         body_html: typeof parsed.html === 'string' ? parsed.html : '',
                         date: msg.internalDate || parsed.date || new Date(),
                         image: '',
                         name: parseNameFromAddress(fromValue),
-                        starred: false,
-                        bin: false,
-                        archived: false,
                         read: Boolean(msg.flags?.has('\\Seen')),
                         type: emailType,
                         messageId,
                         in_reply_to: parsed.inReplyTo || '',
                         references: Array.isArray(parsed.references) ? parsed.references : [],
-                        labels: [],
                         attachments
                     };
 
                     if (isDbConnected()) {
                         const existing = await Email.findOne({ messageId: payload.messageId });
                         if (existing) {
+                            if (existing.bin) {
+                                skipped++;
+                                continue;
+                            }
+                            await Email.updateOne(
+                                { _id: existing._id },
+                                {
+                                    $set: {
+                                        body: payload.body,
+                                        body_html: payload.body_html,
+                                        subject: payload.subject,
+                                        read: Boolean(existing.read || payload.read)
+                                    }
+                                }
+                            );
                             skipped++;
                             continue;
                         }
 
-                        const emailDoc = await Email.create(payload);
+                        const emailDoc = await Email.create({
+                            ...payload,
+                            starred: false,
+                            bin: false,
+                            archived: false,
+                            labels: []
+                        });
                         if (!emailDoc) {
                             skipped++;
                         } else {
                             synced++;
                         }
                     } else {
-                        persistCachedEmail(payload);
-                        synced++;
+                        const existing = mailboxCache.find((item) => item.messageId === messageId);
+                        if (existing) {
+                            persistCachedEmail(payload);
+                            skipped++;
+                        } else {
+                            persistCachedEmail({
+                                ...payload,
+                                starred: false,
+                                bin: false,
+                                archived: false,
+                                labels: []
+                            });
+                            synced++;
+                        }
                     }
                 } catch (error) {
                     skipped++;

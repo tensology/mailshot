@@ -9,7 +9,8 @@ import {
     upsertCachedEmail,
     buildEmailFilter,
     buildStableSentId,
-    getThreadForEmail
+    getThreadForEmail,
+    suppressMessageId
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
 import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
@@ -309,8 +310,14 @@ export const deleteEmails = async (request, response) => {
                 continue;
             }
             if (resolved.source === 'cache') {
+                if (resolved.email.messageId) {
+                    suppressMessageId(resolved.email.messageId);
+                }
                 deleteCachedEmails([id]);
             } else {
+                if (resolved.email.messageId) {
+                    suppressMessageId(resolved.email.messageId);
+                }
                 dbIds.push(id);
             }
         }

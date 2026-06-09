@@ -8,7 +8,7 @@ import Email from './Email';
 import { DeleteOutline, ArchiveOutlined, Refresh } from '@mui/icons-material';
 import NoMails from './common/NoMails';
 import { EMPTY_TABS } from '../constants/constant';
-import { readEmailListCache, writeEmailListCache } from '../utils/emailListCache';
+import { readEmailListCache, writeEmailListCache, removeEmailsFromListCache } from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
@@ -188,15 +188,27 @@ const Emails = () => {
             return;
         }
 
-        if (type === 'bin') {
-            await deleteEmailsService.call(selectedEmails);
-        } else {
-            await moveEmailsToBin.call(selectedEmails);
-        }
+        const idsToRemove = [...selectedEmails];
+        const cacheParams = { activeTab, labelFilter, searchFilter };
+        const isPermanentDelete = type === 'bin';
 
+        setEmails((current) => current.filter((email) => !idsToRemove.includes(email._id)));
+        setTotalEmails((current) => Math.max(0, current - idsToRemove.length));
+        removeEmailsFromListCache(idsToRemove);
         setConfirmDeleteOpen(false);
         setSelectedEmails([]);
-        setStarredEmail((prevState) => !prevState);
+
+        const result = isPermanentDelete
+            ? await deleteEmailsService.call(idsToRemove)
+            : await moveEmailsToBin.call(idsToRemove);
+
+        if (result.error) {
+            setLoadError(result.error);
+            await fetchEmailList({ silent: true });
+            return;
+        }
+
+        await fetchEmailList({ silent: true });
     };
 
     return (

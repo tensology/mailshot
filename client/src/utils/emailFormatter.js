@@ -10,8 +10,21 @@ export const truncateText = (value, maxLength) => {
     return normalized.slice(0, trimmedLength).trimEnd() + '\u2026';
 };
 
+export const decodeHtmlEntities = (value = '') => {
+    return String(value)
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+        .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'");
+};
+
 export const normalizeText = (value) => {
-    return String(value || '')
+    return decodeHtmlEntities(String(value || ''))
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
         .replace(/\u00a0/g, ' ')
@@ -25,6 +38,8 @@ export const stripHtml = (value = '') => {
         String(value)
             .replace(/<style[\s\S]*?<\/style>/gi, ' ')
             .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<br\s*\/?>/gi, ' ')
+            .replace(/<\/p>/gi, ' ')
             .replace(/<[^>]+>/g, ' ')
             .replace(/\s+/g, ' ')
     );
@@ -59,7 +74,7 @@ export const parseSenderEmail = (fromValue = '') => {
 };
 
 export const formatListPreview = ({ subject, body, body_html }, limit = 140) => {
-    const normalizedSubject = normalizeText(subject) || '(no subject)';
+    const normalizedSubject = stripHtml(subject) || '(no subject)';
     const normalizedBody = stripHtml(body_html || body);
 
     if (!normalizedBody) {
