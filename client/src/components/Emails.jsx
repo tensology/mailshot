@@ -17,6 +17,7 @@ import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
+import { buildLabelNameMap } from '../utils/labels';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -69,7 +70,10 @@ const Emails = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
+    const [labelNameMap, setLabelNameMap] = useState(new Map());
+
     const getEmailsService = useApi(API_URLS.getEmailFromType);
+    const getLabelsService = useApi(API_URLS.getLabels);
     const searchEmailsService = useApi(API_URLS.searchEmails);
     const syncMailboxService = useApi(API_URLS.syncMailbox);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
@@ -218,6 +222,15 @@ const Emails = () => {
 
         showSyncNotice('Up to date');
     }, [page, runMailboxSync, showSyncNotice]);
+
+    useEffect(() => {
+        getLabelsService.call().then((result) => {
+            if (!result.error && Array.isArray(result.data)) {
+                setLabelNameMap(buildLabelNameMap(result.data));
+            }
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         loadEmails();
@@ -375,6 +388,7 @@ const Emails = () => {
                                 setStarredEmail={setStarredEmail}
                                 selectedEmails={selectedEmails}
                                 setSelectedEmails={setSelectedEmails}
+                                labelNameMap={labelNameMap}
                             />
                         ))}
                     </div>

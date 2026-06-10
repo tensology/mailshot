@@ -8,12 +8,7 @@ import {
     updateCachedLabel,
     deleteCachedLabel
 } from '../services/label-store.js';
-
-const slugify = (value = '') => String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+import { slugify } from '../utils/slug.js';
 
 export const getLabels = async (_, response) => {
     try {

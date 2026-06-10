@@ -6,6 +6,7 @@ import { simpleParser } from 'mailparser';
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
 import { parseMailAttachments } from './attachments.js';
+import { slugify } from '../utils/slug.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -212,7 +213,13 @@ const matchesFilter = (item, filter = {}) => {
     if (filter.archived !== undefined && filter.archived !== item.archived) return false;
     if (filter.starred !== undefined && filter.starred !== item.starred) return false;
     if (filter.type && filter.type !== item.type) return false;
-    if (filter.label && !(item.labels || []).includes(filter.label)) return false;
+    if (filter.label) {
+        const wanted = String(filter.label);
+        const hasLabel = (item.labels || []).some((label) => (
+            label === wanted || slugify(label) === wanted
+        ));
+        if (!hasLabel) return false;
+    }
     if (filter.search) {
         const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
         if (!haystack.includes(filter.search.toLowerCase())) return false;

@@ -6,6 +6,8 @@ import path from 'path';
 import { startMailboxSync } from './services/mail-sync.js';
 import { isDbConnected, getDbStatus } from './database/db.js';
 import { isAuthConfigured } from './services/auth-config.js';
+import { loadLabelsFromDisk } from './services/label-store.js';
+import { loadContactsFromDisk } from './services/contact-store.js';
 
 const __dirname = path.resolve();
 const SPA_ENTRY_POINT = path.join(__dirname, './client/build/index.html');
@@ -70,6 +72,16 @@ if (isAuthConfigured()) {
     console.log('Login authentication is enabled');
 } else {
     console.warn('Login authentication is not configured. Set AUTH_USERNAME/AUTH_PASSWORD or auth.config.json');
+}
+
+const loadedLabels = loadLabelsFromDisk();
+if (loadedLabels > 0) {
+    console.log(`Loaded ${loadedLabels} labels from disk cache`);
+}
+
+const loadedContacts = loadContactsFromDisk();
+if (loadedContacts > 0) {
+    console.log(`Loaded ${loadedContacts} contacts from disk cache`);
 }
 
 startMailboxSync({

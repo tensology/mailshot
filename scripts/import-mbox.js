@@ -20,6 +20,8 @@ import {
     saveMailboxCacheToDisk,
     getCachedEmails
 } from '../services/mail-sync.js';
+import { normalizeLabelToken } from '../services/label-store.js';
+import { upsertCachedContact } from '../services/contact-store.js';
 
 const SYSTEM_LABELS = new Set([
     'Trash',
@@ -176,8 +178,54 @@ const buildEmailPayload = (parsed, gmailLabels) => {
         starred: isImportant,
         bin: isTrash,
         archived: false,
-        labels: gmailLabels.filter((label) => !SYSTEM_LABELS.has(label))
+        labels: gmailLabels
+            .filter((label) => !SYSTEM_LABELS.has(label))
+            .map((label) => normalizeLabelToken(label))
+            .filter(Boolean)
     };
+};
+
+const extractAddresses = (value = '') => {
+    const results = [];
+    const chunks = String(value).split(',');
+
+    chunks.forEach((chunk) => {
+        const trimmed = chunk.trim();
+        if (!trimmed) {
+            return;
+        }
+
+        const bracketMatch = /<([^>]+)>/.exec(trimmed);
+        const email = (bracketMatch ? bracketMatch[1] : trimmed).trim().toLowerCase();
+        if (!email.includes('@')) {
+            return;
+        }
+
+        results.push({
+            email,
+            name: parseNameFromAddress(trimmed)
+        });
+    });
+
+    return results;
+};
+
+const importContactsFromPayload = (payload) => {
+    const addresses = [
+        ...extractAddresses(payload.from),
+        ...extractAddresses(payload.to),
+        ...extractAddresses(payload.cc)
+    ];
+
+    addresses.forEach((entry) => {
+        if (mailboxIdentity.includes(entry.email)) {
+            return;
+        }
+        if (/^(no-?reply|mailer-daemon|postmaster)@/i.test(entry.email)) {
+            return;
+        }
+        upsertCachedContact(entry);
+    });
 };
 
 async function importMbox(mboxFilePath, { dryRun = false } = {}) {
@@ -258,6 +306,8 @@ async function importMbox(mboxFilePath, { dryRun = false } = {}) {
             } else {
                 upsertCachedEmail(payload);
             }
+
+            importContactsFromPayload(payload);
 
             knownMessageIds.add(parsed.messageId);
             importedCount += 1;

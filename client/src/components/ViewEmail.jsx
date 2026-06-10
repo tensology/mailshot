@@ -18,6 +18,7 @@ import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
 import Toast from './ui/Toast';
+import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -191,7 +192,7 @@ const ViewEmail = () => {
                             onClick={() => saveLabels(emailLabels.filter((item) => item !== label))}
                             className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
                         >
-                            {label} ×
+                            {getLabelDisplayName(label, buildLabelNameMap(labels))} ×
                         </button>
                     ))}
                     <select

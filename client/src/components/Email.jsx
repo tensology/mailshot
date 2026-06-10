@@ -4,8 +4,9 @@ import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
 import { formatListPreview, parseSenderName, formatEmailDate } from '../utils/emailFormatter';
+import { getLabelDisplayName } from '../utils/labels';
 
-const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) => {
+const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labelNameMap }) => {
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
     const navigate = useNavigate();
     const { type } = useParams();
@@ -89,7 +90,7 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) =>
                                 key={label}
                                 className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
                             >
-                                {label}
+                                {getLabelDisplayName(label, labelNameMap)}
                             </span>
                         ))}
                     </div>
