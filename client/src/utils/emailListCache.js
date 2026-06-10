@@ -122,3 +122,35 @@ export const clearEmailListCache = () => {
         // ignore
     }
 };
+
+const ACTION_ERROR_KEY = 'mailshot:action-error';
+
+export const setActionError = (message) => {
+    try {
+        sessionStorage.setItem(ACTION_ERROR_KEY, JSON.stringify({
+            message: String(message || 'Action failed'),
+            at: Date.now()
+        }));
+    } catch {
+        // ignore
+    }
+};
+
+export const consumeActionError = () => {
+    try {
+        const raw = sessionStorage.getItem(ACTION_ERROR_KEY);
+        if (!raw) {
+            return '';
+        }
+
+        sessionStorage.removeItem(ACTION_ERROR_KEY);
+        const parsed = JSON.parse(raw);
+        if (!parsed?.message || Date.now() - parsed.at > 60000) {
+            return '';
+        }
+
+        return parsed.message;
+    } catch {
+        return '';
+    }
+};

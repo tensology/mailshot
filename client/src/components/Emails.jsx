@@ -11,7 +11,8 @@ import {
     readEmailListCache,
     writeEmailListCache,
     removeEmailsFromListCache,
-    clearEmailListCache
+    clearEmailListCache,
+    consumeActionError
 } from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
@@ -229,6 +230,11 @@ const Emails = () => {
                 setLabelNameMap(buildLabelNameMap(result.data));
             }
         });
+
+        const actionError = consumeActionError();
+        if (actionError) {
+            setSyncError(actionError);
+        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -290,34 +296,37 @@ const Emails = () => {
         setConfirmDeleteOpen(true);
     };
 
-    const deleteSelectedEmails = async () => {
+    const deleteSelectedEmails = () => {
         if (!selectedEmails.length) {
             return;
         }
 
         const idsToRemove = [...selectedEmails];
         const isPermanentDelete = type === 'bin';
+        const cacheParams = { activeTab, labelFilter, searchFilter };
+        const previousEmails = emails;
+        const previousTotal = totalEmails;
+        const nextEmails = previousEmails.filter((email) => !idsToRemove.includes(email._id));
 
-        setEmails((current) => current.filter((email) => !idsToRemove.includes(email._id)));
-        setTotalEmails((current) => Math.max(0, current - idsToRemove.length));
-        removeEmailsFromListCache(idsToRemove);
         setConfirmDeleteOpen(false);
         setSelectedEmails([]);
+        setEmails(nextEmails);
+        setTotalEmails(Math.max(0, previousTotal - idsToRemove.length));
+        removeEmailsFromListCache(idsToRemove);
+        writeEmailListCache(cacheParams, nextEmails);
 
-        const result = isPermanentDelete
-            ? await deleteEmailsService.call(idsToRemove)
-            : await moveEmailsToBin.call(idsToRemove);
+        const apiCall = isPermanentDelete
+            ? deleteEmailsService.call(idsToRemove)
+            : moveEmailsToBin.call(idsToRemove);
 
-        if (result.error) {
-            setLoadError(result.error);
-            await fetchEmailList();
-            return;
-        }
-
-        if (!isPermanentDelete) {
-            clearEmailListCache();
-        }
-        await fetchEmailList();
+        apiCall.then((result) => {
+            if (result.error) {
+                setEmails(previousEmails);
+                setTotalEmails(previousTotal);
+                writeEmailListCache(cacheParams, previousEmails);
+                setSyncError(result.error);
+            }
+        });
     };
 
     return (

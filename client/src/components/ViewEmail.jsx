@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
-import { markEmailReadInCache } from '../utils/emailListCache';
+import { markEmailReadInCache, removeEmailsFromListCache, setActionError } from '../utils/emailListCache';
 import {
     buildForwardBody,
     buildReplyAllRecipients,
@@ -151,18 +151,23 @@ const ViewEmail = () => {
         }
     };
 
-    const deleteEmail = async () => {
-        const result = type === 'bin'
-            ? await deleteEmailsService.call([primaryEmail._id])
-            : await moveEmailsToBin.call([primaryEmail._id]);
-
-        if (result.error) {
-            setSnackbar({ open: true, message: result.error, severity: 'error' });
-            return;
-        }
+    const deleteEmail = () => {
+        const emailId = primaryEmail._id;
+        const isPermanentDelete = type === 'bin';
 
         setConfirmDeleteOpen(false);
+        removeEmailsFromListCache([emailId]);
         navigate(`/emails/${type || 'inbox'}`);
+
+        const apiCall = isPermanentDelete
+            ? deleteEmailsService.call([emailId])
+            : moveEmailsToBin.call([emailId]);
+
+        apiCall.then((result) => {
+            if (result.error) {
+                setActionError(result.error);
+            }
+        });
     };
 
     return (
