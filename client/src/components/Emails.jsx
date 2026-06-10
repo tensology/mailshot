@@ -12,13 +12,15 @@ import {
     writeEmailListCache,
     removeEmailsFromListCache,
     clearEmailListCache,
-    consumeActionError
+    consumeActionError,
+    consumeActionNotice
 } from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
 import MoveToLabelMenu from './MoveToLabelMenu';
+import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
@@ -67,6 +69,7 @@ const Emails = () => {
     const [totalEmails, setTotalEmails] = useState(0);
     const [syncError, setSyncError] = useState('');
     const [syncNotice, setSyncNotice] = useState('');
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     const { type } = useParams();
     const [searchParams] = useSearchParams();
@@ -204,6 +207,10 @@ const Emails = () => {
         }, 4000);
     }, []);
 
+    const showActionToast = useCallback((message, severity = 'success') => {
+        setSnackbar({ open: true, message, severity });
+    }, []);
+
     const refreshMailbox = useCallback(async () => {
         clearEmailListCache();
         setSyncNotice('');
@@ -234,10 +241,30 @@ const Emails = () => {
             }
         });
 
+        const onActionNotice = (event) => {
+            showActionToast(event.detail.message);
+        };
+        const onActionError = (event) => {
+            showActionToast(event.detail.message, 'error');
+        };
+
+        window.addEventListener('mailshot:action-notice', onActionNotice);
+        window.addEventListener('mailshot:action-error', onActionError);
+
+        const actionNotice = consumeActionNotice();
+        if (actionNotice) {
+            showActionToast(actionNotice);
+        }
+
         const actionError = consumeActionError();
         if (actionError) {
-            setSyncError(actionError);
+            showActionToast(actionError, 'error');
         }
+
+        return () => {
+            window.removeEventListener('mailshot:action-notice', onActionNotice);
+            window.removeEventListener('mailshot:action-error', onActionError);
+        };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -321,7 +348,14 @@ const Emails = () => {
         setSelectedEmails([]);
         removeEmailsFromListCache(ids);
         writeEmailListCache(cacheParams, nextEmails);
-        showSyncNotice(`Moved to ${getLabelDisplayName(labelSlug, labelNameMap)}`);
+    };
+
+    const confirmMoveToLabel = (labelSlug, ids) => {
+        const labelName = getLabelDisplayName(labelSlug, labelNameMap);
+        const message = ids.length === 1
+            ? `Moved to ${labelName}`
+            : `${ids.length} messages moved to ${labelName}`;
+        showActionToast(message);
     };
 
     const deleteSelectedEmails = () => {
@@ -352,8 +386,15 @@ const Emails = () => {
                 setEmails(previousEmails);
                 setTotalEmails(previousTotal);
                 writeEmailListCache(cacheParams, previousEmails);
-                setSyncError(result.error);
+                showActionToast(result.error, 'error');
+                return;
             }
+
+            const count = idsToRemove.length;
+            const message = isPermanentDelete
+                ? `${count} message${count === 1 ? '' : 's'} deleted permanently`
+                : `${count} message${count === 1 ? '' : 's'} moved to Bin`;
+            showActionToast(message);
         });
     };
 
@@ -391,6 +432,7 @@ const Emails = () => {
                             emailIds={selectedEmails}
                             labels={availableLabels}
                             onMoved={moveSelectedToLabel}
+                            onMoveConfirmed={confirmMoveToLabel}
                         />
                     )}
                     {hasSelection && (
@@ -480,6 +522,13 @@ const Emails = () => {
                 confirmLabel={type === 'bin' ? 'Delete forever' : 'Move to Bin'}
                 onConfirm={deleteSelectedEmails}
                 onCancel={() => setConfirmDeleteOpen(false)}
+            />
+
+            <Toast
+                open={snackbar.open}
+                message={snackbar.message}
+                severity={snackbar.severity}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
             />
         </div>
     );

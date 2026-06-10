@@ -9,6 +9,7 @@ const MoveToLabelMenu = ({
     emailIds = [],
     labels = [],
     onMoved,
+    onMoveConfirmed,
     disabled = false,
     buttonLabel = 'Move to'
 }) => {
@@ -42,8 +43,15 @@ const MoveToLabelMenu = ({
         }
 
         moveToLabelService.call({ ids: emailIds, label: labelSlug }, '', { silent: true }).then((result) => {
-            if (result.error && onMoved) {
-                onMoved(labelSlug, emailIds, result.error);
+            if (result.error) {
+                if (onMoved) {
+                    onMoved(labelSlug, emailIds, result.error);
+                }
+                return;
+            }
+
+            if (onMoveConfirmed) {
+                onMoveConfirmed(labelSlug, emailIds);
             }
         });
     };

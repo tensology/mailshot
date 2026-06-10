@@ -4,7 +4,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
-import { markEmailReadInCache, removeEmailsFromListCache, setActionError } from '../utils/emailListCache';
+import {
+    markEmailReadInCache,
+    removeEmailsFromListCache,
+    setActionError,
+    setActionNotice
+} from '../utils/emailListCache';
 import {
     buildForwardBody,
     buildReplyAllRecipients,
@@ -177,14 +182,18 @@ const ViewEmail = () => {
         if (type === 'inbox') {
             removeEmailsFromListCache([primaryEmail._id]);
             navigate('/emails/inbox');
+        }
+    };
+
+    const confirmMoveToLabel = (labelSlug) => {
+        const message = `Moved to ${getLabelDisplayName(labelSlug, buildLabelNameMap(labels))}`;
+
+        if (type === 'inbox') {
+            setActionNotice(message);
             return;
         }
 
-        setSnackbar({
-            open: true,
-            message: `Moved to ${getLabelDisplayName(labelSlug, buildLabelNameMap(labels))}`,
-            severity: 'success'
-        });
+        setSnackbar({ open: true, message, severity: 'success' });
     };
 
     const deleteEmail = () => {
@@ -202,7 +211,10 @@ const ViewEmail = () => {
         apiCall.then((result) => {
             if (result.error) {
                 setActionError(result.error);
+                return;
             }
+
+            setActionNotice(isPermanentDelete ? 'Message deleted permanently' : 'Moved to Bin');
         });
     };
 
@@ -217,6 +229,7 @@ const ViewEmail = () => {
                         emailIds={[primaryEmail._id]}
                         labels={labels}
                         onMoved={moveToLabel}
+                        onMoveConfirmed={confirmMoveToLabel}
                     />
                 )}
                 <IconButton label="Delete" onClick={() => setConfirmDeleteOpen(true)}>

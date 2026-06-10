@@ -124,16 +124,37 @@ export const clearEmailListCache = () => {
 };
 
 const ACTION_ERROR_KEY = 'mailshot:action-error';
+const ACTION_NOTICE_KEY = 'mailshot:action-notice';
+const ACTION_NOTICE_EVENT = 'mailshot:action-notice';
+const ACTION_ERROR_EVENT = 'mailshot:action-error';
+
+const dispatchActionMessage = (eventName, message) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.dispatchEvent(new CustomEvent(eventName, {
+            detail: { message: String(message) }
+        }));
+    } catch {
+        // ignore
+    }
+};
 
 export const setActionError = (message) => {
+    const text = String(message || 'Action failed');
+
     try {
         sessionStorage.setItem(ACTION_ERROR_KEY, JSON.stringify({
-            message: String(message || 'Action failed'),
+            message: text,
             at: Date.now()
         }));
     } catch {
         // ignore
     }
+
+    dispatchActionMessage(ACTION_ERROR_EVENT, text);
 };
 
 export const consumeActionError = () => {
@@ -144,6 +165,40 @@ export const consumeActionError = () => {
         }
 
         sessionStorage.removeItem(ACTION_ERROR_KEY);
+        const parsed = JSON.parse(raw);
+        if (!parsed?.message || Date.now() - parsed.at > 60000) {
+            return '';
+        }
+
+        return parsed.message;
+    } catch {
+        return '';
+    }
+};
+
+export const setActionNotice = (message) => {
+    const text = String(message || 'Done');
+
+    try {
+        sessionStorage.setItem(ACTION_NOTICE_KEY, JSON.stringify({
+            message: text,
+            at: Date.now()
+        }));
+    } catch {
+        // ignore
+    }
+
+    dispatchActionMessage(ACTION_NOTICE_EVENT, text);
+};
+
+export const consumeActionNotice = () => {
+    try {
+        const raw = sessionStorage.getItem(ACTION_NOTICE_KEY);
+        if (!raw) {
+            return '';
+        }
+
+        sessionStorage.removeItem(ACTION_NOTICE_KEY);
         const parsed = JSON.parse(raw);
         if (!parsed?.message || Date.now() - parsed.at > 60000) {
             return '';
