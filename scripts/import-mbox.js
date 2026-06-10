@@ -9,9 +9,13 @@
  */
 import 'dotenv/config';
 import fs from 'fs';
-import readline from 'readline';
-import { createReadStream } from 'fs';
 import { simpleParser } from 'mailparser';
+import {
+    iterateMboxMessages,
+    stripMboxDelimiter,
+    parseGmailLabels,
+    isStarredFromGmailLabels
+} from './mbox-utils.js';
 import Email from '../model/email.js';
 import Connection, { isDbConnected } from '../database/db.js';
 import {
@@ -100,45 +104,6 @@ const isMailboxSender = (address = '') => {
     return normalized && mailboxIdentity.includes(normalized);
 };
 
-const isMboxDelimiter = (line = '') => /^From \S/.test(line);
-
-/**
- * Stream-parse an mbox file one message at a time.
- */
-async function* iterateMboxMessages(mboxFilePath) {
-    const stream = createReadStream(mboxFilePath, { encoding: 'utf8' });
-    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-
-    let lines = [];
-
-    for await (const line of rl) {
-        if (isMboxDelimiter(line) && lines.length > 0) {
-            yield lines.join('\n');
-            lines = [line];
-        } else {
-            lines.push(line);
-        }
-    }
-
-    if (lines.length > 0) {
-        yield lines.join('\n');
-    }
-};
-
-const stripMboxDelimiter = (rawBlock = '') => {
-    const lines = rawBlock.split('\n');
-    if (lines.length > 0 && isMboxDelimiter(lines[0])) {
-        return lines.slice(1).join('\n');
-    }
-    return rawBlock;
-};
-
-const parseGmailLabels = (parsed) => {
-    const header = parsed.headers.get('x-gmail-labels');
-    if (!header) return [];
-    return String(header).split(',').map((label) => label.trim()).filter(Boolean);
-};
-
 const buildEmailPayload = (parsed, gmailLabels) => {
     const fromValue = createAddressString(parsed.from);
     const toValue = createAddressString(parsed.to);
@@ -147,7 +112,7 @@ const buildEmailPayload = (parsed, gmailLabels) => {
     const isSentLabel = gmailLabels.includes('Sent');
     const isDraft = gmailLabels.includes('Draft') || gmailLabels.includes('Drafts');
     const isRead = gmailLabels.includes('Opened') || !gmailLabels.includes('Unread');
-    const isImportant = gmailLabels.includes('Important') || gmailLabels.includes('Starred');
+    const isStarred = isStarredFromGmailLabels(gmailLabels);
 
     let type = 'inbox';
     if (isDraft) {
@@ -175,7 +140,7 @@ const buildEmailPayload = (parsed, gmailLabels) => {
         in_reply_to: parsed.inReplyTo || '',
         references: Array.isArray(parsed.references) ? parsed.references : [],
         attachments: [],
-        starred: isImportant,
+        starred: isStarred,
         bin: isTrash,
         archived: false,
         labels: gmailLabels
