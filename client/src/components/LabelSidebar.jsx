@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useSearchParams } from 'react-router-dom';
 import { Tag } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -7,7 +7,15 @@ import { routes } from '../routes/routes';
 import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
 import Input from './ui/Input';
 
+const labelNavClass = (isActive) => (
+    `flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-sm transition ${
+        isActive ? 'bg-blue-100 font-medium text-blue-800' : 'text-slate-700 hover:bg-slate-100'
+    }`
+);
+
 const LabelSidebar = ({ onNavigate }) => {
+    const [searchParams] = useSearchParams();
+    const activeLabel = searchParams.get('label') || '';
     const getLabelsService = useApi(API_URLS.getLabels);
     const createLabelService = useApi(API_URLS.createLabel);
     const deleteLabelService = useApi(API_URLS.deleteLabel);
@@ -59,7 +67,7 @@ const LabelSidebar = ({ onNavigate }) => {
                         <NavLink
                             to={`${routes.emails.path}/allmail?label=${encodeURIComponent(label.slug)}`}
                             onClick={onNavigate}
-                            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            className={labelNavClass(activeLabel === label.slug)}
                         >
                             <Tag className="h-4 w-4 shrink-0" style={{ color: label.color || '#64748b' }} />
                             <span className="truncate">{label.name}</span>

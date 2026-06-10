@@ -87,13 +87,15 @@ const Emails = () => {
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
 
     const syncRequestId = useRef(0);
+    const listRequestId = useRef(0);
     const syncNoticeTimer = useRef(null);
 
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
 
-    const fetchEmailList = useCallback(async ({ silent = false, pageOverride } = {}) => {
+    const fetchEmailList = useCallback(async ({ silent = false, pageOverride, requestId } = {}) => {
+        const activeRequestId = requestId ?? ++listRequestId.current;
         const cacheParams = { activeTab, labelFilter, searchFilter };
         const listPage = pageOverride ?? page;
         if (!silent) {
@@ -112,11 +114,15 @@ const Emails = () => {
             setIsFetching(false);
         }
 
+        if (activeRequestId !== listRequestId.current) {
+            return false;
+        }
+
         if (fetchResult.error) {
-            if (!hasCache && emails.length === 0) {
-                setLoadError(fetchResult.error);
-                setEmails([]);
-            }
+            setLoadError(fetchResult.error);
+            setEmails([]);
+            setTotalEmails(0);
+            setTotalPages(1);
             return false;
         }
 
@@ -128,9 +134,9 @@ const Emails = () => {
         writeEmailListCache(cacheParams, normalized.emails);
         setHasCache(true);
         return true;
-    }, [activeTab, labelFilter, searchFilter, emails.length, getEmailsService, hasCache, page, searchEmailsService]);
+    }, [activeTab, labelFilter, searchFilter, getEmailsService, page, searchEmailsService]);
 
-    const runMailboxSync = useCallback(async ({ silent = true, listPage } = {}) => {
+    const runMailboxSync = useCallback(async ({ silent = true, listPage, listRequestId: listRequestIdOverride } = {}) => {
         if (searchFilter || !SYNC_TYPES.has(activeTab)) {
             return { ok: true };
         }
@@ -163,7 +169,11 @@ const Emails = () => {
         }
 
         setSyncError('');
-        await fetchEmailList({ silent: true, pageOverride: listPage });
+        await fetchEmailList({
+            silent: true,
+            pageOverride: listPage,
+            requestId: listRequestIdOverride ?? listRequestId.current
+        });
 
         const syncedCount = Number(syncPayload?.synced) || 0;
         const skippedCount = Number(syncPayload?.skipped) || 0;
@@ -179,6 +189,7 @@ const Emails = () => {
     const syncInBackground = useCallback(() => runMailboxSync({ silent: true }), [runMailboxSync]);
 
     const loadEmails = useCallback(async () => {
+        const requestId = ++listRequestId.current;
         setLoadError('');
         setSyncError('');
 
@@ -191,8 +202,14 @@ const Emails = () => {
             setHasCache(false);
         }
 
-        const fetchPromise = fetchEmailList({ silent: Boolean(cachedEmails?.length) });
-        const syncPromise = runMailboxSync({ silent: Boolean(cachedEmails?.length) });
+        const fetchPromise = fetchEmailList({
+            silent: Boolean(cachedEmails?.length),
+            requestId
+        });
+        const syncPromise = runMailboxSync({
+            silent: Boolean(cachedEmails?.length),
+            listRequestId: requestId
+        });
 
         await Promise.all([fetchPromise, syncPromise]);
     }, [activeTab, labelFilter, searchFilter, fetchEmailList, runMailboxSync]);
@@ -294,7 +311,17 @@ const Emails = () => {
     useEffect(() => {
         setSelectedEmails([]);
         setPage(1);
+        setEmails([]);
+        setHasCache(false);
+        setTotalEmails(0);
+        setTotalPages(1);
     }, [activeTab, labelFilter, searchFilter]);
+
+    const listTitle = searchFilter
+        ? `Search: ${searchFilter}`
+        : labelFilter
+            ? getLabelDisplayName(labelFilter, labelNameMap)
+            : tabTitles[activeTab] || 'Mail';
 
     const showBlockingLoader = (isFetching || isSyncing) && emails.length === 0 && !hasCache;
     const hasSelection = selectedEmails.length > 0;
@@ -442,7 +469,7 @@ const Emails = () => {
                     )}
                     <div className="ml-auto min-w-0 text-right">
                         <p className="truncate text-sm font-medium text-slate-800">
-                            {searchFilter ? `Search: ${searchFilter}` : tabTitles[activeTab] || 'Mail'}
+                            {listTitle}
                         </p>
                         {isSyncing && emails.length > 0 && (
                             <p className="text-xs text-slate-500">Checking for new mail…</p>

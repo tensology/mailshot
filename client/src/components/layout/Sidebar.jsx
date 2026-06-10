@@ -1,4 +1,4 @@
-import { NavLink, useParams } from 'react-router-dom';
+import { NavLink, useParams, useSearchParams } from 'react-router-dom';
 import { PenSquare } from 'lucide-react';
 import { SIDEBAR_DATA } from '../../config/sidebar.config';
 import { routes } from '../../routes/routes';
@@ -16,6 +16,8 @@ const navClass = ({ isActive }) => (
 
 const Sidebar = ({ onSent }) => {
     const { type } = useParams();
+    const [searchParams] = useSearchParams();
+    const activeLabel = searchParams.get('label') || '';
     const { isMobile, sidebarOpen, closeSidebar } = useLayout();
     const { openCompose } = useCompose();
 
@@ -64,7 +66,7 @@ const Sidebar = ({ onSent }) => {
                 <nav className="scrollbar-thin min-w-[16rem] flex-1 space-y-1 overflow-y-auto px-3 py-3">
                     {SIDEBAR_DATA.map((item) => {
                         const Icon = item.icon;
-                        const active = type === item.name;
+                        const active = type === item.name && !(item.name === 'allmail' && activeLabel);
 
                         return (
                             <NavLink
