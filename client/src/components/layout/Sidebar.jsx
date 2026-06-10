@@ -26,23 +26,31 @@ const Sidebar = ({ onSent }) => {
         }
     };
 
+    const handleNavigate = () => {
+        if (isMobile) {
+            closeSidebar();
+        }
+    };
+
     return (
         <>
-            {isMobile && sidebarOpen && (
+            {sidebarOpen && isMobile && (
                 <button
                     type="button"
                     aria-label="Close menu"
-                    className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px] lg:hidden"
+                    className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px]"
                     onClick={closeSidebar}
                 />
             )}
 
             <aside
-                className={`fixed inset-y-0 left-0 z-50 flex w-[min(18rem,88vw)] flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:z-0 lg:translate-x-0 ${
-                    sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                className={`flex flex-col border-r border-slate-200 bg-white transition-all duration-200 ${
+                    isMobile
+                        ? `fixed inset-y-0 left-0 z-50 w-[min(18rem,88vw)] ${sidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'}`
+                        : `${sidebarOpen ? 'w-64 shrink-0' : 'w-0 shrink-0 overflow-hidden border-r-0 pointer-events-none'}`
                 }`}
             >
-                <div className="border-b border-slate-100 px-4 py-4 lg:pt-5">
+                <div className="min-w-[16rem] border-b border-slate-100 px-4 py-4 lg:pt-5">
                     <button
                         type="button"
                         onClick={handleCompose}
@@ -53,7 +61,7 @@ const Sidebar = ({ onSent }) => {
                     </button>
                 </div>
 
-                <nav className="scrollbar-thin flex-1 space-y-1 overflow-y-auto px-3 py-3">
+                <nav className="scrollbar-thin min-w-[16rem] flex-1 space-y-1 overflow-y-auto px-3 py-3">
                     {SIDEBAR_DATA.map((item) => {
                         const Icon = item.icon;
                         const active = type === item.name;
@@ -63,7 +71,7 @@ const Sidebar = ({ onSent }) => {
                                 key={item.name}
                                 to={`${routes.emails.path}/${item.name}`}
                                 className={navClass({ isActive: active })}
-                                onClick={closeSidebar}
+                                onClick={handleNavigate}
                             >
                                 <Icon className="h-4 w-4 shrink-0" />
                                 {item.title}
@@ -72,8 +80,8 @@ const Sidebar = ({ onSent }) => {
                     })}
 
                     <div className="pt-3">
-                        <LabelSidebar onNavigate={closeSidebar} />
-                        <ContactSidebar onNavigate={closeSidebar} />
+                        <LabelSidebar onNavigate={handleNavigate} />
+                        <ContactSidebar onNavigate={handleNavigate} />
                     </div>
                 </nav>
 

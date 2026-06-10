@@ -109,8 +109,14 @@ const syncLabelsAndContacts = () => {
                 .filter(Boolean)
         )];
 
-        if (JSON.stringify(nextLabels) !== JSON.stringify(email.labels || [])) {
-            updateCachedEmail(email._id, { labels: nextLabels });
+        const labelUpdates = { labels: nextLabels };
+        if (nextLabels.length > 0 && email.in_inbox !== false) {
+            labelUpdates.in_inbox = false;
+        }
+
+        if (JSON.stringify(nextLabels) !== JSON.stringify(email.labels || [])
+            || (labelUpdates.in_inbox === false && email.in_inbox !== false)) {
+            updateCachedEmail(email._id, labelUpdates);
             labelsNormalized += 1;
         }
 

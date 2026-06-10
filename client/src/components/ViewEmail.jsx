@@ -13,6 +13,7 @@ import {
 } from '../utils/recipients';
 import { useCompose } from '../context/ComposeContext';
 import ConfirmDialog from './common/ConfirmDialog';
+import MoveToLabelMenu from './MoveToLabelMenu';
 import ThreadMessage from './ThreadMessage';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
@@ -25,6 +26,7 @@ const ViewEmail = () => {
     const getThreadService = useApi(API_URLS.getEmailThread);
     const getLabelsService = useApi(API_URLS.getLabels);
     const updateEmailLabelsService = useApi(API_URLS.updateEmailLabels);
+    const toggleReadService = useApi(API_URLS.toggleReadMail);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -35,6 +37,17 @@ const ViewEmail = () => {
     const [loadError, setLoadError] = useState('');
     const { type, id } = useParams();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (!id) {
+            return;
+        }
+
+        markEmailReadInCache(id);
+        setThread((current) => current.map((message) => ({ ...message, read: true })));
+        toggleReadService.call({ id, value: true }, '', { silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
     useEffect(() => {
         const loadThread = async () => {
@@ -51,7 +64,7 @@ const ViewEmail = () => {
             }
 
             const messages = Array.isArray(result.data) ? result.data : [];
-            setThread(messages);
+            setThread(messages.map((message) => ({ ...message, read: true })));
             markEmailReadInCache(id);
             messages.forEach((message) => markEmailReadInCache(message._id));
         };
@@ -151,6 +164,29 @@ const ViewEmail = () => {
         }
     };
 
+    const moveToLabel = (labelSlug, ids, error) => {
+        if (error) {
+            setSnackbar({ open: true, message: error, severity: 'error' });
+            return;
+        }
+
+        setEmailLabels((current) => (
+            current.includes(labelSlug) ? current : [...current, labelSlug]
+        ));
+
+        if (type === 'inbox') {
+            removeEmailsFromListCache([primaryEmail._id]);
+            navigate('/emails/inbox');
+            return;
+        }
+
+        setSnackbar({
+            open: true,
+            message: `Moved to ${getLabelDisplayName(labelSlug, buildLabelNameMap(labels))}`,
+            severity: 'success'
+        });
+    };
+
     const deleteEmail = () => {
         const emailId = primaryEmail._id;
         const isPermanentDelete = type === 'bin';
@@ -176,6 +212,13 @@ const ViewEmail = () => {
                 <IconButton label="Back" onClick={() => navigate(`/emails/${type || 'inbox'}`)}>
                     <ArrowLeft className="h-5 w-5" />
                 </IconButton>
+                {labels.length > 0 && primaryEmail && (
+                    <MoveToLabelMenu
+                        emailIds={[primaryEmail._id]}
+                        labels={labels}
+                        onMoved={moveToLabel}
+                    />
+                )}
                 <IconButton label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
                     <Trash2 className="h-5 w-5" />
                 </IconButton>
@@ -200,21 +243,6 @@ const ViewEmail = () => {
                             {getLabelDisplayName(label, buildLabelNameMap(labels))} ×
                         </button>
                     ))}
-                    <select
-                        value=""
-                        onChange={(event) => {
-                            const value = event.target.value;
-                            if (value && !emailLabels.includes(value)) {
-                                saveLabels([...emailLabels, value]);
-                            }
-                        }}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700"
-                    >
-                        <option value="">Add label</option>
-                        {labels.map((label) => (
-                            <option key={label._id} value={label.slug}>{label.name}</option>
-                        ))}
-                    </select>
                 </div>
 
                 {Array.isArray(primaryEmail.attachments) && primaryEmail.attachments.length > 0 && (

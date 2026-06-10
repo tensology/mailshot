@@ -10,7 +10,8 @@ import {
     buildEmailFilter,
     buildStableSentId,
     getThreadForEmail,
-    suppressMessageId
+    suppressMessageId,
+    saveMailboxCacheToDisk
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
 import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
@@ -53,6 +54,11 @@ export const getEmails = async (request, response) => {
                 const dbFilter = { ...filter };
                 delete dbFilter.label;
                 delete dbFilter.search;
+
+                if (filter.in_inbox) {
+                    dbFilter.$or = [{ in_inbox: true }, { in_inbox: { $exists: false } }];
+                    delete dbFilter.in_inbox;
+                }
 
                 if (filter.label) {
                     dbFilter.labels = filter.label;
@@ -289,6 +295,7 @@ export const toggleReadEmail = async (request, response) => {
 
         if (resolved.source === 'cache') {
             updateCachedEmail(id, { read: value });
+            saveMailboxCacheToDisk();
         } else {
             await Email.updateOne({ _id: id }, { $set: { read: value }});
         }

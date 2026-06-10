@@ -4,6 +4,7 @@ import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
 import { formatListPreview, parseSenderName, formatEmailDate } from '../utils/emailFormatter';
+import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
 
 const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labelNameMap }) => {
@@ -36,6 +37,9 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labe
     };
 
     const openEmail = () => {
+        if (!email.read) {
+            markEmailReadInCache(email._id);
+        }
         navigate(`${routes.emails.path}/${type || 'inbox'}/${email._id}`);
     };
 

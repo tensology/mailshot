@@ -1,12 +1,14 @@
 import Label from '../model/label.js';
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
-import { findEmailRecord, updateCachedEmail, getCachedEmails } from '../services/mail-sync.js';
+import { findEmailRecord, updateCachedEmail, getCachedEmails, saveMailboxCacheToDisk } from '../services/mail-sync.js';
 import {
     getCachedLabels,
     createCachedLabel,
     updateCachedLabel,
-    deleteCachedLabel
+    deleteCachedLabel,
+    ensureCachedLabel,
+    getLabelBySlug
 } from '../services/label-store.js';
 import { slugify } from '../utils/slug.js';
 
@@ -132,6 +134,79 @@ export const updateEmailLabels = async (request, response) => {
         return response.status(200).json(email);
     } catch (error) {
         response.status(500).json(error.message);
+    }
+};
+
+export const moveEmailsToLabel = async (request, response) => {
+    try {
+        const ids = Array.isArray(request.body.ids) ? request.body.ids : [];
+        const labelInput = String(request.body.label || '').trim();
+
+        if (!ids.length || !labelInput) {
+            return response.status(400).json('Email ids and label are required');
+        }
+
+        const labelSlug = slugify(labelInput);
+        let label = getLabelBySlug(labelSlug);
+
+        if (!label) {
+            if (!isDbConnected()) {
+                label = ensureCachedLabel(labelInput);
+            } else {
+                label = await Label.findOne({ slug: labelSlug });
+                if (!label) {
+                    label = await Label.create({
+                        name: labelInput,
+                        slug: labelSlug,
+                        color: '#5f6368'
+                    });
+                }
+            }
+        }
+
+        if (!label) {
+            return response.status(400).json('Unknown label');
+        }
+
+        let updatedCount = 0;
+
+        for (const emailId of ids) {
+            const resolved = await findEmailRecord(emailId);
+            if (!resolved) {
+                continue;
+            }
+
+            const currentLabels = Array.isArray(resolved.email.labels) ? resolved.email.labels : [];
+            const nextLabels = currentLabels.includes(label.slug)
+                ? currentLabels
+                : [...currentLabels, label.slug];
+
+            const updates = {
+                labels: nextLabels,
+                in_inbox: false
+            };
+
+            if (resolved.source === 'cache') {
+                if (updateCachedEmail(emailId, updates)) {
+                    updatedCount += 1;
+                }
+                continue;
+            }
+
+            await Email.findByIdAndUpdate(emailId, { $set: updates });
+            updatedCount += 1;
+        }
+
+        if (!isDbConnected()) {
+            saveMailboxCacheToDisk();
+        }
+
+        return response.status(200).json({
+            label: label.slug,
+            updated: updatedCount
+        });
+    } catch (error) {
+        return response.status(500).json(error.message);
     }
 };
 

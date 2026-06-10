@@ -4,10 +4,17 @@ import { useIsMobile } from '../hooks/useMediaQuery';
 
 const LayoutContext = createContext(null);
 
+const getDefaultSidebarOpen = () => {
+    if (typeof window === 'undefined') {
+        return true;
+    }
+    return window.matchMedia('(min-width: 1024px)').matches;
+};
+
 export const LayoutProvider = ({ children }) => {
     const isMobile = useIsMobile();
     const location = useLocation();
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(getDefaultSidebarOpen);
     const [searchOpen, setSearchOpen] = useState(false);
 
     useEffect(() => {

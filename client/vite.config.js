@@ -11,7 +11,7 @@ export default defineConfig({
     server: {
         port: 3000,
         proxy: {
-            '^/(auth|emails|email|send|save|save-draft|starred|read|delete|bin|archive|sync|labels|contacts)': {
+            '^/(auth|emails|email|send|save|save-draft|starred|read|delete|bin|archive|move-to-label|sync|labels|contacts)': {
                 target: 'http://localhost:8000',
                 changeOrigin: true
             }

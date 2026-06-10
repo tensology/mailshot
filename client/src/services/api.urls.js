@@ -98,6 +98,11 @@ export const API_URLS = {
         method: 'POST',
         pathBuilder: (path) => `email/${path}`
     },
+    moveEmailsToLabel: {
+        endpoint: 'move-to-label',
+        method: 'POST',
+        pathBuilder: () => 'move-to-label'
+    },
     getContacts: {
         endpoint: 'contacts',
         method: 'GET',

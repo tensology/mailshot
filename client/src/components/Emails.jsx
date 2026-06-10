@@ -18,7 +18,8 @@ import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
-import { buildLabelNameMap } from '../utils/labels';
+import MoveToLabelMenu from './MoveToLabelMenu';
+import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -72,6 +73,7 @@ const Emails = () => {
     const navigate = useNavigate();
 
     const [labelNameMap, setLabelNameMap] = useState(new Map());
+    const [availableLabels, setAvailableLabels] = useState([]);
 
     const getEmailsService = useApi(API_URLS.getEmailFromType);
     const getLabelsService = useApi(API_URLS.getLabels);
@@ -227,6 +229,7 @@ const Emails = () => {
     useEffect(() => {
         getLabelsService.call().then((result) => {
             if (!result.error && Array.isArray(result.data)) {
+                setAvailableLabels(result.data);
                 setLabelNameMap(buildLabelNameMap(result.data));
             }
         });
@@ -296,6 +299,31 @@ const Emails = () => {
         setConfirmDeleteOpen(true);
     };
 
+    const moveSelectedToLabel = (labelSlug, ids, error) => {
+        if (error) {
+            setSyncError(error);
+            return;
+        }
+
+        const idSet = new Set(ids);
+        const cacheParams = { activeTab, labelFilter, searchFilter };
+        const previousEmails = emails;
+        const shouldRemoveFromView = activeTab === 'inbox' || labelFilter;
+
+        if (!shouldRemoveFromView) {
+            setSelectedEmails([]);
+            return;
+        }
+
+        const nextEmails = previousEmails.filter((email) => !idSet.has(email._id));
+        setEmails(nextEmails);
+        setTotalEmails(Math.max(0, totalEmails - ids.length));
+        setSelectedEmails([]);
+        removeEmailsFromListCache(ids);
+        writeEmailListCache(cacheParams, nextEmails);
+        showSyncNotice(`Moved to ${getLabelDisplayName(labelSlug, labelNameMap)}`);
+    };
+
     const deleteSelectedEmails = () => {
         if (!selectedEmails.length) {
             return;
@@ -357,6 +385,13 @@ const Emails = () => {
                         <IconButton label="Archive" onClick={archiveSelectedEmails}>
                             <Archive className="h-4 w-4" />
                         </IconButton>
+                    )}
+                    {hasSelection && type !== 'bin' && availableLabels.length > 0 && (
+                        <MoveToLabelMenu
+                            emailIds={selectedEmails}
+                            labels={availableLabels}
+                            onMoved={moveSelectedToLabel}
+                        />
                     )}
                     {hasSelection && (
                         <IconButton label="Delete" onClick={requestDeleteSelectedEmails}>

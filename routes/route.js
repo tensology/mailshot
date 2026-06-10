@@ -24,7 +24,8 @@ import {
     updateLabel,
     deleteLabel,
     updateEmailLabels,
-    getEmailLabels
+    getEmailLabels,
+    moveEmailsToLabel
 } from '../controller/label-controller.js';
 
 import {
@@ -74,6 +75,7 @@ routes.post('/read', toggleReadEmail);
 routes.delete('/delete', deleteEmails);
 routes.post('/bin', moveEmailsToBin);
 routes.post('/archive', archiveEmails);
+routes.post('/move-to-label', moveEmailsToLabel);
 routes.post('/sync', syncMailbox);
 
 routes.get('/labels', getLabels);

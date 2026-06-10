@@ -213,6 +213,7 @@ const matchesFilter = (item, filter = {}) => {
     if (filter.archived !== undefined && filter.archived !== item.archived) return false;
     if (filter.starred !== undefined && filter.starred !== item.starred) return false;
     if (filter.type && filter.type !== item.type) return false;
+    if (filter.in_inbox === true && item.in_inbox === false) return false;
     if (filter.label) {
         const wanted = String(filter.label);
         const hasLabel = (item.labels || []).some((label) => (
@@ -296,7 +297,7 @@ export const buildEmailFilter = (type, query = {}) => {
         return query.label ? { label: query.label } : {};
     }
     if (type === 'inbox') {
-        return { type: 'inbox', bin: false, archived: false, ...(query.label ? { label: query.label } : {}) };
+        return { type: 'inbox', bin: false, archived: false, in_inbox: true, ...(query.label ? { label: query.label } : {}) };
     }
     return { type, ...(query.label ? { label: query.label } : {}) };
 };
