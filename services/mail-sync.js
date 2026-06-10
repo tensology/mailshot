@@ -1,9 +1,14 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
 import { parseMailAttachments } from './attachments.js';
+
+const CACHE_DIR = path.join(process.cwd(), 'data');
+const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
 
 const buildStableId = (prefix, messageId) => {
     if (!messageId) {
@@ -68,6 +73,58 @@ const getSyncConfig = () => ({
 let syncInterval;
 const mailboxCache = [];
 const suppressedMessageIds = new Set();
+
+/**
+ * Load persisted mailbox cache from disk (used when MongoDB is unavailable).
+ */
+export const loadMailboxCacheFromDisk = () => {
+    try {
+        if (!fs.existsSync(CACHE_FILE)) {
+            return 0;
+        }
+
+        const raw = fs.readFileSync(CACHE_FILE, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed?.emails)) {
+            return 0;
+        }
+
+        mailboxCache.length = 0;
+        for (const item of parsed.emails) {
+            mailboxCache.push({
+                ...item,
+                date: new Date(item.date || Date.now())
+            });
+        }
+
+        if (Array.isArray(parsed.suppressed_message_ids)) {
+            parsed.suppressed_message_ids.forEach((id) => suppressedMessageIds.add(String(id)));
+        }
+
+        return mailboxCache.length;
+    } catch (error) {
+        console.error('Failed to load mailbox cache from disk:', error.message);
+        return 0;
+    }
+};
+
+/**
+ * Persist mailbox cache to disk so imports and state survive restarts.
+ */
+export const saveMailboxCacheToDisk = () => {
+    try {
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+        fs.writeFileSync(CACHE_FILE, JSON.stringify({
+            saved_at: new Date().toISOString(),
+            emails: mailboxCache,
+            suppressed_message_ids: [...suppressedMessageIds]
+        }));
+        return mailboxCache.length;
+    } catch (error) {
+        console.error('Failed to save mailbox cache to disk:', error.message);
+        return 0;
+    }
+};
 
 export const suppressMessageId = (messageId) => {
     if (messageId) {
@@ -457,6 +514,11 @@ export const startMailboxSync = (options = {}) => {
 
     if (!enabled) {
         return;
+    }
+
+    const loaded = loadMailboxCacheFromDisk();
+    if (loaded > 0) {
+        console.log(`Loaded ${loaded} emails from disk cache`);
     }
 
     syncOnce().catch(err => console.error('Mail sync failed:', err.message));
