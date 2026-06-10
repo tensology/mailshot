@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { CircularProgress, Box } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import Spinner from './ui/Spinner';
 
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, isLoading } = useAuth();
@@ -8,9 +8,9 @@ const ProtectedRoute = ({ children }) => {
 
     if (isLoading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-                <CircularProgress />
-            </Box>
+            <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50">
+                <Spinner size={32} />
+            </div>
         );
     }
 

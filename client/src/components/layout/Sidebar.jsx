@@ -1,0 +1,86 @@
+import { NavLink, useParams } from 'react-router-dom';
+import { PenSquare } from 'lucide-react';
+import { SIDEBAR_DATA } from '../../config/sidebar.config';
+import { routes } from '../../routes/routes';
+import { useLayout } from '../../context/LayoutContext';
+import { useCompose } from '../../context/ComposeContext';
+import LabelSidebar from '../LabelSidebar';
+import ContactSidebar from '../ContactSidebar';
+import ComposeMail from '../ComposeMail';
+
+const navClass = ({ isActive }) => (
+    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+        isActive ? 'bg-blue-100 text-blue-800' : 'text-slate-700 hover:bg-slate-100'
+    }`
+);
+
+const Sidebar = ({ onSent }) => {
+    const { type } = useParams();
+    const { isMobile, sidebarOpen, closeSidebar } = useLayout();
+    const { openCompose } = useCompose();
+
+    const handleCompose = () => {
+        openCompose();
+        if (isMobile) {
+            closeSidebar();
+        }
+    };
+
+    return (
+        <>
+            {isMobile && sidebarOpen && (
+                <button
+                    type="button"
+                    aria-label="Close menu"
+                    className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px] lg:hidden"
+                    onClick={closeSidebar}
+                />
+            )}
+
+            <aside
+                className={`fixed inset-y-0 left-0 z-50 flex w-[min(18rem,88vw)] flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:z-0 lg:translate-x-0 ${
+                    sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                }`}
+            >
+                <div className="border-b border-slate-100 px-4 py-4 lg:pt-5">
+                    <button
+                        type="button"
+                        onClick={handleCompose}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                    >
+                        <PenSquare className="h-4 w-4" />
+                        Compose
+                    </button>
+                </div>
+
+                <nav className="scrollbar-thin flex-1 space-y-1 overflow-y-auto px-3 py-3">
+                    {SIDEBAR_DATA.map((item) => {
+                        const Icon = item.icon;
+                        const active = type === item.name;
+
+                        return (
+                            <NavLink
+                                key={item.name}
+                                to={`${routes.emails.path}/${item.name}`}
+                                className={navClass({ isActive: active })}
+                                onClick={closeSidebar}
+                            >
+                                <Icon className="h-4 w-4 shrink-0" />
+                                {item.title}
+                            </NavLink>
+                        );
+                    })}
+
+                    <div className="pt-3">
+                        <LabelSidebar onNavigate={closeSidebar} />
+                        <ContactSidebar onNavigate={closeSidebar} />
+                    </div>
+                </nav>
+
+                <ComposeMail onSent={onSent} />
+            </aside>
+        </>
+    );
+};
+
+export default Sidebar;

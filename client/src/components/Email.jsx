@@ -1,79 +1,9 @@
-import { ListItem, Checkbox, Typography, Box, styled, Chip } from "@mui/material";
-import { StarBorder, Star, AttachFile } from "@mui/icons-material";
-import useApi from "../hooks/useApi";
-import { API_URLS } from "../services/api.urls";
-import { useNavigate, useParams } from "react-router-dom";
-import { routes } from "../routes/routes";
-import { formatListPreview, parseSenderName, formatEmailDate } from "../utils/emailFormatter";
-
-const Wrapper = styled(ListItem)`
-    padding: 0 12px 0 4px;
-    background: #fff;
-    cursor: pointer;
-    border-bottom: 1px solid #f1f3f4;
-    min-height: 40px;
-    &:hover {
-        box-shadow: inset 1px 0 0 #dadce0, inset -1px 0 0 #dadce0, 0 1px 2px 0 rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
-        z-index: 1;
-    }
-`;
-
-const Row = styled(Box)`
-    display: flex;
-    align-items: center;
-    width: 100%;
-    gap: 8px;
-    min-width: 0;
-`;
-
-const SenderText = styled(Typography, {
-    shouldForwardProp: (prop) => prop !== 'unread'
-})(({ unread }) => ({
-    width: 180,
-    minWidth: 180,
-    fontSize: 14,
-    color: '#202124',
-    fontWeight: unread ? 700 : 400,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-}));
-
-const SubjectText = styled(Typography, {
-    shouldForwardProp: (prop) => prop !== 'unread'
-})(({ unread }) => ({
-    fontSize: 14,
-    color: '#202124',
-    fontWeight: unread ? 700 : 400,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    maxWidth: 220,
-    minWidth: 120
-}));
-
-const SnippetText = styled(Typography)({
-    fontSize: 14,
-    color: '#5f6368',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    flex: 1,
-    minWidth: 0
-});
-
-const DateText = styled(Typography)({
-    fontSize: 12,
-    color: '#5f6368',
-    minWidth: 48,
-    textAlign: 'right'
-});
-
-const LabelChip = styled(Chip)({
-    height: 18,
-    fontSize: 11,
-    marginRight: 4
-});
+import { Paperclip, Star } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import useApi from '../hooks/useApi';
+import { API_URLS } from '../services/api.urls';
+import { routes } from '../routes/routes';
+import { formatListPreview, parseSenderName, formatEmailDate } from '../utils/emailFormatter';
 
 const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) => {
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
@@ -87,6 +17,7 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) =>
     const snippet = formatListPreview(email, 120);
     const hasAttachments = Array.isArray(email.attachments) && email.attachments.length > 0;
     const unread = !email.read;
+    const isSelected = selectedEmails.includes(email._id);
 
     const toggleStarredEmail = async (event) => {
         event.stopPropagation();
@@ -96,8 +27,8 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) =>
 
     const handleChange = (event) => {
         event.stopPropagation();
-        if (selectedEmails.includes(email._id)) {
-            setSelectedEmails((prevState) => prevState.filter(id => id !== email._id));
+        if (isSelected) {
+            setSelectedEmails((prevState) => prevState.filter((id) => id !== email._id));
         } else {
             setSelectedEmails((prevState) => [...prevState, email._id]);
         }
@@ -108,31 +39,63 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails }) =>
     };
 
     return (
-        <Wrapper onClick={openEmail}>
-            <Row>
-                <Checkbox
-                    size="small"
-                    checked={selectedEmails.includes(email._id)}
-                    onClick={(event) => event.stopPropagation()}
-                    onChange={handleChange}
-                />
-                {email.starred ? (
-                    <Star fontSize="small" onClick={toggleStarredEmail} />
-                ) : (
-                    <StarBorder fontSize="small" onClick={toggleStarredEmail} />
+        <button
+            type="button"
+            onClick={openEmail}
+            className={`group flex w-full items-start gap-2 border-b border-slate-100 px-3 py-3 text-left transition hover:bg-slate-50 sm:items-center sm:gap-3 sm:px-4 ${
+                unread ? 'bg-white' : 'bg-slate-50/60'
+            }`}
+        >
+            <input
+                type="checkbox"
+                checked={isSelected}
+                onClick={(event) => event.stopPropagation()}
+                onChange={handleChange}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 sm:mt-0"
+            />
+
+            <button
+                type="button"
+                onClick={toggleStarredEmail}
+                className="mt-0.5 shrink-0 text-slate-400 transition hover:text-amber-500 sm:mt-0"
+                aria-label={email.starred ? 'Unstar' : 'Star'}
+            >
+                <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
+            </button>
+
+            <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2 sm:items-center">
+                    <p className={`truncate text-sm ${unread ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
+                        {senderName}
+                    </p>
+                    <span className="shrink-0 text-xs text-slate-500">{formatEmailDate(email.date)}</span>
+                </div>
+
+                <div className="mt-0.5 flex min-w-0 items-center gap-2">
+                    <p className={`truncate text-sm ${unread ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
+                        {subject}
+                    </p>
+                    {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                </div>
+
+                <p className="mt-1 line-clamp-2 text-sm text-slate-500 sm:line-clamp-1">
+                    {snippet}
+                </p>
+
+                {(email.labels || []).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                        {(email.labels || []).slice(0, 3).map((label) => (
+                            <span
+                                key={label}
+                                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                            >
+                                {label}
+                            </span>
+                        ))}
+                    </div>
                 )}
-                <SenderText unread={unread}>{senderName}</SenderText>
-                <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 1 }}>
-                    {(email.labels || []).slice(0, 2).map((label) => (
-                        <LabelChip key={label} label={label} size="small" />
-                    ))}
-                    <SubjectText unread={unread}>{subject}</SubjectText>
-                    <SnippetText>- {snippet}</SnippetText>
-                </Box>
-                {hasAttachments && <AttachFile sx={{ fontSize: 16, color: '#5f6368' }} />}
-                <DateText>{formatEmailDate(email.date)}</DateText>
-            </Row>
-        </Wrapper>
+            </div>
+        </button>
     );
 };
 

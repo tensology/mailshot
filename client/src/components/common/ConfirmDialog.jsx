@@ -1,4 +1,4 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography } from '@mui/material';
+import Dialog, { DialogActions, DialogButton } from '../ui/Dialog';
 
 const ConfirmDialog = ({
     open,
@@ -9,28 +9,24 @@ const ConfirmDialog = ({
     onConfirm,
     onCancel,
     loading = false
-}) => {
-    return (
-        <Dialog open={open} onClose={onCancel} maxWidth="xs" fullWidth>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogContent>
-                <Typography color="text.secondary">{message}</Typography>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
-                <Button onClick={onCancel} disabled={loading}>
+}) => (
+    <Dialog
+        open={open}
+        onClose={onCancel}
+        title={title}
+        footer={(
+            <DialogActions>
+                <DialogButton variant="secondary" onClick={onCancel} disabled={loading}>
                     {cancelLabel}
-                </Button>
-                <Button
-                    variant="contained"
-                    color="error"
-                    onClick={onConfirm}
-                    disabled={loading}
-                >
+                </DialogButton>
+                <DialogButton variant="danger" onClick={onConfirm} disabled={loading}>
                     {confirmLabel}
-                </Button>
+                </DialogButton>
             </DialogActions>
-        </Dialog>
-    );
-};
+        )}
+    >
+        <p className="text-sm text-slate-600">{message}</p>
+    </Dialog>
+);
 
 export default ConfirmDialog;

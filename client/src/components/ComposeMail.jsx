@@ -1,51 +1,36 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-    Box,
-    Typography,
-    InputBase,
-    TextField,
-    Button,
-    Snackbar,
-    Alert,
-    CircularProgress,
-    IconButton
-} from '@mui/material';
-import {
-    Close,
-    Minimize,
-    OpenInFull,
-    CloseFullscreen,
-    AttachFile
-} from '@mui/icons-material';
+import { Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
+import { MAIL_FROM, MAILBOX_USER } from '../config/env';
 import { useCompose } from '../context/ComposeContext';
+import { useLayout } from '../context/LayoutContext';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
+import Spinner from './ui/Spinner';
+import Textarea from './ui/Textarea';
+import Toast from './ui/Toast';
 
-const getWindowStyles = (composeState) => {
+const getWindowClass = (composeState, isMobile) => {
     if (composeState === 'minimized') {
-        return {
-            width: 280,
-            height: 44,
-            maxHeight: 44
-        };
+        return 'h-12 w-[min(18rem,88vw)]';
     }
 
     if (composeState === 'expanded') {
-        return {
-            width: 'min(960px, calc(100vw - 48px))',
-            height: 'min(720px, calc(100vh - 48px))'
-        };
+        return isMobile
+            ? 'inset-3 h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)]'
+            : 'h-[min(720px,calc(100dvh-3rem))] w-[min(960px,calc(100vw-3rem))]';
     }
 
-    return {
-        width: 560,
-        height: 560
-    };
+    return isMobile
+        ? 'inset-x-3 bottom-3 h-[min(560px,calc(100dvh-5rem))] w-[calc(100vw-1.5rem)]'
+        : 'h-[560px] w-[560px]';
 };
 
 const ComposeMail = ({ onSent }) => {
     const { isOpen, composeState, draft, closeCompose, setComposeState } = useCompose();
+    const { isMobile } = useLayout();
     const [data, setData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '' });
     const [showCc, setShowCc] = useState(false);
     const [showBcc, setShowBcc] = useState(false);
@@ -149,12 +134,12 @@ const ComposeMail = ({ onSent }) => {
 
         const payload = {
             to: data.to,
-            from: process.env.REACT_APP_MAIL_FROM,
+            from: MAIL_FROM,
             subject: data.subject,
             body: data.body,
             date: new Date(),
             image: '',
-            name: process.env.REACT_APP_MAILBOX_USER || 'Me',
+            name: MAILBOX_USER,
             starred: false,
             type: 'drafts'
         };
@@ -173,196 +158,148 @@ const ComposeMail = ({ onSent }) => {
         return null;
     }
 
-    const windowStyles = getWindowStyles(composeState);
     const isMinimized = composeState === 'minimized';
+    const windowClass = getWindowClass(composeState, isMobile);
 
     const composeWindow = (
-        <Box
-            sx={{
-                position: 'fixed',
-                right: 24,
-                bottom: 0,
-                zIndex: 1400,
-                display: 'flex',
-                flexDirection: 'column',
-                background: '#fff',
-                borderRadius: '12px 12px 0 0',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
-                overflow: 'hidden',
-                transition: 'width 0.2s ease, height 0.2s ease',
-                ...windowStyles
-            }}
+        <div
+            className={`fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all ${
+                composeState === 'expanded' && isMobile ? 'left-0 top-0' : 'right-3 bottom-0 sm:right-6'
+            } ${windowClass}`}
         >
-            <Box
-                sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    px: 1.5,
-                    py: 1,
-                    background: '#404040',
-                    color: '#fff',
-                    minHeight: 44,
-                    cursor: isMinimized ? 'pointer' : 'default'
-                }}
+            <div
+                className="flex min-h-11 items-center justify-between bg-slate-800 px-3 text-white"
                 onClick={isMinimized ? () => setComposeState('normal') : undefined}
+                onKeyDown={undefined}
+                role="presentation"
             >
-                <Typography sx={{ fontSize: 14, fontWeight: 500, px: 0.5 }}>
-                    {draft.title || 'New Message'}
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <p className="truncate text-sm font-medium">{draft.title || 'New Message'}</p>
+                <div className="flex items-center">
                     {!isMinimized && (
                         <IconButton
-                            size="small"
-                            sx={{ color: '#fff' }}
+                            label={composeState === 'expanded' ? 'Restore' : 'Expand'}
+                            size="sm"
+                            className="text-white hover:bg-white/10"
                             onClick={() => setComposeState(composeState === 'expanded' ? 'normal' : 'expanded')}
                         >
-                            {composeState === 'expanded' ? <CloseFullscreen fontSize="small" /> : <OpenInFull fontSize="small" />}
+                            {composeState === 'expanded' ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                         </IconButton>
                     )}
                     <IconButton
-                        size="small"
-                        sx={{ color: '#fff' }}
+                        label="Minimize"
+                        size="sm"
+                        className="text-white hover:bg-white/10"
                         onClick={(event) => {
                             event.stopPropagation();
                             setComposeState(isMinimized ? 'normal' : 'minimized');
                         }}
                     >
-                        <Minimize fontSize="small" />
+                        <Minus className="h-4 w-4" />
                     </IconButton>
                     <IconButton
-                        size="small"
-                        sx={{ color: '#fff' }}
+                        label="Close"
+                        size="sm"
+                        className="text-white hover:bg-white/10"
                         onClick={(event) => {
                             event.stopPropagation();
                             saveDraftAndClose();
                         }}
                     >
-                        <Close fontSize="small" />
+                        <X className="h-4 w-4" />
                     </IconButton>
-                </Box>
-            </Box>
+                </div>
+            </div>
 
             {!isMinimized && (
-                <>
-                    <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography sx={{ fontSize: 13, color: '#5f6368', minWidth: 28 }}>To</Typography>
-                        <InputBase
-                            fullWidth
-                            name="to"
-                            list="compose-contact-suggestions"
-                            onChange={onValueChange}
-                            value={data.to}
-                            sx={{ fontSize: 14, py: 0.5 }}
-                        />
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            {!showCc && (
-                                <Button size="small" sx={{ minWidth: 0, textTransform: 'none', color: '#5f6368' }} onClick={() => setShowCc(true)}>
-                                    Cc
-                                </Button>
-                            )}
-                            {!showBcc && (
-                                <Button size="small" sx={{ minWidth: 0, textTransform: 'none', color: '#5f6368' }} onClick={() => setShowBcc(true)}>
-                                    Bcc
-                                </Button>
-                            )}
-                        </Box>
-                        <datalist id="compose-contact-suggestions">
-                            {contactOptions.map((contact) => (
-                                <option key={contact._id} value={contact.email}>{contact.name}</option>
-                            ))}
-                        </datalist>
-                    </Box>
-                    {showCc && (
-                        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography sx={{ fontSize: 13, color: '#5f6368', minWidth: 28 }}>Cc</Typography>
-                            <InputBase fullWidth name="cc" onChange={onValueChange} value={data.cc} sx={{ fontSize: 14, py: 0.5 }} />
-                        </Box>
-                    )}
-                    {showBcc && (
-                        <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography sx={{ fontSize: 13, color: '#5f6368', minWidth: 28 }}>Bcc</Typography>
-                            <InputBase fullWidth name="bcc" onChange={onValueChange} value={data.bcc} sx={{ fontSize: 14, py: 0.5 }} />
-                        </Box>
-                    )}
-                    <Box sx={{ px: 2, py: 1, borderBottom: '1px solid #e8eaed' }}>
-                        <InputBase
-                            fullWidth
-                            placeholder="Subject"
-                            name="subject"
-                            onChange={onValueChange}
-                            value={data.subject}
-                            sx={{ fontSize: 14, py: 0.5 }}
-                        />
-                    </Box>
-                    <TextField
-                        multiline
-                        minRows={composeState === 'expanded' ? 16 : 10}
+                <form onSubmit={sendEmail} className="flex min-h-0 flex-1 flex-col">
+                    <div className="space-y-0 border-b border-slate-100">
+                        <div className="flex items-center gap-2 px-3 py-2">
+                            <span className="w-8 text-xs text-slate-500">To</span>
+                            <input
+                                name="to"
+                                list="compose-contact-suggestions"
+                                value={data.to}
+                                onChange={onValueChange}
+                                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                            />
+                            <div className="flex gap-1 text-xs text-slate-500">
+                                {!showCc && (
+                                    <button type="button" onClick={() => setShowCc(true)}>Cc</button>
+                                )}
+                                {!showBcc && (
+                                    <button type="button" onClick={() => setShowBcc(true)}>Bcc</button>
+                                )}
+                            </div>
+                        </div>
+                        {showCc && (
+                            <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
+                                <span className="w-8 text-xs text-slate-500">Cc</span>
+                                <input name="cc" value={data.cc} onChange={onValueChange} className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+                            </div>
+                        )}
+                        {showBcc && (
+                            <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
+                                <span className="w-8 text-xs text-slate-500">Bcc</span>
+                                <input name="bcc" value={data.bcc} onChange={onValueChange} className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+                            </div>
+                        )}
+                        <div className="border-t border-slate-100 px-3 py-2">
+                            <input
+                                name="subject"
+                                placeholder="Subject"
+                                value={data.subject}
+                                onChange={onValueChange}
+                                className="w-full bg-transparent text-sm outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <datalist id="compose-contact-suggestions">
+                        {contactOptions.map((contact) => (
+                            <option key={contact._id} value={contact.email}>{contact.name}</option>
+                        ))}
+                    </datalist>
+
+                    <Textarea
                         name="body"
-                        onChange={onValueChange}
+                        rows={composeState === 'expanded' ? 16 : 10}
                         value={data.body}
+                        onChange={onValueChange}
                         placeholder="Write your message"
-                        sx={{
-                            flex: 1,
-                            px: 2,
-                            '& .MuiOutlinedInput-root': {
-                                alignItems: 'flex-start'
-                            },
-                            '& fieldset': { border: 'none' }
-                        }}
+                        className="min-h-0 flex-1 border-0 px-3 py-3 focus:ring-0 [&_textarea]:min-h-[180px] [&_textarea]:resize-none [&_textarea]:border-0 [&_textarea]:shadow-none [&_textarea]:focus:ring-0"
                     />
+
                     {attachments.length > 0 && (
-                        <Box sx={{ px: 2, py: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary">
-                                {attachments.length} attachment(s) selected
-                            </Typography>
-                        </Box>
+                        <p className="px-3 text-xs text-slate-500">{attachments.length} attachment(s) selected</p>
                     )}
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            px: 2,
-                            py: 1.5,
-                            borderTop: '1px solid #e8eaed'
-                        }}
-                    >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Button
-                                variant="contained"
-                                onClick={sendEmail}
-                                disabled={sendEmailService.isLoading}
-                                sx={{
-                                    textTransform: 'none',
-                                    borderRadius: '18px',
-                                    background: '#0B57D0',
-                                    minWidth: 88,
-                                    boxShadow: 'none'
-                                }}
-                            >
-                                {sendEmailService.isLoading ? <CircularProgress size={18} color="inherit" /> : 'Send'}
+
+                    <div className="flex items-center justify-between border-t border-slate-100 px-3 py-3">
+                        <div className="flex items-center gap-2">
+                            <Button type="submit" disabled={sendEmailService.isLoading} className="rounded-full">
+                                {sendEmailService.isLoading ? <Spinner size={18} className="border-white/30 border-t-white" /> : (
+                                    <>
+                                        <Send className="h-4 w-4" />
+                                        Send
+                                    </>
+                                )}
                             </Button>
-                            <Button component="label" startIcon={<AttachFile />} sx={{ textTransform: 'none', color: '#5f6368' }}>
+                            <label className="inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
+                                <Paperclip className="h-4 w-4" />
                                 Attach
                                 <input hidden type="file" multiple onChange={onAttachmentChange} />
-                            </Button>
-                        </Box>
-                    </Box>
-                </>
+                            </label>
+                        </div>
+                    </div>
+                </form>
             )}
 
-            <Snackbar
+            <Toast
                 open={snackbar.open}
-                autoHideDuration={4000}
+                message={snackbar.message}
+                severity={snackbar.severity}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
-        </Box>
+            />
+        </div>
     );
 
     return createPortal(composeWindow, document.body);

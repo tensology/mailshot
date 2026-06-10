@@ -1,15 +1,9 @@
+import Spinner from '../ui/Spinner';
 
-import { Typography, CircularProgress, Box } from "@mui/material";
-
-
-const SuspenseLoader = () => {
-
-    return (
-        <Box>
-            <CircularProgress />
-            <Typography>Loading...</Typography>
-        </Box>
-    )
-}
+const SuspenseLoader = () => (
+    <div className="flex min-h-[40vh] items-center justify-center">
+        <Spinner size={28} />
+    </div>
+);
 
 export default SuspenseLoader;

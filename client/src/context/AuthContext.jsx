@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { API_URLS } from '../services/api.urls';
+import { API_URL } from '../config/env';
 
 const TOKEN_KEY = 'mailshot_auth_token';
-const API_URL = process.env.REACT_APP_API_URL || '';
 
 const AuthContext = createContext(null);
 

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Box, Typography, IconButton } from '@mui/material';
-import { MoreHoriz } from '@mui/icons-material';
+import { MoreHorizontal } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { splitPlainQuotedContent, splitHtmlQuotedContent } from '../../utils/quoteSplitter';
 import { formatEmailBody, extractHtmlBody } from '../../utils/emailFormatter';
+import IconButton from '../ui/IconButton';
 
 const QuotedContent = ({ body, bodyHtml }) => {
     const [expanded, setExpanded] = useState(false);
@@ -26,58 +26,43 @@ const QuotedContent = ({ body, bodyHtml }) => {
     const showHtml = mainHtml && mainHtml.replace(/<[^>]+>/g, '').trim();
 
     return (
-        <Box>
+        <div className="prose prose-sm max-w-none text-slate-800">
             {showHtml ? (
-                <Box dangerouslySetInnerHTML={{ __html: mainHtml }} />
+                <div dangerouslySetInnerHTML={{ __html: mainHtml }} />
             ) : (
-                <Typography sx={{ whiteSpace: 'pre-wrap' }}>{plainParts.main || 'No message body available.'}</Typography>
+                <p className="whitespace-pre-wrap">{plainParts.main || 'No message body available.'}</p>
             )}
 
             {hasQuote && (
-                <Box sx={{ mt: 1.5 }}>
+                <div className="mt-3">
                     {!expanded ? (
                         <IconButton
-                            size="small"
+                            label="Show quoted text"
+                            size="sm"
+                            className="rounded-xl border border-slate-200"
                             onClick={() => setExpanded(true)}
-                            sx={{
-                                border: '1px solid #dadce0',
-                                borderRadius: '12px',
-                                width: 36,
-                                height: 20,
-                                color: '#5f6368'
-                            }}
-                            aria-label="Show quoted text"
                         >
-                            <MoreHoriz fontSize="small" />
+                            <MoreHorizontal className="h-4 w-4" />
                         </IconButton>
                     ) : (
-                        <Box
-                            sx={{
-                                mt: 1,
-                                pl: 2,
-                                borderLeft: '2px solid #dadce0',
-                                color: '#5f6368'
-                            }}
-                        >
-                            <Typography
-                                variant="caption"
-                                sx={{ cursor: 'pointer', color: '#1a73e8', display: 'block', mb: 1 }}
+                        <div className="mt-2 border-l-2 border-slate-200 pl-3 text-slate-600">
+                            <button
+                                type="button"
+                                className="mb-2 text-xs font-medium text-blue-600"
                                 onClick={() => setExpanded(false)}
                             >
                                 Hide quoted text
-                            </Typography>
+                            </button>
                             {quotedHtml && quotedHtml.replace(/<[^>]+>/g, '').trim() ? (
-                                <Box dangerouslySetInnerHTML={{ __html: quotedHtml }} />
+                                <div dangerouslySetInnerHTML={{ __html: quotedHtml }} />
                             ) : (
-                                <Typography sx={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>
-                                    {plainParts.quoted}
-                                </Typography>
+                                <p className="whitespace-pre-wrap text-sm">{plainParts.quoted}</p>
                             )}
-                        </Box>
+                        </div>
                     )}
-                </Box>
+                </div>
             )}
-        </Box>
+        </div>
     );
 };
 

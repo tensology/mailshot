@@ -1,50 +1,20 @@
-
-
-import { routes } from "../routes/routes"
-import { Photo, StarOutline, SendOutlined, InsertDriveFileOutlined, DeleteOutlined,
-    MailOutlined, ArchiveOutlined } from '@mui/icons-material';
+import {
+    Archive,
+    FileText,
+    Inbox,
+    Mail,
+    Send,
+    Star,
+    Trash2
+} from 'lucide-react';
+import { routes } from '../routes/routes';
 
 export const SIDEBAR_DATA = [
-    {
-        name: 'inbox',
-        title: 'Inbox',
-        icon: Photo,
-        path: routes.emails.path
-    },
-    {
-        name: 'starred',
-        title: 'Starred',
-        icon: StarOutline,
-        path: routes.emails.path
-    },
-    {
-        name: 'sent',
-        title: 'Sent',
-        icon: SendOutlined,
-        path: routes.emails.path
-    },
-    {
-        name: 'drafts',
-        title: 'Drafts',
-        icon: InsertDriveFileOutlined,
-        path: routes.emails.path
-    },
-    {
-        name: 'bin',
-        title: 'Bin',
-        icon: DeleteOutlined,
-        path: routes.emails.path
-    },
-    {
-        name: 'allmail',
-        title: 'All Mail',
-        icon: MailOutlined,
-        path: routes.emails.path
-    },
-    {
-        name: 'archived',
-        title: 'Archived',
-        icon: ArchiveOutlined,
-        path: routes.emails.path
-    }
+    { name: 'inbox', title: 'Inbox', icon: Inbox, path: routes.emails.path },
+    { name: 'starred', title: 'Starred', icon: Star, path: routes.emails.path },
+    { name: 'sent', title: 'Sent', icon: Send, path: routes.emails.path },
+    { name: 'drafts', title: 'Drafts', icon: FileText, path: routes.emails.path },
+    { name: 'bin', title: 'Bin', icon: Trash2, path: routes.emails.path },
+    { name: 'allmail', title: 'All Mail', icon: Mail, path: routes.emails.path },
+    { name: 'archived', title: 'Archived', icon: Archive, path: routes.emails.path }
 ];

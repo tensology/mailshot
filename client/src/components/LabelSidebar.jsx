@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, List, ListItem, TextField, Typography } from '@mui/material';
 import { NavLink } from 'react-router-dom';
-import { LabelOutlined } from '@mui/icons-material';
+import { Tag } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
+import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
+import Input from './ui/Input';
 
-const LabelSidebar = () => {
+const LabelSidebar = ({ onNavigate }) => {
     const getLabelsService = useApi(API_URLS.getLabels);
     const createLabelService = useApi(API_URLS.createLabel);
     const deleteLabelService = useApi(API_URLS.deleteLabel);
@@ -45,44 +46,55 @@ const LabelSidebar = () => {
     };
 
     return (
-        <Box sx={{ mt: 2, px: 1 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
-                <Typography variant="caption" color="text.secondary">Labels</Typography>
-                <Button size="small" onClick={() => setOpen(true)}>+</Button>
-            </Box>
-            <List dense sx={{ py: 0 }}>
+        <div className="mt-4 px-1">
+            <div className="mb-2 flex items-center justify-between px-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
+                <button type="button" onClick={() => setOpen(true)} className="text-sm font-medium text-blue-600">
+                    +
+                </button>
+            </div>
+            <div className="space-y-1">
                 {labels.map((label) => (
-                    <ListItem key={label._id} sx={{ py: 0.5, px: 1, display: 'flex', justifyContent: 'space-between' }}>
+                    <div key={label._id} className="flex items-center gap-1">
                         <NavLink
                             to={`${routes.emails.path}/allmail?label=${encodeURIComponent(label.slug)}`}
-                            style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}
+                            onClick={onNavigate}
+                            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-sm text-slate-700 hover:bg-slate-100"
                         >
-                            <LabelOutlined sx={{ fontSize: 18, color: label.color || '#5f6368' }} />
-                            <Typography variant="body2">{label.name}</Typography>
+                            <Tag className="h-4 w-4 shrink-0" style={{ color: label.color || '#64748b' }} />
+                            <span className="truncate">{label.name}</span>
                         </NavLink>
-                        <Button size="small" onClick={() => removeLabel(label._id)}>x</Button>
-                    </ListItem>
+                        <button
+                            type="button"
+                            onClick={() => removeLabel(label._id)}
+                            className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        >
+                            ×
+                        </button>
+                    </div>
                 ))}
-            </List>
+            </div>
 
-            <Dialog open={open} onClose={() => setOpen(false)}>
-                <DialogTitle>Create label</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Label name"
-                        fullWidth
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpen(false)}>Cancel</Button>
-                    <Button onClick={createLabel} variant="contained">Create</Button>
-                </DialogActions>
+            <Dialog
+                open={open}
+                onClose={() => setOpen(false)}
+                title="Create label"
+                footer={(
+                    <DialogActions>
+                        <DialogButton variant="secondary" onClick={() => setOpen(false)}>Cancel</DialogButton>
+                        <DialogButton onClick={createLabel}>Create</DialogButton>
+                    </DialogActions>
+                )}
+            >
+                <Input
+                    id="label-name"
+                    label="Label name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoFocus
+                />
             </Dialog>
-        </Box>
+        </div>
     );
 };
 

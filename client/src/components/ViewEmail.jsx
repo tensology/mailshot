@@ -1,46 +1,25 @@
-import { useEffect, useState } from "react";
-import { Box, Typography, styled, Button, CircularProgress, Snackbar, Alert, Link, Chip, MenuItem, Select, FormControl, InputLabel } from "@mui/material";
-import { useOutletContext, useNavigate, useParams } from "react-router-dom";
-import { emptyProfilePic } from "../constants/constant";
-import { ArrowBack, Delete } from "@mui/icons-material";
-import useApi from "../hooks/useApi";
-import { API_URLS } from "../services/api.urls";
-import { formatEmailBody } from "../utils/emailFormatter";
-import { markEmailReadInCache } from "../utils/emailListCache";
+import { useEffect, useState } from 'react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import useApi from '../hooks/useApi';
+import { API_URLS } from '../services/api.urls';
+import { API_URL } from '../config/env';
+import { markEmailReadInCache } from '../utils/emailListCache';
 import {
     buildForwardBody,
     buildReplyAllRecipients,
     buildReplyBody,
     buildReplyRecipients
-} from "../utils/recipients";
-import { useCompose } from "../context/ComposeContext";
-import ConfirmDialog from "./common/ConfirmDialog";
-import ThreadMessage from "./ThreadMessage";
-
-const API_URL = process.env.REACT_APP_API_URL || '';
-
-const IconWrapper = styled(Box)({
-    padding: 15
-});
-
-const Subject = styled(Typography)({
-    fontSize: 22,
-    margin: "10px 0 20px 75px",
-    display: "flex",
-    alignItems: "center",
-    gap: 8
-});
-
-const Indicator = styled(Box)({
-    fontSize: "12px !important",
-    background: "#ddd",
-    color: "#222",
-    borderRadius: "4px",
-    padding: "2px 8px"
-});
+} from '../utils/recipients';
+import { useCompose } from '../context/ComposeContext';
+import ConfirmDialog from './common/ConfirmDialog';
+import ThreadMessage from './ThreadMessage';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
+import Spinner from './ui/Spinner';
+import Toast from './ui/Toast';
 
 const ViewEmail = () => {
-    const { openDrawer } = useOutletContext();
     const { openComposeDraft } = useCompose();
     const getThreadService = useApi(API_URLS.getEmailThread);
     const getLabelsService = useApi(API_URLS.getLabels);
@@ -51,7 +30,7 @@ const ViewEmail = () => {
     const [labels, setLabels] = useState([]);
     const [emailLabels, setEmailLabels] = useState([]);
     const [thread, setThread] = useState([]);
-    const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [loadError, setLoadError] = useState('');
     const { type, id } = useParams();
     const navigate = useNavigate();
@@ -101,26 +80,26 @@ const ViewEmail = () => {
 
     if (getThreadService.isLoading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, py: 8, marginLeft: openDrawer ? 250 : 0 }}>
-                <CircularProgress size={28} />
-                <Typography>Loading message...</Typography>
-            </Box>
+            <div className="flex items-center justify-center gap-3 py-16">
+                <Spinner size={28} />
+                <span className="text-sm text-slate-500">Loading message…</span>
+            </div>
         );
     }
 
     if (!primaryEmail || loadError) {
         return (
-            <Box style={openDrawer ? { marginLeft: 250, width: "100%", padding: 30 } : { width: "100%", padding: 30 }}>
-                <Typography variant="h6">Could not load this message.</Typography>
-                {loadError && <Typography style={{ marginTop: 8 }}>{loadError}</Typography>}
-                <Button variant="contained" style={{ marginTop: 16 }} onClick={() => navigate(`/emails/${type || 'inbox'}`)}>
-                    Back to Inbox
+            <div className="px-4 py-8 sm:px-6">
+                <h1 className="text-lg font-semibold text-slate-900">Could not load this message.</h1>
+                {loadError && <p className="mt-2 text-sm text-slate-600">{loadError}</p>}
+                <Button className="mt-4" onClick={() => navigate(`/emails/${type || 'inbox'}`)}>
+                    Back to inbox
                 </Button>
-            </Box>
+            </div>
         );
     }
 
-    const subject = primaryEmail?.subject || "(no subject)";
+    const subject = primaryEmail?.subject || '(no subject)';
 
     const openReplyDraft = (message, plainBody, mode) => {
         const replySubject = (message.subject || '').startsWith('Re:')
@@ -186,60 +165,69 @@ const ViewEmail = () => {
     };
 
     return (
-        <Box style={openDrawer ? { marginLeft: 250, width: "100%" } : { width: "100%" }}>
-            <IconWrapper>
-                <ArrowBack fontSize="small" color="action" onClick={() => navigate(`/emails/${type || 'inbox'}`)} />
-                <Delete fontSize="small" color="action" style={{ marginLeft: 40, cursor: 'pointer' }} onClick={() => setConfirmDeleteOpen(true)} />
-            </IconWrapper>
-            <Subject>
-                {subject}
-                <Indicator component="span">{primaryEmail.type || "inbox"}</Indicator>
-            </Subject>
+        <div className="flex h-full min-h-0 flex-col bg-white">
+            <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
+                <IconButton label="Back" onClick={() => navigate(`/emails/${type || 'inbox'}`)}>
+                    <ArrowLeft className="h-5 w-5" />
+                </IconButton>
+                <IconButton label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
+                    <Trash2 className="h-5 w-5" />
+                </IconButton>
+            </div>
 
-            <Box sx={{ px: 2, pb: 3, maxWidth: 980 }}>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 2, ml: 9 }}>
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{subject}</h1>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                        {primaryEmail.type || 'inbox'}
+                    </span>
+                </div>
+
+                <div className="mb-4 flex flex-wrap items-center gap-2">
                     {emailLabels.map((label) => (
-                        <Chip key={label} label={label} size="small" onDelete={() => saveLabels(emailLabels.filter((item) => item !== label))} />
-                    ))}
-                    <FormControl size="small" sx={{ minWidth: 160 }}>
-                        <InputLabel id="label-select">Add label</InputLabel>
-                        <Select
-                            labelId="label-select"
-                            label="Add label"
-                            value=""
-                            onChange={(event) => {
-                                const value = event.target.value;
-                                if (value && !emailLabels.includes(value)) {
-                                    saveLabels([...emailLabels, value]);
-                                }
-                            }}
+                        <button
+                            key={label}
+                            type="button"
+                            onClick={() => saveLabels(emailLabels.filter((item) => item !== label))}
+                            className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
                         >
-                            {labels.map((label) => (
-                                <MenuItem key={label._id} value={label.slug}>{label.name}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </Box>
+                            {label} ×
+                        </button>
+                    ))}
+                    <select
+                        value=""
+                        onChange={(event) => {
+                            const value = event.target.value;
+                            if (value && !emailLabels.includes(value)) {
+                                saveLabels([...emailLabels, value]);
+                            }
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700"
+                    >
+                        <option value="">Add label</option>
+                        {labels.map((label) => (
+                            <option key={label._id} value={label.slug}>{label.name}</option>
+                        ))}
+                    </select>
+                </div>
 
                 {Array.isArray(primaryEmail.attachments) && primaryEmail.attachments.length > 0 && (
-                    <Box sx={{ mb: 2, ml: 9, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <div className="mb-4 flex flex-wrap gap-2">
                         {primaryEmail.attachments.map((attachment) => (
-                            <Button
+                            <a
                                 key={attachment.attachment_id}
-                                component={Link}
                                 href={`${API_URL}/email/${primaryEmail._id}/attachments/${attachment.attachment_id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                variant="outlined"
-                                size="small"
+                                className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
                             >
                                 {attachment.filename}
-                            </Button>
+                            </a>
                         ))}
-                    </Box>
+                    </div>
                 )}
 
-                <Box sx={{ ml: 9 }}>
+                <div className="max-w-4xl">
                     {thread.map((message) => (
                         <ThreadMessage
                             key={message._id || message.messageId}
@@ -249,8 +237,8 @@ const ViewEmail = () => {
                             onForward={(item, plainBody) => openReplyDraft(item, plainBody, 'forward')}
                         />
                     ))}
-                </Box>
-            </Box>
+                </div>
+            </div>
 
             <ConfirmDialog
                 open={confirmDeleteOpen}
@@ -263,12 +251,13 @@ const ViewEmail = () => {
                 onCancel={() => setConfirmDeleteOpen(false)}
             />
 
-            <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-                <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
-        </Box>
+            <Toast
+                open={snackbar.open}
+                message={snackbar.message}
+                severity={snackbar.severity}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+            />
+        </div>
     );
 };
 

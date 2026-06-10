@@ -1,8 +1,6 @@
 import axios from 'axios';
 import { clearAuthToken, getAuthToken } from '../context/AuthContext';
-
-// Use same-origin relative URLs when unset so localhost:8000 and production both work.
-const API_URL = process.env.REACT_APP_API_URL || '';
+import { API_URL } from '../config/env';
 
 const handleUnauthorized = () => {
     if (window.location.pathname.startsWith('/login')) {

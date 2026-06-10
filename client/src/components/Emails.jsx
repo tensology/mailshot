@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useOutletContext, useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { Archive, RefreshCw, Trash2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
-import { Box, List, Checkbox, CircularProgress, Typography, Button, LinearProgress, IconButton } from '@mui/material';
 import Email from './Email';
-import { DeleteOutline, ArchiveOutlined, Refresh } from '@mui/icons-material';
 import NoMails from './common/NoMails';
 import { EMPTY_TABS } from '../constants/constant';
 import {
@@ -15,6 +14,9 @@ import {
     clearEmailListCache
 } from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
+import Button from './ui/Button';
+import IconButton from './ui/IconButton';
+import Spinner from './ui/Spinner';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -38,6 +40,16 @@ const normalizeEmailListResponse = (data) => {
     };
 };
 
+const tabTitles = {
+    inbox: 'Inbox',
+    starred: 'Starred',
+    sent: 'Sent',
+    drafts: 'Drafts',
+    bin: 'Bin',
+    allmail: 'All Mail',
+    archived: 'Archived'
+};
+
 const Emails = () => {
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
@@ -53,7 +65,6 @@ const Emails = () => {
     const [syncError, setSyncError] = useState('');
     const [syncNotice, setSyncNotice] = useState('');
 
-    const { openDrawer } = useOutletContext();
     const { type } = useParams();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -272,7 +283,6 @@ const Emails = () => {
         }
 
         const idsToRemove = [...selectedEmails];
-        const cacheParams = { activeTab, labelFilter, searchFilter };
         const isPermanentDelete = type === 'bin';
 
         setEmails((current) => current.filter((email) => !idsToRemove.includes(email._id)));
@@ -287,127 +297,120 @@ const Emails = () => {
 
         if (result.error) {
             setLoadError(result.error);
-            await fetchEmailList(); // Re-fetch with silent: false to show errors
+            await fetchEmailList();
             return;
         }
 
         if (!isPermanentDelete) {
-            clearEmailListCache(); // Clear all caches to ensure bin updates
+            clearEmailListCache();
         }
-        await fetchEmailList(); // Re-fetch with silent: false to update current view
+        await fetchEmailList();
     };
 
     return (
-        <Box style={openDrawer ? { marginLeft: 250, width: '100%' } : { width: '100%' }}>
+        <div className="flex h-full min-h-0 flex-col bg-white">
             {isSyncing && emails.length > 0 && (
-                <LinearProgress sx={{ height: 2 }} />
+                <div className="h-0.5 w-full overflow-hidden bg-slate-100">
+                    <div className="h-full w-1/3 animate-pulse bg-blue-500" />
+                </div>
             )}
 
-            <Box sx={{ padding: '12px 10px 0 10px', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Checkbox
-                    size="small"
-                    onChange={selectAllEmails}
-                    checked={allSelected}
-                    indeterminate={someSelected}
-                />
-                <IconButton
-                    size="small"
-                    onClick={refreshMailbox}
-                    disabled={isRefreshing}
-                    title="Refresh"
-                    aria-label="Refresh"
-                >
-                    <Refresh
-                        fontSize="small"
-                        sx={{
-                            animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-                            '@keyframes spin': {
-                                '0%': { transform: 'rotate(0deg)' },
-                                '100%': { transform: 'rotate(360deg)' }
+            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
+                <div className="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(input) => {
+                            if (input) {
+                                input.indeterminate = someSelected;
                             }
                         }}
+                        onChange={selectAllEmails}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
-                </IconButton>
-                {hasSelection && type !== 'bin' && (
-                    <IconButton size="small" onClick={archiveSelectedEmails} title="Archive" aria-label="Archive">
-                        <ArchiveOutlined fontSize="small" />
+                    <IconButton label="Refresh" onClick={refreshMailbox} disabled={isRefreshing}>
+                        <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                     </IconButton>
-                )}
-                {hasSelection && (
-                    <IconButton size="small" onClick={requestDeleteSelectedEmails} title="Delete" aria-label="Delete">
-                        <DeleteOutline fontSize="small" />
-                    </IconButton>
-                )}
-                {isSyncing && emails.length > 0 && (
-                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                        Checking for new mail...
-                    </Typography>
-                )}
-                {!isSyncing && syncNotice && (
-                    <Typography variant="caption" color="success.main" sx={{ ml: 1 }}>
-                        {syncNotice}
-                    </Typography>
-                )}
-                {!isSyncing && !syncNotice && syncError && (
-                    <Typography variant="caption" color="error" sx={{ ml: 1, maxWidth: 520 }}>
-                        {syncError}
-                    </Typography>
-                )}
-            </Box>
+                    {hasSelection && type !== 'bin' && (
+                        <IconButton label="Archive" onClick={archiveSelectedEmails}>
+                            <Archive className="h-4 w-4" />
+                        </IconButton>
+                    )}
+                    {hasSelection && (
+                        <IconButton label="Delete" onClick={requestDeleteSelectedEmails}>
+                            <Trash2 className="h-4 w-4" />
+                        </IconButton>
+                    )}
+                    <div className="ml-auto min-w-0 text-right">
+                        <p className="truncate text-sm font-medium text-slate-800">
+                            {searchFilter ? `Search: ${searchFilter}` : tabTitles[activeTab] || 'Mail'}
+                        </p>
+                        {isSyncing && emails.length > 0 && (
+                            <p className="text-xs text-slate-500">Checking for new mail…</p>
+                        )}
+                        {!isSyncing && syncNotice && (
+                            <p className="text-xs font-medium text-emerald-600">{syncNotice}</p>
+                        )}
+                        {!isSyncing && !syncNotice && syncError && (
+                            <p className="truncate text-xs text-red-600">{syncError}</p>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-            {showBlockingLoader && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, py: 6 }}>
-                    <CircularProgress size={28} />
-                    <Typography color="text.secondary">Loading messages...</Typography>
-                </Box>
-            )}
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+                {showBlockingLoader && (
+                    <div className="flex items-center justify-center gap-3 py-16">
+                        <Spinner size={28} />
+                        <span className="text-sm text-slate-500">Loading messages…</span>
+                    </div>
+                )}
 
-            {emails.length > 0 && (
-                <List sx={{ py: 0, opacity: isFetching && !isSyncing ? 0.85 : 1, transition: 'opacity 0.15s' }}>
-                    {emails.map((email) => (
-                        <Email
-                            email={email}
-                            key={email._id || email.messageId}
-                            setStarredEmail={setStarredEmail}
-                            selectedEmails={selectedEmails}
-                            setSelectedEmails={setSelectedEmails}
-                        />
-                    ))}
-                </List>
-            )}
+                {emails.length > 0 && (
+                    <div className={isFetching && !isSyncing ? 'opacity-90 transition-opacity' : ''}>
+                        {emails.map((email) => (
+                            <Email
+                                email={email}
+                                key={email._id || email.messageId}
+                                setStarredEmail={setStarredEmail}
+                                selectedEmails={selectedEmails}
+                                setSelectedEmails={setSelectedEmails}
+                            />
+                        ))}
+                    </div>
+                )}
 
-            {!showBlockingLoader && loadError && emails.length === 0 && (
-                <Box style={{ padding: 30 }}>
+                {!showBlockingLoader && loadError && emails.length === 0 && (
                     <NoMails message={{ heading: 'Could not load messages', subHeading: loadError }} />
-                </Box>
-            )}
+                )}
 
-            {!showBlockingLoader && !loadError && emails.length === 0 && (
-                <NoMails message={searchFilter
-                    ? { heading: 'No messages found', subHeading: `No results for "${searchFilter}"` }
-                    : EMPTY_TABS[activeTab]} />
-            )}
+                {!showBlockingLoader && !loadError && emails.length === 0 && (
+                    <NoMails message={searchFilter
+                        ? { heading: 'No messages found', subHeading: `No results for "${searchFilter}"` }
+                        : EMPTY_TABS[activeTab]} />
+                )}
+            </div>
 
             {emails.length > 0 && totalPages > 1 && (
-                <Box sx={{ px: 2, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" color="text.secondary">
-                        {totalEmails} messages · page {page} of {totalPages}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button size="small" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+                <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
+                    <span>{totalEmails} messages · page {page} of {totalPages}</span>
+                    <div className="flex gap-2">
+                        <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
                             Newer
                         </Button>
-                        <Button size="small" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>
+                        <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>
                             Older
                         </Button>
-                    </Box>
-                </Box>
+                    </div>
+                </div>
             )}
 
             {searchFilter && (
-                <Box sx={{ px: 2, py: 1 }}>
-                    <Button size="small" onClick={() => navigate(`${routes.emails.path}/inbox`)}>Clear search</Button>
-                </Box>
+                <div className="border-t border-slate-100 px-4 py-2">
+                    <Button variant="ghost" size="sm" onClick={() => navigate(`${routes.emails.path}/inbox`)}>
+                        Clear search
+                    </Button>
+                </div>
             )}
 
             <ConfirmDialog
@@ -420,7 +423,7 @@ const Emails = () => {
                 onConfirm={deleteSelectedEmails}
                 onCancel={() => setConfirmDeleteOpen(false)}
             />
-        </Box>
+        </div>
     );
 };
 

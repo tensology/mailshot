@@ -1,7 +1,7 @@
-import { Box, Typography, Button } from '@mui/material';
 import { emptyProfilePic } from '../constants/constant';
 import { parseSenderEmail, parseSenderName, formatEmailBody } from '../utils/emailFormatter';
 import QuotedContent from './common/QuotedContent';
+import Button from './ui/Button';
 
 const ThreadMessage = ({ message, onReply, onReplyAll, onForward }) => {
     const senderName = parseSenderName(message.from);
@@ -9,51 +9,50 @@ const ThreadMessage = ({ message, onReply, onReplyAll, onForward }) => {
     const plainBody = formatEmailBody(message.body);
 
     return (
-        <Box sx={{ borderTop: '1px solid #f1f3f4', py: 2 }}>
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-                <Box
-                    component="img"
+        <article className="border-t border-slate-100 py-4 first:border-t-0">
+            <div className="flex gap-3">
+                <img
                     src={emptyProfilePic}
-                    alt="profile"
-                    sx={{ width: 40, height: 40, borderRadius: '50%', mt: 0.5 }}
+                    alt=""
+                    className="mt-1 h-10 w-10 shrink-0 rounded-full bg-slate-100"
                 />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                        <Box sx={{ flex: 1 }}>
-                            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p className="text-sm font-semibold text-slate-900">
                                 {senderName}
-                                <Typography component="span" sx={{ fontSize: 12, color: '#5f6368', ml: 1 }}>
+                                <span className="ml-2 text-xs font-normal text-slate-500">
                                     &lt;{senderEmail}&gt;
-                                </Typography>
-                            </Typography>
-                            <Typography sx={{ fontSize: 12, color: '#5f6368', mt: 0.5 }}>
+                                </span>
+                            </p>
+                            <p className="text-xs text-slate-500">
                                 to {message.to}
                                 {message.cc ? `, cc ${message.cc}` : ''}
-                            </Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: 12, color: '#5f6368', whiteSpace: 'nowrap' }}>
+                            </p>
+                        </div>
+                        <time className="text-xs text-slate-500">
                             {new Date(message.date).toLocaleString()}
-                        </Typography>
-                    </Box>
+                        </time>
+                    </div>
 
-                    <Box sx={{ mt: 1.5, lineHeight: 1.6, color: '#202124' }}>
+                    <div className="mt-3">
                         <QuotedContent body={message.body} bodyHtml={message.body_html} />
-                    </Box>
+                    </div>
 
-                    <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                        <Button size="small" variant="outlined" sx={{ textTransform: 'none' }} onClick={() => onReply(message, plainBody)}>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => onReply(message, plainBody)}>
                             Reply
                         </Button>
-                        <Button size="small" variant="outlined" sx={{ textTransform: 'none' }} onClick={() => onReplyAll(message, plainBody)}>
+                        <Button variant="secondary" size="sm" onClick={() => onReplyAll(message, plainBody)}>
                             Reply all
                         </Button>
-                        <Button size="small" variant="outlined" sx={{ textTransform: 'none' }} onClick={() => onForward(message, plainBody)}>
+                        <Button variant="secondary" size="sm" onClick={() => onForward(message, plainBody)}>
                             Forward
                         </Button>
-                    </Box>
-                </Box>
-            </Box>
-        </Box>
+                    </div>
+                </div>
+            </div>
+        </article>
     );
 };
 
