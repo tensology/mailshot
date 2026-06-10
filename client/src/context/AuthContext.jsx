@@ -39,8 +39,12 @@ export const AuthProvider = ({ children }) => {
             setUsername(response.data?.username || '');
             setIsLoading(false);
             return true;
-        } catch {
-            clearSession();
+        } catch (error) {
+            if (error?.response?.status === 401) {
+                clearSession();
+            } else {
+                setToken(storedToken);
+            }
             setIsLoading(false);
             return false;
         }

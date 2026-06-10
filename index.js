@@ -8,6 +8,7 @@ import { isDbConnected, getDbStatus } from './database/db.js';
 import { isAuthConfigured } from './services/auth-config.js';
 import { loadLabelsFromDisk } from './services/label-store.js';
 import { loadContactsFromDisk } from './services/contact-store.js';
+import { loadSessionsFromDisk } from './services/auth-store.js';
 
 const __dirname = path.resolve();
 const SPA_ENTRY_POINT = path.join(__dirname, './client/build/index.html');
@@ -72,6 +73,11 @@ if (isAuthConfigured()) {
     console.log('Login authentication is enabled');
 } else {
     console.warn('Login authentication is not configured. Set AUTH_USERNAME/AUTH_PASSWORD or auth.config.json');
+}
+
+const loadedSessions = loadSessionsFromDisk();
+if (loadedSessions > 0) {
+    console.log(`Loaded ${loadedSessions} auth sessions from disk`);
 }
 
 const loadedLabels = loadLabelsFromDisk();

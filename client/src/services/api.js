@@ -2,11 +2,19 @@ import axios from 'axios';
 import { clearAuthToken, getAuthToken } from '../context/AuthContext';
 import { API_URL } from '../config/env';
 
+let logoutInFlight = false;
+
 const handleUnauthorized = () => {
-    if (window.location.pathname.startsWith('/login')) {
+    if (logoutInFlight || window.location.pathname.startsWith('/login')) {
         return;
     }
 
+    const token = getAuthToken();
+    if (!token) {
+        return;
+    }
+
+    logoutInFlight = true;
     clearAuthToken();
     window.location.href = '/login';
 };
