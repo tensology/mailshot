@@ -51,8 +51,28 @@ const tabTitles = {
     sent: 'Sent',
     drafts: 'Drafts',
     bin: 'Bin',
+    spam: 'Spam',
     allmail: 'All Mail',
     archived: 'Archived'
+};
+
+const buildEmptyMessage = ({ searchFilter, participantFilter, labelFilter, listTitle, activeTab }) => {
+    if (searchFilter) {
+        return { heading: 'No messages found', subHeading: `No results for "${searchFilter}"` };
+    }
+
+    if (participantFilter) {
+        return { heading: `No mail with ${participantFilter}`, subHeading: `No messages involving ${participantFilter}.` };
+    }
+
+    if (labelFilter) {
+        return { heading: `No mail in ${listTitle}`, subHeading: `No messages are currently in the ${listTitle} label.` };
+    }
+
+    return {
+        heading: `No mail in ${listTitle}`,
+        subHeading: EMPTY_TABS[activeTab]?.subHeading || `No messages are currently in ${listTitle}.`
+    };
 };
 
 const Emails = () => {
@@ -655,11 +675,7 @@ const Emails = () => {
                 )}
 
                 {!showBlockingLoader && !loadError && emails.length === 0 && (
-                    <NoMails message={searchFilter
-                        ? { heading: 'No messages found', subHeading: `No results for "${searchFilter}"` }
-                        : participantFilter
-                            ? { heading: 'No messages found', subHeading: `No mail with ${participantFilter}` }
-                            : EMPTY_TABS[activeTab]} />
+                    <NoMails message={buildEmptyMessage({ searchFilter, participantFilter, labelFilter, listTitle, activeTab })} />
                 )}
             </div>
 
