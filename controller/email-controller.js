@@ -140,6 +140,77 @@ export const saveSendEmails = async (request, response) => {
     }
 };
 
+const hasDraftContent = (payload = {}) => (
+    ['to', 'cc', 'bcc', 'subject', 'body'].some((field) => String(payload[field] || '').trim())
+);
+
+const normalizeDraftPayload = (payload = {}) => {
+    const now = new Date();
+    const draftId = payload._id || payload.id || '';
+
+    return {
+        ...(draftId ? { _id: draftId } : {}),
+        to: String(payload.to || ''),
+        cc: String(payload.cc || ''),
+        bcc: String(payload.bcc || ''),
+        from: String(payload.from || process.env.MAIL_FROM || process.env.MAILBOX_USER || ''),
+        subject: String(payload.subject || ''),
+        body: String(payload.body || ''),
+        body_html: String(payload.body_html || ''),
+        date: payload.date || now,
+        image: payload.image || '',
+        name: String(payload.name || process.env.MAILBOX_USER || process.env.MAIL_FROM || ''),
+        starred: Boolean(payload.starred),
+        bin: false,
+        archived: false,
+        spam: false,
+        in_inbox: false,
+        read: true,
+        type: 'drafts',
+        labels: [],
+        attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
+        in_reply_to: payload.in_reply_to || payload.inReplyTo || '',
+        references: Array.isArray(payload.references) ? payload.references : []
+    };
+};
+
+export const saveDraftEmail = async (request, response) => {
+    try {
+        if (!hasDraftContent(request.body)) {
+            return response.status(200).json(null);
+        }
+
+        const payload = normalizeDraftPayload(request.body);
+        const draftId = payload._id;
+        const existing = draftId ? await findEmailRecord(draftId) : null;
+        const { _id: ignoredDraftId, ...draftUpdates } = payload;
+        let savedDraft;
+
+        if (existing?.source === 'cache') {
+            savedDraft = updateCachedEmail(draftId, payload);
+            saveMailboxCacheToDisk();
+            return response.status(200).json(serializeEmail(savedDraft));
+        }
+
+        if (existing?.source === 'db' && isDbConnected()) {
+            await Email.updateOne({ _id: draftId }, { $set: draftUpdates });
+            const updated = await Email.findById(draftId);
+            return response.status(200).json(serializeEmail(updated));
+        }
+
+        if (isDbConnected()) {
+            const created = await Email.create(draftUpdates);
+            return response.status(200).json(serializeEmail(created));
+        }
+
+        savedDraft = upsertCachedEmail(payload);
+        saveMailboxCacheToDisk();
+        return response.status(200).json(serializeEmail(savedDraft));
+    } catch (error) {
+        response.status(500).json(error.message);
+    }
+};
+
 export const getEmails = async (request, response) => {
     try {
         await recalibrateMailTaxonomy();

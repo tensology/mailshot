@@ -22,6 +22,7 @@ import Spinner from './ui/Spinner';
 import MoveToLabelMenu from './MoveToLabelMenu';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
+import { useCompose } from '../context/ComposeContext';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -81,6 +82,7 @@ const Emails = () => {
     const navigate = useNavigate();
 
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
+    const { openComposeDraft } = useCompose();
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
     const participantFilter = searchParams.get('participant') || '';
@@ -325,6 +327,19 @@ const Emails = () => {
     }, []);
 
     useEffect(() => {
+        if (activeTab !== 'drafts') {
+            return undefined;
+        }
+
+        const onDraftSaved = () => {
+            fetchEmailList({ silent: true });
+        };
+
+        window.addEventListener('mailshot:draft-saved', onDraftSaved);
+        return () => window.removeEventListener('mailshot:draft-saved', onDraftSaved);
+    }, [activeTab, fetchEmailList]);
+
+    useEffect(() => {
         loadEmails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, labelFilter, searchFilter, participantFilter, starredEmail, page]);
@@ -443,6 +458,22 @@ const Emails = () => {
             pendingFocusPosition.current = 'last';
             setPage((value) => Math.max(1, value - 1));
         }
+    };
+
+    const openDraftEmail = (email) => {
+        openComposeDraft({
+            _id: email._id,
+            to: email.to || '',
+            cc: email.cc || '',
+            bcc: email.bcc || '',
+            subject: email.subject || '',
+            body: email.body || '',
+            in_reply_to: email.in_reply_to || '',
+            references: Array.isArray(email.references) ? email.references : [],
+            show_cc: Boolean(email.cc),
+            show_bcc: Boolean(email.bcc),
+            title: email.subject ? `Draft: ${email.subject}` : 'Draft'
+        });
     };
 
     const archiveSelectedEmails = async () => {
@@ -664,6 +695,7 @@ const Emails = () => {
                                 onCheckboxSelect={handleCheckboxSelect}
                                 onKeyboardDelete={handleKeyboardDelete}
                                 onKeyboardNavigate={handleKeyboardNavigate}
+                                onOpenDraft={openDraftEmail}
                                 deleteDialogOpen={confirmDeleteOpen}
                             />
                         ))}

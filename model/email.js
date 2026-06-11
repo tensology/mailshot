@@ -11,27 +11,31 @@ const AttachmentSchema = mongoose.Schema({
 const EmailSchema = mongoose.Schema({
     to: {
         type: String,
-        required: true
+        default: ''
     },
     cc: {
         type: String,
         default: ''
     },
+    bcc: {
+        type: String,
+        default: ''
+    },
     from: {
         type: String,
-        required: true
+        default: ''
     },
     subject: String,
     body: String,
     body_html: String,
     date: {
         type: Date,
-        required: true
+        default: Date.now
     },
     image: String,
     name: {
         type: String,
-        required: true
+        default: ''
     },
     starred: {
         type: Boolean,

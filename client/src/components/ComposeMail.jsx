@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
@@ -34,6 +34,10 @@ const htmlToPlainText = (html = '') => {
     return (container.innerText || container.textContent || '').trim();
 };
 
+const hasDraftContent = (draft = {}) => (
+    ['to', 'cc', 'bcc', 'subject', 'body'].some((field) => String(draft[field] || '').trim())
+);
+
 const ComposeMail = ({ onSent }) => {
     const { isOpen, composeState, draft, closeCompose, setComposeState } = useCompose();
     const { isMobile } = useLayout();
@@ -44,10 +48,14 @@ const ComposeMail = ({ onSent }) => {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const sendEmailService = useApi(API_URLS.sendEmail);
     const saveDraftService = useApi(API_URLS.saveDraftEmails);
+    const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const getContactsService = useApi(API_URLS.getContacts);
     const getSettingsService = useApi(API_URLS.getSettings);
     const [contactOptions, setContactOptions] = useState([]);
     const bodyRef = useRef(null);
+    const draftIdRef = useRef('');
+    const hasUserEditedRef = useRef(false);
+    const lastSavedDraftRef = useRef('');
 
     useEffect(() => {
         if (!isOpen) {
@@ -79,6 +87,9 @@ const ComposeMail = ({ onSent }) => {
         };
 
         loadComposeState();
+        draftIdRef.current = draft._id || draft.id || '';
+        hasUserEditedRef.current = false;
+        lastSavedDraftRef.current = '';
         setShowCc(Boolean(draft.show_cc || draft.cc));
         setShowBcc(Boolean(draft.show_bcc || draft.bcc));
         setAttachments([]);
@@ -115,10 +126,12 @@ const ComposeMail = ({ onSent }) => {
     }, [composeState, draft.in_reply_to, isOpen]);
 
     const onValueChange = (event) => {
+        hasUserEditedRef.current = true;
         setData({ ...data, [event.target.name]: event.target.value });
     };
 
     const onAttachmentChange = (event) => {
+        hasUserEditedRef.current = true;
         setAttachments(Array.from(event.target.files || []));
     };
 
@@ -127,7 +140,77 @@ const ComposeMail = ({ onSent }) => {
         setShowCc(false);
         setShowBcc(false);
         setAttachments([]);
+        draftIdRef.current = '';
+        hasUserEditedRef.current = false;
+        lastSavedDraftRef.current = '';
     };
+
+    const saveDraft = useCallback(async ({ silent = true } = {}) => {
+        const draftPayload = {
+            ...(draftIdRef.current ? { _id: draftIdRef.current } : {}),
+            to: data.to,
+            cc: data.cc,
+            bcc: data.bcc,
+            from: MAIL_FROM,
+            subject: data.subject,
+            body: data.body,
+            date: new Date(),
+            image: '',
+            name: MAILBOX_USER,
+            starred: false,
+            type: 'drafts',
+            in_reply_to: draft.in_reply_to || '',
+            references: Array.isArray(draft.references) ? draft.references : []
+        };
+
+        if (!hasDraftContent(draftPayload) || (!draftIdRef.current && !hasUserEditedRef.current)) {
+            return { skipped: true, error: '' };
+        }
+
+        const draftSignature = JSON.stringify({
+            id: draftIdRef.current,
+            to: draftPayload.to,
+            cc: draftPayload.cc,
+            bcc: draftPayload.bcc,
+            subject: draftPayload.subject,
+            body: draftPayload.body
+        });
+
+        if (silent && draftSignature === lastSavedDraftRef.current) {
+            return { skipped: true, error: '' };
+        }
+
+        const result = await saveDraftService.call(draftPayload, '', { silent });
+        if (result.error) {
+            return result;
+        }
+
+        if (result.data?._id) {
+            draftIdRef.current = result.data._id;
+        }
+        window.dispatchEvent(new CustomEvent('mailshot:draft-saved', { detail: { draft: result.data } }));
+        lastSavedDraftRef.current = JSON.stringify({
+            id: draftIdRef.current,
+            to: draftPayload.to,
+            cc: draftPayload.cc,
+            bcc: draftPayload.bcc,
+            subject: draftPayload.subject,
+            body: draftPayload.body
+        });
+        return result;
+    }, [data, draft.in_reply_to, draft.references, saveDraftService]);
+
+    useEffect(() => {
+        if (!isOpen || !hasUserEditedRef.current || !hasDraftContent(data)) {
+            return undefined;
+        }
+
+        const saveTimer = window.setTimeout(() => {
+            saveDraft({ silent: true });
+        }, 1200);
+
+        return () => window.clearTimeout(saveTimer);
+    }, [data, isOpen, saveDraft]);
 
     const sendEmail = async (event) => {
         event.preventDefault();
@@ -166,6 +249,11 @@ const ComposeMail = ({ onSent }) => {
             return;
         }
 
+        if (draftIdRef.current) {
+            await deleteEmailsService.call([draftIdRef.current], '', { silent: true });
+            window.dispatchEvent(new CustomEvent('mailshot:draft-saved'));
+        }
+
         setSnackbar({ open: true, message: 'Message sent', severity: 'success' });
         closeCompose();
         resetForm();
@@ -175,25 +263,13 @@ const ComposeMail = ({ onSent }) => {
     };
 
     const saveDraftAndClose = async () => {
-        if (!data.to && !data.subject && !data.body) {
+        if (!hasDraftContent(data) || (!draftIdRef.current && !hasUserEditedRef.current)) {
             closeCompose();
             resetForm();
             return;
         }
 
-        const payload = {
-            to: data.to,
-            from: MAIL_FROM,
-            subject: data.subject,
-            body: data.body,
-            date: new Date(),
-            image: '',
-            name: MAILBOX_USER,
-            starred: false,
-            type: 'drafts'
-        };
-
-        const result = await saveDraftService.call(payload);
+        const result = await saveDraft({ silent: false });
         if (result.error) {
             setSnackbar({ open: true, message: result.error, severity: 'error' });
             return;

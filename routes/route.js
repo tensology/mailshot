@@ -3,6 +3,7 @@ import multer from 'multer';
 
 import {
     saveSendEmails,
+    saveDraftEmail,
     getEmails,
     getEmailById,
     getEmailThread,
@@ -66,7 +67,7 @@ routes.use(requireAuth);
 
 routes.post('/save', saveSendEmails);
 routes.post('/send', upload.array('attachments', 10), sendEmail);
-routes.post('/save-draft', saveSendEmails);
+routes.post('/save-draft', saveDraftEmail);
 routes.get('/emails/search', searchEmails);
 routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);
 routes.get('/email/:id/labels', getEmailLabels);

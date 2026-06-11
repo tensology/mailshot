@@ -18,6 +18,7 @@ const Email = ({
     onCheckboxSelect,
     onKeyboardDelete,
     onKeyboardNavigate,
+    onOpenDraft,
     deleteDialogOpen
 }) => {
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
@@ -25,9 +26,12 @@ const Email = ({
     const { type } = useParams();
     const [searchParams] = useSearchParams();
 
-    const senderName = email.type === 'sent'
-        ? parseSenderName(email.to)
-        : parseSenderName(email.from);
+    const isDraft = type === 'drafts' || email.type === 'drafts';
+    const senderName = isDraft
+        ? (email.to ? parseSenderName(email.to) : '(no recipient)')
+        : email.type === 'sent'
+            ? parseSenderName(email.to)
+            : parseSenderName(email.from);
     const subject = email?.subject || '(no subject)';
     const snippet = formatListPreview(email, 120);
     const hasAttachments = Array.isArray(email.attachments) && email.attachments.length > 0;
@@ -47,6 +51,11 @@ const Email = ({
     };
 
     const openEmail = () => {
+        if (isDraft) {
+            onOpenDraft?.(email);
+            return;
+        }
+
         if (!email.read) {
             markEmailReadInCache(email._id);
         }
@@ -125,6 +134,7 @@ const Email = ({
 
                 <div className="mt-0.5 flex min-w-0 items-center gap-2">
                     <p className={`truncate text-sm ${unread ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
+                        {isDraft && <span className="font-semibold text-red-600">Draft </span>}
                         {subject}
                     </p>
                     {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
