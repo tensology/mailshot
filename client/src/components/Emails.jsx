@@ -56,13 +56,22 @@ const tabTitles = {
 };
 
 const Emails = () => {
+    const { type } = useParams();
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    const activeTab = EMPTY_TABS[type] ? type : 'inbox';
+    const labelFilter = searchParams.get('label') || '';
+    const searchFilter = searchParams.get('search') || '';
+    const listCacheParams = { activeTab, labelFilter, searchFilter };
+
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
     const [loadError, setLoadError] = useState('');
-    const [emails, setEmails] = useState([]);
+    const [emails, setEmails] = useState(() => readEmailListCache(listCacheParams) || []);
     const [isFetching, setIsFetching] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
-    const [hasCache, setHasCache] = useState(false);
+    const [hasCache, setHasCache] = useState(() => Boolean(readEmailListCache(listCacheParams)?.length));
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -70,10 +79,6 @@ const Emails = () => {
     const [syncError, setSyncError] = useState('');
     const [syncNotice, setSyncNotice] = useState('');
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-
-    const { type } = useParams();
-    const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
 
     const [labelNameMap, setLabelNameMap] = useState(new Map());
     const [availableLabels, setAvailableLabels] = useState([]);
@@ -89,10 +94,6 @@ const Emails = () => {
     const syncRequestId = useRef(0);
     const listRequestId = useRef(0);
     const syncNoticeTimer = useRef(null);
-
-    const activeTab = EMPTY_TABS[type] ? type : 'inbox';
-    const labelFilter = searchParams.get('label') || '';
-    const searchFilter = searchParams.get('search') || '';
 
     const fetchEmailList = useCallback(async ({ silent = false, pageOverride, requestId } = {}) => {
         const activeRequestId = requestId ?? ++listRequestId.current;
@@ -193,12 +194,12 @@ const Emails = () => {
         setLoadError('');
         setSyncError('');
 
-        const cacheParams = { activeTab, labelFilter, searchFilter };
-        const cachedEmails = readEmailListCache(cacheParams);
-        if (cachedEmails) {
+        const cachedEmails = readEmailListCache(listCacheParams);
+        if (cachedEmails?.length) {
             setEmails(cachedEmails);
             setHasCache(true);
         } else {
+            setEmails([]);
             setHasCache(false);
         }
 
@@ -311,8 +312,6 @@ const Emails = () => {
     useEffect(() => {
         setSelectedEmails([]);
         setPage(1);
-        setEmails([]);
-        setHasCache(false);
         setTotalEmails(0);
         setTotalPages(1);
     }, [activeTab, labelFilter, searchFilter]);
@@ -323,7 +322,7 @@ const Emails = () => {
             ? getLabelDisplayName(labelFilter, labelNameMap)
             : tabTitles[activeTab] || 'Mail';
 
-    const showBlockingLoader = (isFetching || isSyncing) && emails.length === 0 && !hasCache;
+    const showBlockingLoader = emails.length === 0 && (isFetching || isSyncing);
     const hasSelection = selectedEmails.length > 0;
     const allSelected = emails.length > 0 && selectedEmails.length === emails.length;
     const someSelected = hasSelection && !allSelected;
