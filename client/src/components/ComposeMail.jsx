@@ -34,6 +34,46 @@ const htmlToPlainText = (html = '') => {
     return (container.innerText || container.textContent || '').trim();
 };
 
+const normalizeSignatureOptions = (general = {}) => {
+    const entries = Array.isArray(general.signatures) ? general.signatures : [];
+    const fallbackEmail = general.selected_email || general.email || MAIL_FROM || 'paul@tensology.com';
+    const source = entries.length
+        ? entries
+        : [{ email: fallbackEmail, signature_html: general.signature_html || '' }];
+
+    return source
+        .map((entry) => ({
+            email: String(entry.email || '').trim().toLowerCase(),
+            signature: htmlToPlainText(entry.signature_html || '')
+        }))
+        .filter((entry) => entry.email && entry.signature);
+};
+
+const removeTrailingSignature = (body = '', signature = '') => {
+    if (!signature) {
+        return body;
+    }
+
+    const normalizedBody = String(body || '').replace(/\s+$/g, '');
+    const normalizedSignature = String(signature || '').trim();
+    if (!normalizedSignature || !normalizedBody.endsWith(normalizedSignature)) {
+        return body;
+    }
+
+    return normalizedBody.slice(0, normalizedBody.length - normalizedSignature.length).replace(/\s+$/g, '');
+};
+
+const applySignatureToBody = (body = '', nextSignature = '', previousSignature = '') => {
+    const withoutPrevious = removeTrailingSignature(body, previousSignature);
+    if (!nextSignature) {
+        return withoutPrevious;
+    }
+    if (removeTrailingSignature(withoutPrevious, nextSignature) !== withoutPrevious) {
+        return withoutPrevious;
+    }
+    return `${withoutPrevious}${withoutPrevious ? '\n\n' : ''}${nextSignature}`;
+};
+
 const hasDraftContent = (draft = {}) => (
     ['to', 'cc', 'bcc', 'subject', 'body'].some((field) => String(draft[field] || '').trim())
 );
@@ -52,10 +92,13 @@ const ComposeMail = ({ onSent }) => {
     const getContactsService = useApi(API_URLS.getContacts);
     const getSettingsService = useApi(API_URLS.getSettings);
     const [contactOptions, setContactOptions] = useState([]);
+    const [signatureOptions, setSignatureOptions] = useState([]);
+    const [selectedSignatureEmail, setSelectedSignatureEmail] = useState('');
     const bodyRef = useRef(null);
     const draftIdRef = useRef('');
     const hasUserEditedRef = useRef(false);
     const lastSavedDraftRef = useRef('');
+    const appliedSignatureRef = useRef('');
 
     useEffect(() => {
         if (!isOpen) {
@@ -65,22 +108,28 @@ const ComposeMail = ({ onSent }) => {
         let cancelled = false;
 
         const loadComposeState = async () => {
-            let signature = '';
+            let signatures = [];
             const settingsResult = await getSettingsService.call({}, '', { silent: true });
             if (!settingsResult.error) {
-                signature = htmlToPlainText(settingsResult.data?.general?.signature_html || '');
+                signatures = normalizeSignatureOptions(settingsResult.data?.general || {});
             }
 
             const baseBody = draft.body || '';
-            const shouldApplySignature = signature && !draft.in_reply_to && !baseBody.includes(signature);
+            const selectedSignature = signatures.find((entry) => baseBody.trim().endsWith(entry.signature))
+                || signatures[0]
+                || { email: '', signature: '' };
+            const shouldApplySignature = selectedSignature.signature && !draft.in_reply_to;
             if (!cancelled) {
+                appliedSignatureRef.current = shouldApplySignature ? selectedSignature.signature : '';
+                setSignatureOptions(signatures);
+                setSelectedSignatureEmail(selectedSignature.email || '');
                 setData({
                     to: draft.to || '',
                     cc: draft.cc || '',
                     bcc: draft.bcc || '',
                     subject: draft.subject || '',
                     body: shouldApplySignature
-                        ? `${baseBody}${baseBody ? '\n\n' : ''}${signature}`
+                        ? applySignatureToBody(baseBody, selectedSignature.signature)
                         : baseBody
                 });
             }
@@ -93,6 +142,9 @@ const ComposeMail = ({ onSent }) => {
         setShowCc(Boolean(draft.show_cc || draft.cc));
         setShowBcc(Boolean(draft.show_bcc || draft.bcc));
         setAttachments([]);
+        setSignatureOptions([]);
+        setSelectedSignatureEmail('');
+        appliedSignatureRef.current = '';
 
         getContactsService.call().then((result) => {
             if (!result.error && Array.isArray(result.data)) {
@@ -143,6 +195,19 @@ const ComposeMail = ({ onSent }) => {
         draftIdRef.current = '';
         hasUserEditedRef.current = false;
         lastSavedDraftRef.current = '';
+        appliedSignatureRef.current = '';
+    };
+
+    const changeSignature = (email) => {
+        const nextSignature = signatureOptions.find((entry) => entry.email === email)?.signature || '';
+        const previousSignature = appliedSignatureRef.current;
+        hasUserEditedRef.current = true;
+        appliedSignatureRef.current = nextSignature;
+        setSelectedSignatureEmail(email);
+        setData((current) => ({
+            ...current,
+            body: applySignatureToBody(current.body, nextSignature, previousSignature)
+        }));
     };
 
     const saveDraft = useCallback(async ({ silent = true } = {}) => {
@@ -400,7 +465,7 @@ const ComposeMail = ({ onSent }) => {
                     )}
 
                     <div className="flex items-center justify-between border-t border-slate-100 px-3 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <Button type="submit" disabled={sendEmailService.isLoading} className="rounded-full">
                                 {sendEmailService.isLoading ? <Spinner size={18} className="border-white/30 border-t-white" /> : (
                                     <>
@@ -414,6 +479,20 @@ const ComposeMail = ({ onSent }) => {
                                 Attach
                                 <input hidden type="file" multiple onChange={onAttachmentChange} />
                             </label>
+                            {signatureOptions.length > 1 && (
+                                <label className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                                    <span>Signature</span>
+                                    <select
+                                        value={selectedSignatureEmail}
+                                        onChange={(event) => changeSignature(event.target.value)}
+                                        className="h-8 max-w-[13rem] rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    >
+                                        {signatureOptions.map((option) => (
+                                            <option key={option.email} value={option.email}>{option.email}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
                         </div>
                     </div>
                 </form>

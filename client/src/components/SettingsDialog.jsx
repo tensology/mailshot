@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bold, Italic, List, RefreshCw, Save } from 'lucide-react';
+import { Bold, Italic, List, Plus, Save, Trash2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
@@ -7,8 +7,25 @@ import Button from './ui/Button';
 import Input from './ui/Input';
 import Toast from './ui/Toast';
 
+const DEFAULT_EMAIL = 'paul@tensology.com';
+
+const emptySignature = (email = DEFAULT_EMAIL) => ({
+    email,
+    signature_html: ''
+});
+
+const emptyAutoresponder = (email = DEFAULT_EMAIL) => ({
+    email,
+    enabled: false,
+    subject: 'Re: {{subject}}',
+    html: ''
+});
+
 const emptyGeneral = {
-    email: 'paul@tensology.com',
+    email: DEFAULT_EMAIL,
+    selected_email: DEFAULT_EMAIL,
+    signatures: [emptySignature()],
+    autoresponders: [emptyAutoresponder()],
     signature_html: '',
     autoresponder_enabled: false,
     autoresponder_html: '',
@@ -19,8 +36,48 @@ const emptyAi = {
     enabled: false,
     provider: 'openai',
     api_key: '',
-    base_url: '',
     model: ''
+};
+
+const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
+
+const uniqueEntriesByEmail = (entries, fallbackFactory) => {
+    const byEmail = new Map();
+    entries.forEach((entry) => {
+        const email = normalizeEmail(entry.email);
+        if (!email) return;
+        byEmail.set(email, { ...entry, email });
+    });
+    if (!byEmail.size) {
+        const fallback = fallbackFactory(DEFAULT_EMAIL);
+        byEmail.set(DEFAULT_EMAIL, fallback);
+    }
+    return [...byEmail.values()];
+};
+
+const normalizeGeneral = (settings = {}) => {
+    const selectedEmail = normalizeEmail(settings.selected_email || settings.email) || DEFAULT_EMAIL;
+    const signatures = uniqueEntriesByEmail(
+        Array.isArray(settings.signatures) && settings.signatures.length
+            ? settings.signatures
+            : [emptySignature(selectedEmail)],
+        emptySignature
+    );
+    const autoresponders = uniqueEntriesByEmail(
+        Array.isArray(settings.autoresponders) && settings.autoresponders.length
+            ? settings.autoresponders
+            : [emptyAutoresponder(selectedEmail)],
+        emptyAutoresponder
+    );
+
+    return {
+        ...emptyGeneral,
+        ...settings,
+        email: selectedEmail,
+        selected_email: selectedEmail,
+        signatures,
+        autoresponders
+    };
 };
 
 const RichTextEditor = ({ label, value, onChange }) => {
@@ -67,11 +124,14 @@ const RichTextEditor = ({ label, value, onChange }) => {
 };
 
 const SettingsDialog = ({ open, isSuperuser, onClose }) => {
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState('signature');
     const [general, setGeneral] = useState(emptyGeneral);
+    const [selectedEmail, setSelectedEmail] = useState(DEFAULT_EMAIL);
+    const [newEmail, setNewEmail] = useState('');
     const [ai, setAi] = useState(emptyAi);
     const [providers, setProviders] = useState({});
     const [models, setModels] = useState([]);
+    const [modelsLoaded, setModelsLoaded] = useState(false);
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
     const getSettingsService = useApi(API_URLS.getSettings);
@@ -88,44 +148,155 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                 setToast({ open: true, message: result.error, severity: 'error' });
                 return;
             }
-            setGeneral({ ...emptyGeneral, ...(result.data?.general || {}) });
+            const nextGeneral = normalizeGeneral(result.data?.general || {});
+            setGeneral(nextGeneral);
+            setSelectedEmail(nextGeneral.selected_email || nextGeneral.signatures[0]?.email || DEFAULT_EMAIL);
             setAi({ ...emptyAi, ...(result.data?.ai || {}) });
             setProviders(result.data?.providers || {});
             setModels(result.data?.ai?.model ? [{ id: result.data.ai.model, name: result.data.ai.model }] : []);
-            setActiveTab('general');
+            setModelsLoaded(Boolean(result.data?.ai?.model));
+            setNewEmail('');
+            setActiveTab('signature');
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const providerOptions = useMemo(() => Object.entries(providers), [providers]);
-    const selectedProvider = providers[ai.provider] || {};
+    const currentSignature = general.signatures.find((entry) => entry.email === selectedEmail) || general.signatures[0] || emptySignature();
+    const currentAutoresponder = general.autoresponders.find((entry) => entry.email === selectedEmail) || general.autoresponders[0] || emptyAutoresponder();
+    const emailOptions = useMemo(() => {
+        const emails = new Set([
+            ...general.signatures.map((entry) => entry.email),
+            ...general.autoresponders.map((entry) => entry.email)
+        ]);
+        return [...emails].filter(Boolean);
+    }, [general.autoresponders, general.signatures]);
 
-    const saveGeneral = async () => {
-        const result = await updateGeneralService.call(general);
-        if (result.error) {
-            setToast({ open: true, message: result.error, severity: 'error' });
-            return;
-        }
-        setToast({ open: true, message: 'General settings saved', severity: 'success' });
+    const buildGeneralPayload = (overrides = {}) => {
+        const payload = {
+            ...general,
+            ...overrides,
+            selected_email: selectedEmail,
+            email: selectedEmail
+        };
+        const selectedSignature = payload.signatures.find((entry) => entry.email === selectedEmail) || payload.signatures[0] || emptySignature(selectedEmail);
+        const selectedAutoresponder = payload.autoresponders.find((entry) => entry.email === selectedEmail) || payload.autoresponders[0] || emptyAutoresponder(selectedEmail);
+        return {
+            ...payload,
+            signature_html: selectedSignature.signature_html || '',
+            autoresponder_enabled: Boolean(selectedAutoresponder.enabled),
+            autoresponder_html: selectedAutoresponder.html || '',
+            autoresponder_subject: selectedAutoresponder.subject || 'Re: {{subject}}'
+        };
     };
 
-    const saveAi = async () => {
-        const result = await updateAiService.call(ai);
-        if (result.error) {
-            setToast({ open: true, message: result.error, severity: 'error' });
-            return;
-        }
-        setToast({ open: true, message: 'AI settings saved', severity: 'success' });
+    const updateSignature = (value) => {
+        setGeneral((current) => ({
+            ...current,
+            signatures: uniqueEntriesByEmail(
+                current.signatures.map((entry) => (
+                    entry.email === selectedEmail ? { ...entry, signature_html: value } : entry
+                )),
+                emptySignature
+            )
+        }));
     };
 
-    const loadModels = async () => {
-        const result = await fetchModelsService.call(ai);
+    const updateAutoresponder = (updates) => {
+        setGeneral((current) => ({
+            ...current,
+            autoresponders: uniqueEntriesByEmail(
+                current.autoresponders.map((entry) => (
+                    entry.email === selectedEmail ? { ...entry, ...updates } : entry
+                )),
+                emptyAutoresponder
+            )
+        }));
+    };
+
+    const addEmail = () => {
+        const email = normalizeEmail(newEmail);
+        if (!email) {
+            setToast({ open: true, message: 'Enter an email address', severity: 'error' });
+            return;
+        }
+        setGeneral((current) => ({
+            ...current,
+            signatures: uniqueEntriesByEmail([...current.signatures, emptySignature(email)], emptySignature),
+            autoresponders: uniqueEntriesByEmail([...current.autoresponders, emptyAutoresponder(email)], emptyAutoresponder)
+        }));
+        setSelectedEmail(email);
+        setNewEmail('');
+    };
+
+    const removeEmail = () => {
+        if (emailOptions.length <= 1) {
+            return;
+        }
+        const nextEmails = emailOptions.filter((email) => email !== selectedEmail);
+        const nextSelected = nextEmails[0] || DEFAULT_EMAIL;
+        setGeneral((current) => ({
+            ...current,
+            signatures: current.signatures.filter((entry) => entry.email !== selectedEmail),
+            autoresponders: current.autoresponders.filter((entry) => entry.email !== selectedEmail)
+        }));
+        setSelectedEmail(nextSelected);
+    };
+
+    const saveGeneral = async (message) => {
+        const payload = buildGeneralPayload();
+        const result = await updateGeneralService.call(payload);
         if (result.error) {
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return null;
+        }
+        const nextGeneral = normalizeGeneral(result.data?.general || payload);
+        setGeneral(nextGeneral);
+        setSelectedEmail(nextGeneral.selected_email || selectedEmail);
+        setToast({ open: true, message, severity: 'success' });
+        return nextGeneral;
+    };
+
+    const loadModels = async (payload) => {
+        const result = await fetchModelsService.call(payload);
+        if (result.error) {
+            setModels([]);
+            setModelsLoaded(false);
             setToast({ open: true, message: result.error, severity: 'error' });
             return;
         }
         setModels(result.data?.models || []);
+        setModelsLoaded(true);
         setToast({ open: true, message: `${result.data?.models?.length || 0} models loaded`, severity: 'success' });
+    };
+
+    const saveAiKey = async () => {
+        const payload = {
+            ...ai,
+            enabled: Boolean(ai.api_key?.trim()),
+            model: ''
+        };
+        const result = await updateAiService.call(payload);
+        if (result.error) {
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        const nextAi = { ...emptyAi, ...(result.data?.ai || payload) };
+        setAi(nextAi);
+        setModels([]);
+        setModelsLoaded(false);
+        await loadModels(nextAi);
+    };
+
+    const saveModel = async (model) => {
+        const payload = { ...ai, model };
+        setAi(payload);
+        const result = await updateAiService.call(payload, '', { silent: true });
+        if (result.error) {
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        setToast({ open: true, message: 'AI model saved', severity: 'success' });
     };
 
     return (
@@ -143,10 +314,17 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                 <div className="sticky top-0 z-10 mb-4 flex gap-2 border-b border-slate-100 bg-white">
                     <button
                         type="button"
-                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'general' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
-                        onClick={() => setActiveTab('general')}
+                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'signature' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                        onClick={() => setActiveTab('signature')}
                     >
-                        General
+                        Signature
+                    </button>
+                    <button
+                        type="button"
+                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'autoresponder' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                        onClick={() => setActiveTab('autoresponder')}
+                    >
+                        Auto Responder
                     </button>
                     {isSuperuser && (
                         <button
@@ -159,69 +337,95 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                     )}
                 </div>
 
-                {activeTab === 'general' && (
+                {(activeTab === 'signature' || activeTab === 'autoresponder') && (
+                    <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                        <label className="block">
+                            <span className="mb-1.5 block text-sm font-medium text-slate-700">Email address</span>
+                            <select
+                                value={selectedEmail}
+                                onChange={(event) => setSelectedEmail(event.target.value)}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            >
+                                {emailOptions.map((email) => (
+                                    <option key={email} value={email}>{email}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <div className="flex items-end gap-2">
+                            <Input
+                                label="Add email"
+                                value={newEmail}
+                                onChange={(event) => setNewEmail(event.target.value)}
+                                placeholder="name@example.com"
+                            />
+                            <Button onClick={addEmail} variant="secondary" className="shrink-0">
+                                <Plus className="h-4 w-4" />
+                                Add
+                            </Button>
+                            <Button onClick={removeEmail} variant="ghost" disabled={emailOptions.length <= 1} className="shrink-0">
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'signature' && (
                     <div className="space-y-4">
-                        <Input
-                            label="Linked email"
-                            value={general.email}
-                            onChange={(event) => setGeneral({ ...general, email: event.target.value })}
-                        />
                         <RichTextEditor
                             label="Signature"
-                            value={general.signature_html}
-                            onChange={(value) => setGeneral({ ...general, signature_html: value })}
+                            value={currentSignature.signature_html}
+                            onChange={updateSignature}
                         />
-                        <div className="rounded-2xl border border-slate-200 p-4">
-                            <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
-                                <input
-                                    type="checkbox"
-                                    checked={general.autoresponder_enabled}
-                                    onChange={(event) => setGeneral({ ...general, autoresponder_enabled: event.target.checked })}
-                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                Enable auto responder for new inbound mail
-                            </label>
-                            <div className="mt-4 space-y-4">
-                                <Input
-                                    label="Auto responder subject"
-                                    value={general.autoresponder_subject}
-                                    onChange={(event) => setGeneral({ ...general, autoresponder_subject: event.target.value })}
-                                />
-                                <RichTextEditor
-                                    label="Auto responder message"
-                                    value={general.autoresponder_html}
-                                    onChange={(value) => setGeneral({ ...general, autoresponder_html: value })}
-                                />
-                            </div>
-                        </div>
-                        <Button onClick={saveGeneral} disabled={updateGeneralService.isLoading}>
+                        <Button onClick={() => saveGeneral('Signature saved')} disabled={updateGeneralService.isLoading}>
                             <Save className="h-4 w-4" />
-                            Save general
+                            Save signature
+                        </Button>
+                    </div>
+                )}
+
+                {activeTab === 'autoresponder' && (
+                    <div className="space-y-4">
+                        <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
+                            <input
+                                type="checkbox"
+                                checked={Boolean(currentAutoresponder.enabled)}
+                                onChange={(event) => updateAutoresponder({ enabled: event.target.checked })}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Enable auto responder for this email
+                        </label>
+                        <Input
+                            label="Auto responder subject"
+                            value={currentAutoresponder.subject}
+                            onChange={(event) => updateAutoresponder({ subject: event.target.value })}
+                        />
+                        <RichTextEditor
+                            label="Auto responder message"
+                            value={currentAutoresponder.html}
+                            onChange={(value) => updateAutoresponder({ html: value })}
+                        />
+                        <Button onClick={() => saveGeneral('Auto responder saved')} disabled={updateGeneralService.isLoading}>
+                            <Save className="h-4 w-4" />
+                            Save auto responder
                         </Button>
                     </div>
                 )}
 
                 {activeTab === 'ai' && isSuperuser && (
                     <div className="space-y-4">
-                        <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
-                            <input
-                                type="checkbox"
-                                checked={ai.enabled}
-                                onChange={(event) => setAi({ ...ai, enabled: event.target.checked })}
-                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            Enable AI features for this Mailshot account
-                        </label>
                         <label className="block">
                             <span className="mb-1.5 block text-sm font-medium text-slate-700">Provider</span>
                             <select
                                 value={ai.provider}
-                                onChange={(event) => setAi({
-                                    ...ai,
-                                    provider: event.target.value,
-                                    base_url: providers[event.target.value]?.base_url || '',
-                                    model: ''
-                                })}
+                                onChange={(event) => {
+                                    setAi({
+                                        ...ai,
+                                        provider: event.target.value,
+                                        model: ''
+                                    });
+                                    setModels([]);
+                                    setModelsLoaded(false);
+                                }}
                                 className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
                                 {providerOptions.map(([key, provider]) => (
@@ -229,32 +433,27 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 ))}
                             </select>
                         </label>
-                        <Input
-                            label="Base URL"
-                            value={ai.base_url || selectedProvider.base_url || ''}
-                            onChange={(event) => setAi({ ...ai, base_url: event.target.value })}
-                        />
-                        <Input
-                            label="API key"
-                            value={ai.api_key}
-                            onChange={(event) => setAi({ ...ai, api_key: event.target.value })}
-                        />
-                        <div className="flex flex-wrap gap-2">
-                            <Button variant="secondary" onClick={loadModels} disabled={!ai.api_key || fetchModelsService.isLoading}>
-                                <RefreshCw className={`h-4 w-4 ${fetchModelsService.isLoading ? 'animate-spin' : ''}`} />
-                                Load models
-                            </Button>
-                            <Button onClick={saveAi} disabled={updateAiService.isLoading}>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                            <Input
+                                label="API key"
+                                value={ai.api_key}
+                                onChange={(event) => {
+                                    setAi({ ...ai, api_key: event.target.value, model: '' });
+                                    setModels([]);
+                                    setModelsLoaded(false);
+                                }}
+                            />
+                            <Button onClick={saveAiKey} disabled={!ai.api_key?.trim() || updateAiService.isLoading || fetchModelsService.isLoading}>
                                 <Save className="h-4 w-4" />
-                                Save AI
+                                Save key
                             </Button>
                         </div>
-                        {(models.length > 0 || ai.model) && (
+                        {(modelsLoaded || ai.model) && (
                             <label className="block">
                                 <span className="mb-1.5 block text-sm font-medium text-slate-700">Model</span>
                                 <select
                                     value={ai.model}
-                                    onChange={(event) => setAi({ ...ai, model: event.target.value })}
+                                    onChange={(event) => saveModel(event.target.value)}
                                     className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 >
                                     <option value="">Select a model</option>

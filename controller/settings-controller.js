@@ -46,20 +46,87 @@ const requireSuperUser = (request, response) => {
 };
 
 const normalizeHtml = (value = '') => String(value || '').trim();
+const normalizeEmail = (value = '') => {
+    const raw = String(value || '').trim().toLowerCase();
+    const email = (/<([^>]+)>/.exec(raw)?.[1] || raw).trim();
+    return email === 'port@tensology.com' ? SUPERUSER_EMAIL : email;
+};
 
-const normalizeGeneralPayload = (body = {}) => ({
-    email: String(body.email || SUPERUSER_EMAIL).trim() || SUPERUSER_EMAIL,
-    signature_html: normalizeHtml(body.signature_html),
-    autoresponder_enabled: Boolean(body.autoresponder_enabled),
-    autoresponder_html: normalizeHtml(body.autoresponder_html),
-    autoresponder_subject: String(body.autoresponder_subject || 'Re: {{subject}}').trim() || 'Re: {{subject}}'
-});
+const normalizeSignatures = (body = {}) => {
+    const source = Array.isArray(body.signatures) ? body.signatures : [];
+    const byEmail = new Map();
+
+    source.forEach((entry = {}) => {
+        const email = normalizeEmail(entry.email);
+        if (!email) return;
+        byEmail.set(email, {
+            email,
+            signature_html: normalizeHtml(entry.signature_html)
+        });
+    });
+
+    if (!byEmail.size) {
+        const email = normalizeEmail(body.email) || SUPERUSER_EMAIL;
+        byEmail.set(email, {
+            email,
+            signature_html: normalizeHtml(body.signature_html)
+        });
+    }
+
+    return [...byEmail.values()];
+};
+
+const normalizeAutoresponders = (body = {}) => {
+    const source = Array.isArray(body.autoresponders) ? body.autoresponders : [];
+    const byEmail = new Map();
+
+    source.forEach((entry = {}) => {
+        const email = normalizeEmail(entry.email);
+        if (!email) return;
+        byEmail.set(email, {
+            email,
+            enabled: Boolean(entry.enabled),
+            html: normalizeHtml(entry.html || entry.autoresponder_html),
+            subject: String(entry.subject || entry.autoresponder_subject || 'Re: {{subject}}').trim() || 'Re: {{subject}}'
+        });
+    });
+
+    if (!byEmail.size) {
+        const email = normalizeEmail(body.email) || SUPERUSER_EMAIL;
+        byEmail.set(email, {
+            email,
+            enabled: Boolean(body.autoresponder_enabled),
+            html: normalizeHtml(body.autoresponder_html),
+            subject: String(body.autoresponder_subject || 'Re: {{subject}}').trim() || 'Re: {{subject}}'
+        });
+    }
+
+    return [...byEmail.values()];
+};
+
+const normalizeGeneralPayload = (body = {}) => {
+    const signatures = normalizeSignatures(body);
+    const autoresponders = normalizeAutoresponders(body);
+    const selectedEmail = normalizeEmail(body.selected_email || body.email) || signatures[0]?.email || SUPERUSER_EMAIL;
+    const selectedSignature = signatures.find((entry) => entry.email === selectedEmail) || signatures[0];
+    const selectedAutoresponder = autoresponders.find((entry) => entry.email === selectedEmail) || autoresponders[0];
+
+    return {
+        email: selectedEmail,
+        selected_email: selectedEmail,
+        signatures,
+        autoresponders,
+        signature_html: selectedSignature?.signature_html || '',
+        autoresponder_enabled: Boolean(selectedAutoresponder?.enabled),
+        autoresponder_html: selectedAutoresponder?.html || '',
+        autoresponder_subject: selectedAutoresponder?.subject || 'Re: {{subject}}'
+    };
+};
 
 const normalizeAiPayload = (body = {}) => ({
-    enabled: Boolean(body.enabled),
+    enabled: Boolean(body.enabled ?? body.api_key),
     provider: providerDefaults[body.provider] ? body.provider : 'openai',
     api_key: String(body.api_key || '').trim(),
-    base_url: String(body.base_url || '').trim(),
     model: String(body.model || '').trim()
 });
 
@@ -84,9 +151,9 @@ export const updateAiSettings = async (request, response) => {
     response.status(200).json(sanitizeForUser(settings, true));
 };
 
-const buildModelsUrl = (provider, baseUrl) => {
+const buildModelsUrl = (provider) => {
     const defaults = providerDefaults[provider] || providerDefaults.openai;
-    const root = String(baseUrl || defaults.base_url).replace(/\/+$/, '');
+    const root = String(defaults.base_url).replace(/\/+$/, '');
     return `${root}${defaults.modelsPath}`;
 };
 
@@ -123,7 +190,6 @@ export const fetchAiModels = async (request, response) => {
     const current = await getSettings();
     const provider = providerDefaults[request.body?.provider] ? request.body.provider : current.ai.provider;
     const apiKey = String(request.body?.api_key || current.ai.api_key || '').trim();
-    const baseUrl = String(request.body?.base_url || current.ai.base_url || '').trim();
     const defaults = providerDefaults[provider] || providerDefaults.openai;
 
     if (!apiKey) {
@@ -139,7 +205,7 @@ export const fetchAiModels = async (request, response) => {
     }
 
     try {
-        const result = await fetch(buildModelsUrl(provider, baseUrl), { headers });
+        const result = await fetch(buildModelsUrl(provider), { headers });
         const payload = await result.json().catch(() => ({}));
         if (!result.ok) {
             return response.status(result.status).json(payload?.error?.message || payload?.message || 'Could not load models');

@@ -8,7 +8,7 @@ import { isDbConnected } from '../database/db.js';
 import { parseMailAttachments } from './attachments.js';
 import { slugify } from '../utils/slug.js';
 import { sendMail } from './mailer.js';
-import { getSettings, markAutoresponderSent } from './settings-store.js';
+import { findSettingsForEmail, getSettings, markAutoresponderSent } from './settings-store.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -180,11 +180,12 @@ const shouldAutoRespond = async (payload = {}) => {
     const settings = await getSettings();
     const log = Array.isArray(settings.autoresponder_log) ? settings.autoresponder_log : [];
     const threadKey = payload.references?.[0] || payload.in_reply_to || payload.messageId;
-    if (!settings.general?.autoresponder_enabled || !settings.general?.autoresponder_html || log.includes(threadKey)) {
+    const { autoresponder } = findSettingsForEmail(settings.general, payload.to);
+    if (!autoresponder?.enabled || !autoresponder?.html || log.includes(threadKey)) {
         return { ok: false };
     }
 
-    return { ok: true, settings, threadKey };
+    return { ok: true, autoresponder, threadKey };
 };
 
 const sendAutoResponderIfNeeded = async (payload = {}) => {
@@ -193,8 +194,8 @@ const sendAutoResponderIfNeeded = async (payload = {}) => {
         return;
     }
 
-    const html = decision.settings.general.autoresponder_html;
-    const subjectTemplate = decision.settings.general.autoresponder_subject || 'Re: {{subject}}';
+    const html = decision.autoresponder.html;
+    const subjectTemplate = decision.autoresponder.subject || 'Re: {{subject}}';
     const subject = subjectTemplate.replace(/\{\{\s*subject\s*\}\}/gi, payload.subject || '(no subject)');
 
     try {

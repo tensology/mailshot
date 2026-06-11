@@ -11,6 +11,21 @@ export const SUPERUSER_EMAIL = String(process.env.MAILSHOT_SUPERUSER || 'paul@te
 const defaultSettings = () => ({
     general: {
         email: SUPERUSER_EMAIL,
+        selected_email: SUPERUSER_EMAIL,
+        signatures: [
+            {
+                email: SUPERUSER_EMAIL,
+                signature_html: ''
+            }
+        ],
+        autoresponders: [
+            {
+                email: SUPERUSER_EMAIL,
+                enabled: false,
+                html: '',
+                subject: 'Re: {{subject}}'
+            }
+        ],
         signature_html: '',
         autoresponder_enabled: false,
         autoresponder_html: '',
@@ -20,7 +35,6 @@ const defaultSettings = () => ({
         enabled: false,
         provider: 'openai',
         api_key: '',
-        base_url: '',
         model: ''
     },
     autoresponder_log: []
@@ -28,23 +42,122 @@ const defaultSettings = () => ({
 
 let settingsCache = defaultSettings();
 
+const normalizeEmail = (value = '') => {
+    const raw = String(value || '').trim().toLowerCase();
+    const email = (/<([^>]+)>/.exec(raw)?.[1] || raw).trim();
+    return email === 'port@tensology.com' ? SUPERUSER_EMAIL : email;
+};
+
+const normalizeSignatureEntries = (general = {}) => {
+    const legacyEmail = normalizeEmail(general.email) || SUPERUSER_EMAIL;
+    const source = Array.isArray(general.signatures) && general.signatures.length
+        ? general.signatures
+        : [{ email: legacyEmail, signature_html: general.signature_html || '' }];
+
+    const byEmail = new Map();
+    source.forEach((entry = {}) => {
+        const email = normalizeEmail(entry.email);
+        if (!email) return;
+        byEmail.set(email, {
+            email,
+            signature_html: String(entry.signature_html || '')
+        });
+    });
+
+    if (!byEmail.size) {
+        byEmail.set(SUPERUSER_EMAIL, { email: SUPERUSER_EMAIL, signature_html: '' });
+    }
+
+    return [...byEmail.values()];
+};
+
+const normalizeAutoresponderEntries = (general = {}) => {
+    const legacyEmail = normalizeEmail(general.email) || SUPERUSER_EMAIL;
+    const source = Array.isArray(general.autoresponders) && general.autoresponders.length
+        ? general.autoresponders
+        : [{
+            email: legacyEmail,
+            enabled: Boolean(general.autoresponder_enabled),
+            html: general.autoresponder_html || '',
+            subject: general.autoresponder_subject || 'Re: {{subject}}'
+        }];
+
+    const byEmail = new Map();
+    source.forEach((entry = {}) => {
+        const email = normalizeEmail(entry.email);
+        if (!email) return;
+        byEmail.set(email, {
+            email,
+            enabled: Boolean(entry.enabled),
+            html: String(entry.html || entry.autoresponder_html || ''),
+            subject: String(entry.subject || entry.autoresponder_subject || 'Re: {{subject}}').trim() || 'Re: {{subject}}'
+        });
+    });
+
+    if (!byEmail.size) {
+        byEmail.set(SUPERUSER_EMAIL, {
+            email: SUPERUSER_EMAIL,
+            enabled: false,
+            html: '',
+            subject: 'Re: {{subject}}'
+        });
+    }
+
+    return [...byEmail.values()];
+};
+
+export const findSettingsForEmail = (general = {}, address = '') => {
+    const wanted = normalizeEmail(address);
+    const selected = normalizeEmail(general.selected_email || general.email) || SUPERUSER_EMAIL;
+    const signatures = normalizeSignatureEntries(general);
+    const autoresponders = normalizeAutoresponderEntries(general);
+
+    return {
+        signature: signatures.find((entry) => entry.email === wanted)
+            || signatures.find((entry) => entry.email === selected)
+            || signatures[0],
+        autoresponder: autoresponders.find((entry) => entry.email === wanted)
+            || autoresponders.find((entry) => entry.email === selected)
+            || autoresponders[0]
+    };
+};
+
 const mergeSettings = (value = {}) => {
-    const general = {
+    const rawGeneral = {
         ...defaultSettings().general,
         ...(value.general || {})
     };
 
-    if (String(general.email || '').trim().toLowerCase() === 'port@tensology.com') {
-        general.email = SUPERUSER_EMAIL;
-    }
+    const signatures = normalizeSignatureEntries(rawGeneral);
+    const autoresponders = normalizeAutoresponderEntries(rawGeneral);
+    const selectedEmail = normalizeEmail(rawGeneral.selected_email || rawGeneral.email) || signatures[0]?.email || SUPERUSER_EMAIL;
+    const selectedSettings = findSettingsForEmail({ ...rawGeneral, signatures, autoresponders, selected_email: selectedEmail }, selectedEmail);
+    const general = {
+        ...rawGeneral,
+        email: selectedEmail,
+        selected_email: selectedEmail,
+        signatures,
+        autoresponders,
+        signature_html: selectedSettings.signature?.signature_html || '',
+        autoresponder_enabled: Boolean(selectedSettings.autoresponder?.enabled),
+        autoresponder_html: selectedSettings.autoresponder?.html || '',
+        autoresponder_subject: selectedSettings.autoresponder?.subject || 'Re: {{subject}}'
+    };
+
+    const rawAi = {
+        ...defaultSettings().ai,
+        ...(value.ai || {})
+    };
 
     return {
         ...defaultSettings(),
         ...value,
         general,
         ai: {
-            ...defaultSettings().ai,
-            ...(value.ai || {})
+            enabled: Boolean(rawAi.enabled),
+            provider: rawAi.provider || 'openai',
+            api_key: String(rawAi.api_key || ''),
+            model: String(rawAi.model || '')
         },
         autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : []
     };
