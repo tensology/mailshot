@@ -43,10 +43,19 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labe
         navigate(`${routes.emails.path}/${type || 'inbox'}/${email._id}`);
     };
 
+    const openEmailFromKeyboard = (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openEmail();
+        }
+    };
+
     return (
-        <button
-            type="button"
+        <div
+            role="button"
+            tabIndex={0}
             onClick={openEmail}
+            onKeyDown={openEmailFromKeyboard}
             className={`group flex w-full items-start gap-2 border-b border-slate-100 px-3 py-3 text-left transition hover:bg-slate-50 sm:items-center sm:gap-3 sm:px-4 ${
                 unread ? 'bg-white' : 'bg-slate-50/60'
             }`}
@@ -100,7 +109,7 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labe
                     </div>
                 )}
             </div>
-        </button>
+        </div>
     );
 };
 

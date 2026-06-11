@@ -4,6 +4,7 @@ import { Tag } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
+import ConfirmDialog from './common/ConfirmDialog';
 import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
 import Input from './ui/Input';
 
@@ -22,6 +23,7 @@ const LabelSidebar = ({ onNavigate }) => {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
     const [labels, setLabels] = useState([]);
+    const [labelToDelete, setLabelToDelete] = useState(null);
 
     const loadLabels = async () => {
         const result = await getLabelsService.call();
@@ -48,8 +50,13 @@ const LabelSidebar = ({ onNavigate }) => {
         }
     };
 
-    const removeLabel = async (labelId) => {
-        await deleteLabelService.call({}, labelId);
+    const removeLabel = async () => {
+        if (!labelToDelete) {
+            return;
+        }
+
+        await deleteLabelService.call({}, labelToDelete._id);
+        setLabelToDelete(null);
         loadLabels();
     };
 
@@ -74,7 +81,8 @@ const LabelSidebar = ({ onNavigate }) => {
                         </NavLink>
                         <button
                             type="button"
-                            onClick={() => removeLabel(label._id)}
+                            onClick={() => setLabelToDelete(label)}
+                            aria-label={`Delete ${label.name}`}
                             className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                         >
                             ×
@@ -102,6 +110,17 @@ const LabelSidebar = ({ onNavigate }) => {
                     autoFocus
                 />
             </Dialog>
+
+            <ConfirmDialog
+                open={Boolean(labelToDelete)}
+                title="Delete label?"
+                message={labelToDelete
+                    ? `Delete "${labelToDelete.name}"? The label will be removed from messages, but the messages will stay in your mailbox.`
+                    : ''}
+                confirmLabel="Delete label"
+                onConfirm={removeLabel}
+                onCancel={() => setLabelToDelete(null)}
+            />
         </div>
     );
 };

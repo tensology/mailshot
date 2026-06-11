@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { LogOut, Menu, Search, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Cog, LogOut, Menu, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { routes } from '../../routes/routes';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,8 @@ import IconButton from '../ui/IconButton';
 
 const Header = () => {
     const [searchValue, setSearchValue] = useState('');
+    const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+    const accountMenuRef = useRef(null);
     const navigate = useNavigate();
     const { logout, username } = useAuth();
     const { toggleSidebar, searchOpen, setSearchOpen } = useLayout();
@@ -16,6 +18,31 @@ const Header = () => {
         await logout();
         navigate('/login', { replace: true });
     };
+
+    useEffect(() => {
+        if (!accountMenuOpen) {
+            return undefined;
+        }
+
+        const closeOnPointerDown = (event) => {
+            if (accountMenuRef.current && !accountMenuRef.current.contains(event.target)) {
+                setAccountMenuOpen(false);
+            }
+        };
+
+        const closeOnEscape = (event) => {
+            if (event.key === 'Escape') {
+                setAccountMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', closeOnPointerDown);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('mousedown', closeOnPointerDown);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [accountMenuOpen]);
 
     const submitSearch = (event) => {
         event.preventDefault();
@@ -65,18 +92,57 @@ const Header = () => {
                     <IconButton label="Search mail" className="lg:hidden" onClick={() => setSearchOpen(true)}>
                         <Search className="h-5 w-5" />
                     </IconButton>
-                    <button
-                        type="button"
-                        onClick={handleLogout}
-                        title={username ? `Signed in as ${username}. Sign out.` : 'Sign out'}
-                        className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 sm:flex"
-                    >
-                        <LogOut className="h-4 w-4" />
-                        <span className="max-w-[140px] truncate">{username || 'Account'}</span>
-                    </button>
-                    <IconButton label="Sign out" className="sm:hidden" onClick={handleLogout}>
-                        <LogOut className="h-5 w-5" />
-                    </IconButton>
+                    <div className="relative" ref={accountMenuRef}>
+                        <button
+                            type="button"
+                            onClick={() => setAccountMenuOpen((value) => !value)}
+                            aria-expanded={accountMenuOpen}
+                            aria-haspopup="menu"
+                            title={username ? `Signed in as ${username}` : 'Account settings'}
+                            className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 sm:flex"
+                        >
+                            <Cog className="h-4 w-4" />
+                            <span className="max-w-[140px] truncate">{username || 'Account'}</span>
+                            <ChevronDown className="h-4 w-4" />
+                        </button>
+                        <IconButton
+                            label="Account settings"
+                            className="sm:hidden"
+                            onClick={() => setAccountMenuOpen((value) => !value)}
+                        >
+                            <Cog className="h-5 w-5" />
+                        </IconButton>
+
+                        {accountMenuOpen && (
+                            <div
+                                role="menu"
+                                className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+                            >
+                                <div className="border-b border-slate-100 px-4 py-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Account
+                                    </p>
+                                    <p className="mt-1 truncate text-sm font-medium text-slate-900">
+                                        {username || 'Signed in'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Session is saved on this device and restored when you reopen Mailshot.
+                                    </p>
+                                </div>
+                                <div className="px-2 py-2">
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={handleLogout}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        Sign out
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </header>

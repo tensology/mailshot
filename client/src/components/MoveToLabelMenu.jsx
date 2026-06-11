@@ -38,9 +38,6 @@ const MoveToLabelMenu = ({
         }
 
         setOpen(false);
-        if (onMoved) {
-            onMoved(labelSlug, emailIds);
-        }
 
         moveToLabelService.call({ ids: emailIds, label: labelSlug }, '', { silent: true }).then((result) => {
             if (result.error) {
@@ -50,6 +47,9 @@ const MoveToLabelMenu = ({
                 return;
             }
 
+            if (onMoved) {
+                onMoved(labelSlug, emailIds);
+            }
             if (onMoveConfirmed) {
                 onMoveConfirmed(labelSlug, emailIds);
             }

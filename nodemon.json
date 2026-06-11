@@ -1,0 +1,11 @@
+{
+  "ignore": [
+    "client/build/**",
+    "client/node_modules/**",
+    "data/**",
+    "node_modules/**",
+    "REFERENCE/**",
+    "storage/**",
+    "uploads/**"
+  ]
+}

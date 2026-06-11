@@ -7,7 +7,6 @@ import { API_URL } from '../config/env';
 import {
     markEmailReadInCache,
     removeEmailsFromListCache,
-    setActionError,
     setActionNotice
 } from '../utils/emailListCache';
 import {
@@ -196,26 +195,25 @@ const ViewEmail = () => {
         setSnackbar({ open: true, message, severity: 'success' });
     };
 
-    const deleteEmail = () => {
+    const deleteEmail = async () => {
         const emailId = primaryEmail._id;
         const isPermanentDelete = type === 'bin';
 
         setConfirmDeleteOpen(false);
-        removeEmailsFromListCache([emailId]);
-        navigate(`/emails/${type || 'inbox'}`);
 
         const apiCall = isPermanentDelete
             ? deleteEmailsService.call([emailId])
             : moveEmailsToBin.call([emailId]);
 
-        apiCall.then((result) => {
-            if (result.error) {
-                setActionError(result.error);
-                return;
-            }
+        const result = await apiCall;
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
 
-            setActionNotice(isPermanentDelete ? 'Message deleted permanently' : 'Moved to Bin');
-        });
+        removeEmailsFromListCache([emailId]);
+        setActionNotice(isPermanentDelete ? 'Message deleted permanently' : 'Moved to Bin');
+        navigate(`/emails/${type || 'inbox'}`);
     };
 
     return (

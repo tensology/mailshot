@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
@@ -40,6 +40,7 @@ const ComposeMail = ({ onSent }) => {
     const saveDraftService = useApi(API_URLS.saveDraftEmails);
     const getContactsService = useApi(API_URLS.getContacts);
     const [contactOptions, setContactOptions] = useState([]);
+    const bodyRef = useRef(null);
 
     useEffect(() => {
         if (!isOpen) {
@@ -64,6 +65,25 @@ const ComposeMail = ({ onSent }) => {
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, draft]);
+
+    useEffect(() => {
+        if (!isOpen || composeState === 'minimized' || !bodyRef.current) {
+            return;
+        }
+
+        const focusTimer = window.setTimeout(() => {
+            if (!bodyRef.current) {
+                return;
+            }
+
+            bodyRef.current.focus();
+            if (draft.in_reply_to) {
+                bodyRef.current.setSelectionRange(0, 0);
+            }
+        }, 0);
+
+        return () => window.clearTimeout(focusTimer);
+    }, [composeState, draft.in_reply_to, isOpen]);
 
     const onValueChange = (event) => {
         setData({ ...data, [event.target.name]: event.target.value });
@@ -261,6 +281,7 @@ const ComposeMail = ({ onSent }) => {
                     </datalist>
 
                     <Textarea
+                        ref={bodyRef}
                         name="body"
                         rows={composeState === 'expanded' ? 16 : 10}
                         value={data.body}
