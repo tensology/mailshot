@@ -7,7 +7,16 @@ import { formatListPreview, parseSenderName, formatEmailDate } from '../utils/em
 import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
 
-const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labelNameMap }) => {
+const Email = ({
+    email,
+    index,
+    setStarredEmail,
+    selectedEmails,
+    labelNameMap,
+    onRowSelect,
+    onCheckboxSelect,
+    onKeyboardDelete
+}) => {
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
     const navigate = useNavigate();
     const { type } = useParams();
@@ -28,13 +37,9 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labe
         setStarredEmail((prevState) => !prevState);
     };
 
-    const handleChange = (event) => {
+    const handleCheckboxClick = (event) => {
         event.stopPropagation();
-        if (isSelected) {
-            setSelectedEmails((prevState) => prevState.filter((id) => id !== email._id));
-        } else {
-            setSelectedEmails((prevState) => [...prevState, email._id]);
-        }
+        onCheckboxSelect(email, index, event);
     };
 
     const openEmail = () => {
@@ -46,40 +51,56 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labe
     };
 
     const openEmailFromKeyboard = (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (event.key === 'Enter') {
             event.preventDefault();
             openEmail();
         }
+        if (event.key === 'Backspace' || event.key === 'Delete') {
+            event.preventDefault();
+            onKeyboardDelete(email);
+        }
+    };
+
+    const handleRowClick = (event) => {
+        event.currentTarget.focus();
+        onRowSelect(email, index, event);
     };
 
     return (
         <div
             role="button"
             tabIndex={0}
-            onClick={openEmail}
+            onClick={handleRowClick}
+            onDoubleClick={openEmail}
             onKeyDown={openEmailFromKeyboard}
-            className={`group flex w-full items-start gap-2 border-b border-slate-100 px-3 py-3 text-left transition hover:bg-slate-50 sm:items-center sm:gap-3 sm:px-4 ${
-                unread ? 'bg-white' : 'bg-slate-50/60'
+            aria-selected={isSelected}
+            className={`group flex w-full items-start gap-0 border-b border-slate-100 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 sm:items-center ${
+                isSelected ? 'bg-blue-50/80' : unread ? 'bg-white' : 'bg-slate-50/60'
             }`}
         >
-            <input
-                type="checkbox"
-                checked={isSelected}
-                onClick={(event) => event.stopPropagation()}
-                onChange={handleChange}
-                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 sm:mt-0"
-            />
+            <div
+                className="flex min-h-[4.5rem] w-11 shrink-0 items-start justify-center px-3 py-3 sm:items-center"
+                onClick={handleCheckboxClick}
+                title={isSelected ? 'Unselect' : 'Select'}
+            >
+                <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 sm:mt-0"
+                />
+            </div>
 
             <button
                 type="button"
                 onClick={toggleStarredEmail}
-                className="mt-0.5 shrink-0 text-slate-400 transition hover:text-amber-500 sm:mt-0"
+                className="mt-3 shrink-0 text-slate-400 transition hover:text-amber-500 sm:mt-0"
                 aria-label={email.starred ? 'Unstar' : 'Star'}
             >
                 <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
             </button>
 
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 px-3 py-3 sm:px-4">
                 <div className="flex items-start justify-between gap-2 sm:items-center">
                     <p className={`truncate text-sm ${unread ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
                         {senderName}

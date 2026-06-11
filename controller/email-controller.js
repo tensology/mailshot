@@ -54,6 +54,7 @@ export const getEmails = async (request, response) => {
                 const dbFilter = { ...filter };
                 delete dbFilter.label;
                 delete dbFilter.search;
+                delete dbFilter.participant;
 
                 if (filter.in_inbox) {
                     dbFilter.$or = [{ in_inbox: true }, { in_inbox: { $exists: false } }];
@@ -71,6 +72,14 @@ export const getEmails = async (request, response) => {
                     emails = emails.filter((item) => {
                         const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
                         return haystack.includes(search);
+                    });
+                }
+
+                if (filter.participant) {
+                    const participant = String(filter.participant).toLowerCase();
+                    emails = emails.filter((item) => {
+                        const haystack = [item.from, item.to, item.cc].join(' ').toLowerCase();
+                        return haystack.includes(participant);
                     });
                 }
             } catch (error) {

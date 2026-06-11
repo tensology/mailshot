@@ -5,13 +5,15 @@ import { routes } from '../../routes/routes';
 import { useAuth } from '../../context/AuthContext';
 import { useLayout } from '../../context/LayoutContext';
 import IconButton from '../ui/IconButton';
+import SettingsDialog from '../SettingsDialog';
 
 const Header = () => {
     const [searchValue, setSearchValue] = useState('');
     const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const accountMenuRef = useRef(null);
     const navigate = useNavigate();
-    const { logout, username } = useAuth();
+    const { logout, username, isSuperuser } = useAuth();
     const { toggleSidebar, searchOpen, setSearchOpen } = useLayout();
 
     const handleLogout = async () => {
@@ -133,6 +135,18 @@ const Header = () => {
                                     <button
                                         type="button"
                                         role="menuitem"
+                                        onClick={() => {
+                                            setAccountMenuOpen(false);
+                                            setSettingsOpen(true);
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                                    >
+                                        <Cog className="h-4 w-4" />
+                                        Settings
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="menuitem"
                                         onClick={handleLogout}
                                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50"
                                     >
@@ -145,6 +159,11 @@ const Header = () => {
                     </div>
                 </div>
             </div>
+            <SettingsDialog
+                open={settingsOpen}
+                isSuperuser={isSuperuser}
+                onClose={() => setSettingsOpen(false)}
+            />
         </header>
     );
 };

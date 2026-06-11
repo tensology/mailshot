@@ -9,6 +9,7 @@ import { isAuthConfigured } from './services/auth-config.js';
 import { loadLabelsFromDisk } from './services/label-store.js';
 import { loadContactsFromDisk } from './services/contact-store.js';
 import { loadSessionsFromDisk } from './services/auth-store.js';
+import { loadSettingsFromDisk } from './services/settings-store.js';
 
 const __dirname = path.resolve();
 const SPA_ENTRY_POINT = path.join(__dirname, './client/build/index.html');
@@ -88,6 +89,11 @@ if (loadedLabels > 0) {
 const loadedContacts = loadContactsFromDisk();
 if (loadedContacts > 0) {
     console.log(`Loaded ${loadedContacts} contacts from disk cache`);
+}
+
+const loadedSettings = loadSettingsFromDisk();
+if (loadedSettings > 0) {
+    console.log('Loaded app settings from disk cache');
 }
 
 startMailboxSync({

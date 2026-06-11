@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Mail, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Mail, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
+import { routes } from '../routes/routes';
 import { useCompose } from '../context/ComposeContext';
 import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
@@ -19,7 +21,20 @@ const emptyForm = {
     notes: ''
 };
 
+const matchesContactSearch = (contact, query) => {
+    const haystack = [
+        contact.name,
+        contact.email,
+        contact.phone,
+        contact.company,
+        contact.notes
+    ].join(' ').toLowerCase();
+
+    return haystack.includes(query);
+};
+
 const Contacts = () => {
+    const navigate = useNavigate();
     const { openCompose } = useCompose();
     const getContactsService = useApi(API_URLS.getContacts);
     const createContactService = useApi(API_URLS.createContact);
@@ -27,6 +42,7 @@ const Contacts = () => {
     const deleteContactService = useApi(API_URLS.deleteContact);
 
     const [contacts, setContacts] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(emptyForm);
@@ -89,9 +105,27 @@ const Contacts = () => {
         loadContacts();
     };
 
-    const emailContact = (contact) => {
+    const emailContact = (contact, event) => {
+        event.stopPropagation();
         openCompose(contact.email);
     };
+
+    const viewMailWithContact = (contact) => {
+        if (!contact.email?.trim()) {
+            return;
+        }
+
+        navigate(`${routes.emails.path}/allmail?participant=${encodeURIComponent(contact.email.trim())}`);
+    };
+
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    const visibleContacts = useMemo(() => {
+        if (!normalizedSearch) {
+            return contacts;
+        }
+
+        return contacts.filter((contact) => matchesContactSearch(contact, normalizedSearch));
+    }, [contacts, normalizedSearch]);
 
     return (
         <div className="h-full overflow-y-auto bg-white px-4 py-5 sm:px-6">
@@ -104,6 +138,17 @@ const Contacts = () => {
                     <Plus className="h-4 w-4" />
                     Add contact
                 </Button>
+            </div>
+
+            <div className="relative mb-5 max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search contacts"
+                    className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none ring-blue-500 transition focus:border-blue-500 focus:ring-2"
+                />
             </div>
 
             {getContactsService.isLoading ? (
@@ -124,21 +169,25 @@ const Contacts = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {contacts.map((contact) => (
-                                    <tr key={contact._id} className="border-t border-slate-100">
+                                {visibleContacts.map((contact) => (
+                                    <tr
+                                        key={contact._id}
+                                        className="cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-50"
+                                        onClick={() => viewMailWithContact(contact)}
+                                    >
                                         <td className="px-4 py-3">{contact.name}</td>
-                                        <td className="px-4 py-3">{contact.email}</td>
+                                        <td className="px-4 py-3 text-blue-700">{contact.email}</td>
                                         <td className="px-4 py-3">{contact.phone || '—'}</td>
                                         <td className="px-4 py-3">{contact.company || '—'}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex justify-end gap-1">
-                                                <IconButton label="Compose" onClick={() => emailContact(contact)}>
+                                                <IconButton label="Compose" onClick={(event) => emailContact(contact, event)}>
                                                     <Mail className="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton label="Edit" onClick={() => openEditDialog(contact)}>
+                                                <IconButton label="Edit" onClick={(event) => { event.stopPropagation(); openEditDialog(contact); }}>
                                                     <Pencil className="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton label="Delete" onClick={() => setContactToDelete(contact)}>
+                                                <IconButton label="Delete" onClick={(event) => { event.stopPropagation(); setContactToDelete(contact); }}>
                                                     <Trash2 className="h-4 w-4" />
                                                 </IconButton>
                                             </div>
@@ -152,22 +201,33 @@ const Contacts = () => {
                                         </td>
                                     </tr>
                                 )}
+                                {contacts.length > 0 && visibleContacts.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                                            No contacts match your search.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
 
                     <div className="space-y-3 md:hidden">
-                        {contacts.map((contact) => (
+                        {visibleContacts.map((contact) => (
                             <div key={contact._id} className="rounded-2xl border border-slate-200 p-4">
                                 <div className="flex items-start justify-between gap-3">
-                                    <div>
+                                    <button
+                                        type="button"
+                                        onClick={() => viewMailWithContact(contact)}
+                                        className="min-w-0 flex-1 text-left"
+                                    >
                                         <p className="font-medium text-slate-900">{contact.name}</p>
-                                        <p className="text-sm text-slate-600">{contact.email}</p>
+                                        <p className="text-sm text-blue-700">{contact.email}</p>
                                         {contact.phone && <p className="text-sm text-slate-500">{contact.phone}</p>}
                                         {contact.company && <p className="text-sm text-slate-500">{contact.company}</p>}
-                                    </div>
+                                    </button>
                                     <div className="flex gap-1">
-                                        <IconButton label="Compose" onClick={() => emailContact(contact)}>
+                                        <IconButton label="Compose" onClick={(event) => emailContact(contact, event)}>
                                             <Mail className="h-4 w-4" />
                                         </IconButton>
                                         <IconButton label="Edit" onClick={() => openEditDialog(contact)}>
@@ -183,6 +243,11 @@ const Contacts = () => {
                         {contacts.length === 0 && (
                             <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
                                 No contacts yet. Add your first contact to quickly compose messages.
+                            </div>
+                        )}
+                        {contacts.length > 0 && visibleContacts.length === 0 && (
+                            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                                No contacts match your search.
                             </div>
                         )}
                     </div>

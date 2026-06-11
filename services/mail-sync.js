@@ -7,6 +7,8 @@ import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
 import { parseMailAttachments } from './attachments.js';
 import { slugify } from '../utils/slug.js';
+import { sendMail } from './mailer.js';
+import { getSettings, markAutoresponderSent } from './settings-store.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -165,6 +167,51 @@ const isMailboxSender = (address = '') => {
     return normalized && mailboxIdentity.includes(normalized);
 };
 
+const isNoReplyAddress = (address = '') => {
+    const normalized = normalizeAddress(address);
+    return /(^|[._-])(no-?reply|do-?not-?reply|donotreply)([._-]|@)/i.test(normalized);
+};
+
+const shouldAutoRespond = async (payload = {}) => {
+    if (!payload.messageId || payload.type !== 'inbox' || isMailboxSender(payload.from) || isNoReplyAddress(payload.from)) {
+        return { ok: false };
+    }
+
+    const settings = await getSettings();
+    const log = Array.isArray(settings.autoresponder_log) ? settings.autoresponder_log : [];
+    const threadKey = payload.references?.[0] || payload.in_reply_to || payload.messageId;
+    if (!settings.general?.autoresponder_enabled || !settings.general?.autoresponder_html || log.includes(threadKey)) {
+        return { ok: false };
+    }
+
+    return { ok: true, settings, threadKey };
+};
+
+const sendAutoResponderIfNeeded = async (payload = {}) => {
+    const decision = await shouldAutoRespond(payload);
+    if (!decision.ok) {
+        return;
+    }
+
+    const html = decision.settings.general.autoresponder_html;
+    const subjectTemplate = decision.settings.general.autoresponder_subject || 'Re: {{subject}}';
+    const subject = subjectTemplate.replace(/\{\{\s*subject\s*\}\}/gi, payload.subject || '(no subject)');
+
+    try {
+        await sendMail({
+            to: payload.from,
+            subject,
+            body: stripHtml(html),
+            html,
+            inReplyTo: payload.messageId,
+            references: [payload.messageId, ...(payload.references || [])].filter(Boolean)
+        });
+        await markAutoresponderSent(decision.threadKey);
+    } catch (error) {
+        console.error('Auto responder failed:', error.message);
+    }
+};
+
 const persistCachedEmail = (payload = {}) => {
     const existingIndex = payload._id
         ? mailboxCache.findIndex(item => item._id === payload._id)
@@ -224,6 +271,11 @@ const matchesFilter = (item, filter = {}) => {
     if (filter.search) {
         const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
         if (!haystack.includes(filter.search.toLowerCase())) return false;
+    }
+    if (filter.participant) {
+        const wanted = String(filter.participant).toLowerCase();
+        const haystack = [item.from, item.to, item.cc].join(' ').toLowerCase();
+        if (!haystack.includes(wanted)) return false;
     }
     return true;
 };
@@ -294,7 +346,14 @@ export const buildEmailFilter = (type, query = {}) => {
         return { archived: true, bin: false };
     }
     if (type === 'allmail') {
-        return query.label ? { label: query.label } : {};
+        const filter = {};
+        if (query.label) {
+            filter.label = query.label;
+        }
+        if (query.participant) {
+            filter.participant = String(query.participant).trim();
+        }
+        return filter;
     }
     if (type === 'inbox') {
         return { type: 'inbox', bin: false, archived: false, in_inbox: true, ...(query.label ? { label: query.label } : {}) };
@@ -449,6 +508,7 @@ const syncOnce = async () => {
                             skipped++;
                         } else {
                             synced++;
+                            await sendAutoResponderIfNeeded(payload);
                         }
                     } else {
                         const existing = mailboxCache.find((item) => item.messageId === messageId);
@@ -464,6 +524,7 @@ const syncOnce = async () => {
                                 labels: []
                             });
                             synced++;
+                            await sendAutoResponderIfNeeded(payload);
                         }
                     }
                 } catch (error) {

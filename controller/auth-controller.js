@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getAuthCredentials, isAuthConfigured } from '../services/auth-config.js';
 import { createSession, getSession, revokeSession } from '../services/auth-store.js';
+import { isSuperUser } from '../services/settings-store.js';
 
 const safeEqual = (left, right) => {
     const leftBuffer = Buffer.from(String(left));
@@ -43,6 +44,7 @@ export const login = (request, response) => {
     return response.status(200).json({
         token,
         username: session.username,
+        is_superuser: isSuperUser(session.username),
         expires_at: session.expires_at
     });
 };
@@ -57,6 +59,7 @@ export const getCurrentSession = (request, response) => {
 
     return response.status(200).json({
         username: session.username,
+        is_superuser: isSuperUser(session.username),
         expires_at: session.expires_at
     });
 };

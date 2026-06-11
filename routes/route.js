@@ -43,6 +43,13 @@ import {
     getAuthStatus
 } from '../controller/auth-controller.js';
 
+import {
+    getAppSettings,
+    updateGeneralSettings,
+    updateAiSettings,
+    fetchAiModels
+} from '../controller/settings-controller.js';
+
 import { requireAuth } from '../middleware/auth.js';
 
 const routes = express.Router();
@@ -77,6 +84,11 @@ routes.post('/bin', moveEmailsToBin);
 routes.post('/archive', archiveEmails);
 routes.post('/move-to-label', moveEmailsToLabel);
 routes.post('/sync', syncMailbox);
+
+routes.get('/settings', getAppSettings);
+routes.put('/settings/general', updateGeneralSettings);
+routes.put('/settings/ai', updateAiSettings);
+routes.post('/settings/ai/models', fetchAiModels);
 
 routes.get('/labels', getLabels);
 routes.post('/labels', createLabel);

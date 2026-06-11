@@ -6,13 +6,13 @@ const hasLegacyCacheIds = (emails = []) => {
     return emails.some((email) => LEGACY_CACHE_ID_PATTERN.test(String(email?._id || '')));
 };
 
-const buildCacheKey = ({ activeTab, labelFilter, searchFilter }) => {
-    return `${activeTab}|${labelFilter || ''}|${searchFilter || ''}`;
+const buildCacheKey = ({ activeTab, labelFilter, searchFilter, participantFilter }) => {
+    return `${activeTab}|${labelFilter || ''}|${searchFilter || ''}|${participantFilter || ''}`;
 };
 
-export const readEmailListCache = ({ activeTab, labelFilter, searchFilter }) => {
+export const readEmailListCache = ({ activeTab, labelFilter, searchFilter, participantFilter }) => {
     try {
-        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter });
+        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter, participantFilter });
         const raw = sessionStorage.getItem(key);
         if (!raw) {
             return null;
@@ -39,9 +39,9 @@ export const readEmailListCache = ({ activeTab, labelFilter, searchFilter }) => 
     }
 };
 
-export const writeEmailListCache = ({ activeTab, labelFilter, searchFilter }, emails) => {
+export const writeEmailListCache = ({ activeTab, labelFilter, searchFilter, participantFilter }, emails) => {
     try {
-        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter });
+        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter, participantFilter });
         sessionStorage.setItem(key, JSON.stringify({
             saved_at: Date.now(),
             emails: Array.isArray(emails) ? emails : []

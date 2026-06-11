@@ -12,12 +12,14 @@ const buildAuthUrl = (endpoint) => `${API_URL}/${endpoint}`;
 export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
     const [username, setUsername] = useState('');
+    const [isSuperuser, setIsSuperuser] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     const clearSession = useCallback(() => {
         localStorage.removeItem(TOKEN_KEY);
         setToken('');
         setUsername('');
+        setIsSuperuser(false);
     }, []);
 
     const restoreSession = useCallback(async () => {
@@ -37,6 +39,7 @@ export const AuthProvider = ({ children }) => {
 
             setToken(storedToken);
             setUsername(response.data?.username || '');
+            setIsSuperuser(Boolean(response.data?.is_superuser));
             setIsLoading(false);
             return true;
         } catch (error) {
@@ -72,6 +75,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem(TOKEN_KEY, nextToken);
         setToken(nextToken);
         setUsername(response.data?.username || loginUsername);
+        setIsSuperuser(Boolean(response.data?.is_superuser));
         return response.data;
     }, []);
 
@@ -100,12 +104,13 @@ export const AuthProvider = ({ children }) => {
     const value = useMemo(() => ({
         token,
         username,
+        isSuperuser,
         isAuthenticated: Boolean(token),
         isLoading,
         login,
         logout,
         restoreSession
-    }), [token, username, isLoading, login, logout, restoreSession]);
+    }), [token, username, isSuperuser, isLoading, login, logout, restoreSession]);
 
     return (
         <AuthContext.Provider value={value}>

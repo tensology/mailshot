@@ -63,7 +63,8 @@ const Emails = () => {
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
-    const listCacheParams = { activeTab, labelFilter, searchFilter };
+    const participantFilter = searchParams.get('participant') || '';
+    const listCacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
 
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
@@ -94,10 +95,11 @@ const Emails = () => {
     const syncRequestId = useRef(0);
     const listRequestId = useRef(0);
     const syncNoticeTimer = useRef(null);
+    const selectionAnchorIndex = useRef(null);
 
     const fetchEmailList = useCallback(async ({ silent = false, pageOverride, requestId } = {}) => {
         const activeRequestId = requestId ?? ++listRequestId.current;
-        const cacheParams = { activeTab, labelFilter, searchFilter };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
         const listPage = pageOverride ?? page;
         if (!silent) {
             setIsFetching(true);
@@ -107,7 +109,12 @@ const Emails = () => {
         if (searchFilter) {
             fetchResult = await searchEmailsService.call({ q: searchFilter, page: listPage, limit: PAGE_SIZE }, '', { silent: true });
         } else {
-            const query = { page: listPage, limit: PAGE_SIZE, ...(labelFilter ? { label: labelFilter } : {}) };
+            const query = {
+                page: listPage,
+                limit: PAGE_SIZE,
+                ...(labelFilter ? { label: labelFilter } : {}),
+                ...(participantFilter ? { participant: participantFilter } : {})
+            };
             fetchResult = await getEmailsService.call(query, activeTab, { silent: true });
         }
 
@@ -135,10 +142,10 @@ const Emails = () => {
         writeEmailListCache(cacheParams, normalized.emails);
         setHasCache(true);
         return true;
-    }, [activeTab, labelFilter, searchFilter, getEmailsService, page, searchEmailsService]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, getEmailsService, page, searchEmailsService]);
 
     const runMailboxSync = useCallback(async ({ silent = true, listPage, listRequestId: listRequestIdOverride } = {}) => {
-        if (searchFilter || !SYNC_TYPES.has(activeTab)) {
+        if (searchFilter || participantFilter || !SYNC_TYPES.has(activeTab)) {
             return { ok: true };
         }
 
@@ -185,7 +192,7 @@ const Emails = () => {
             skipped: skippedCount,
             synced_at: syncPayload?.synced_at || null
         };
-    }, [activeTab, emails.length, fetchEmailList, hasCache, searchFilter, syncMailboxService]);
+    }, [activeTab, emails.length, fetchEmailList, hasCache, participantFilter, searchFilter, syncMailboxService]);
 
     const syncInBackground = useCallback(() => runMailboxSync({ silent: true }), [runMailboxSync]);
 
@@ -213,7 +220,7 @@ const Emails = () => {
         });
 
         await Promise.all([fetchPromise, syncPromise]);
-    }, [activeTab, labelFilter, searchFilter, fetchEmailList, runMailboxSync]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, fetchEmailList, runMailboxSync]);
 
     const showSyncNotice = useCallback((message) => {
         setSyncNotice(message);
@@ -289,10 +296,10 @@ const Emails = () => {
     useEffect(() => {
         loadEmails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, labelFilter, searchFilter, starredEmail, page]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, starredEmail, page]);
 
     useEffect(() => {
-        if (searchFilter || !SYNC_TYPES.has(activeTab)) {
+        if (searchFilter || participantFilter || !SYNC_TYPES.has(activeTab)) {
             return undefined;
         }
 
@@ -301,7 +308,7 @@ const Emails = () => {
         }, BACKGROUND_SYNC_MS);
 
         return () => clearInterval(intervalId);
-    }, [activeTab, searchFilter, syncInBackground]);
+    }, [activeTab, participantFilter, searchFilter, syncInBackground]);
 
     useEffect(() => () => {
         if (syncNoticeTimer.current) {
@@ -314,13 +321,15 @@ const Emails = () => {
         setPage(1);
         setTotalEmails(0);
         setTotalPages(1);
-    }, [activeTab, labelFilter, searchFilter]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter]);
 
     const listTitle = searchFilter
         ? `Search: ${searchFilter}`
-        : labelFilter
-            ? getLabelDisplayName(labelFilter, labelNameMap)
-            : tabTitles[activeTab] || 'Mail';
+        : participantFilter
+            ? `Mail with ${participantFilter}`
+            : labelFilter
+                ? getLabelDisplayName(labelFilter, labelNameMap)
+                : tabTitles[activeTab] || 'Mail';
 
     const showBlockingLoader = emails.length === 0 && (isFetching || isSyncing);
     const hasSelection = selectedEmails.length > 0;
@@ -334,6 +343,54 @@ const Emails = () => {
         } else {
             setSelectedEmails([]);
         }
+        selectionAnchorIndex.current = null;
+    };
+
+    const selectRangeFromAnchor = (toIndex) => {
+        const fromIndex = selectionAnchorIndex.current ?? toIndex;
+        const start = Math.min(fromIndex, toIndex);
+        const end = Math.max(fromIndex, toIndex);
+        const rangeIds = emails.slice(start, end + 1).map((email) => email._id);
+        setSelectedEmails((current) => [...new Set([...current, ...rangeIds])]);
+    };
+
+    const handleRowSelect = (email, index, event) => {
+        if (event.shiftKey) {
+            selectRangeFromAnchor(index);
+            return;
+        }
+
+        if (event.metaKey || event.ctrlKey) {
+            setSelectedEmails((current) => (
+                current.includes(email._id)
+                    ? current.filter((id) => id !== email._id)
+                    : [...current, email._id]
+            ));
+            selectionAnchorIndex.current = index;
+            return;
+        }
+
+        setSelectedEmails([email._id]);
+        selectionAnchorIndex.current = index;
+    };
+
+    const handleCheckboxSelect = (email, index, event) => {
+        if (event.shiftKey) {
+            selectRangeFromAnchor(index);
+            return;
+        }
+
+        setSelectedEmails((current) => (
+            current.includes(email._id)
+                ? current.filter((id) => id !== email._id)
+                : [...current, email._id]
+        ));
+        selectionAnchorIndex.current = index;
+    };
+
+    const handleKeyboardDelete = (email) => {
+        setSelectedEmails((current) => (current.includes(email._id) ? current : [email._id]));
+        setConfirmDeleteOpen(true);
     };
 
     const archiveSelectedEmails = async () => {
@@ -359,7 +416,7 @@ const Emails = () => {
         }
 
         const idSet = new Set(ids);
-        const cacheParams = { activeTab, labelFilter, searchFilter };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
         const previousEmails = emails;
         const shouldRemoveFromView = activeTab === 'inbox' || labelFilter;
 
@@ -391,7 +448,7 @@ const Emails = () => {
 
         const idsToRemove = [...selectedEmails];
         const isPermanentDelete = type === 'bin';
-        const cacheParams = { activeTab, labelFilter, searchFilter };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
         const previousEmails = emails;
         const previousTotal = totalEmails;
         const nextEmails = previousEmails.filter((email) => !idsToRemove.includes(email._id));
@@ -493,14 +550,17 @@ const Emails = () => {
 
                 {emails.length > 0 && (
                     <div className={isFetching && !isSyncing ? 'opacity-90 transition-opacity' : ''}>
-                        {emails.map((email) => (
+                        {emails.map((email, index) => (
                             <Email
                                 email={email}
+                                index={index}
                                 key={email._id || email.messageId}
                                 setStarredEmail={setStarredEmail}
                                 selectedEmails={selectedEmails}
-                                setSelectedEmails={setSelectedEmails}
                                 labelNameMap={labelNameMap}
+                                onRowSelect={handleRowSelect}
+                                onCheckboxSelect={handleCheckboxSelect}
+                                onKeyboardDelete={handleKeyboardDelete}
                             />
                         ))}
                     </div>
@@ -513,7 +573,9 @@ const Emails = () => {
                 {!showBlockingLoader && !loadError && emails.length === 0 && (
                     <NoMails message={searchFilter
                         ? { heading: 'No messages found', subHeading: `No results for "${searchFilter}"` }
-                        : EMPTY_TABS[activeTab]} />
+                        : participantFilter
+                            ? { heading: 'No messages found', subHeading: `No mail with ${participantFilter}` }
+                            : EMPTY_TABS[activeTab]} />
                 )}
             </div>
 
@@ -531,10 +593,14 @@ const Emails = () => {
                 </div>
             )}
 
-            {searchFilter && (
+            {(searchFilter || participantFilter) && (
                 <div className="border-t border-slate-100 px-4 py-2">
-                    <Button variant="ghost" size="sm" onClick={() => navigate(`${routes.emails.path}/inbox`)}>
-                        Clear search
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(searchFilter ? `${routes.emails.path}/inbox` : `${routes.emails.path}/allmail`)}
+                    >
+                        {searchFilter ? 'Clear search' : 'Clear filter'}
                     </Button>
                 </div>
             )}

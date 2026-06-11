@@ -11,6 +11,26 @@ export const API_URLS = {
         endpoint: 'auth/me',
         method: 'GET'
     },
+    getSettings: {
+        endpoint: 'settings',
+        method: 'GET',
+        pathBuilder: () => 'settings'
+    },
+    updateGeneralSettings: {
+        endpoint: 'settings/general',
+        method: 'PUT',
+        pathBuilder: () => 'settings/general'
+    },
+    updateAiSettings: {
+        endpoint: 'settings/ai',
+        method: 'PUT',
+        pathBuilder: () => 'settings/ai'
+    },
+    fetchAiModels: {
+        endpoint: 'settings/ai/models',
+        method: 'POST',
+        pathBuilder: () => 'settings/ai/models'
+    },
     sendEmail: {
         endpoint: 'send',
         method: 'POST',

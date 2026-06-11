@@ -28,6 +28,12 @@ const getWindowClass = (composeState, isMobile) => {
         : 'h-[560px] w-[560px]';
 };
 
+const htmlToPlainText = (html = '') => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    return (container.innerText || container.textContent || '').trim();
+};
+
 const ComposeMail = ({ onSent }) => {
     const { isOpen, composeState, draft, closeCompose, setComposeState } = useCompose();
     const { isMobile } = useLayout();
@@ -39,6 +45,7 @@ const ComposeMail = ({ onSent }) => {
     const sendEmailService = useApi(API_URLS.sendEmail);
     const saveDraftService = useApi(API_URLS.saveDraftEmails);
     const getContactsService = useApi(API_URLS.getContacts);
+    const getSettingsService = useApi(API_URLS.getSettings);
     const [contactOptions, setContactOptions] = useState([]);
     const bodyRef = useRef(null);
 
@@ -47,13 +54,31 @@ const ComposeMail = ({ onSent }) => {
             return;
         }
 
-        setData({
-            to: draft.to || '',
-            cc: draft.cc || '',
-            bcc: draft.bcc || '',
-            subject: draft.subject || '',
-            body: draft.body || ''
-        });
+        let cancelled = false;
+
+        const loadComposeState = async () => {
+            let signature = '';
+            const settingsResult = await getSettingsService.call({}, '', { silent: true });
+            if (!settingsResult.error) {
+                signature = htmlToPlainText(settingsResult.data?.general?.signature_html || '');
+            }
+
+            const baseBody = draft.body || '';
+            const shouldApplySignature = signature && !draft.in_reply_to && !baseBody.includes(signature);
+            if (!cancelled) {
+                setData({
+                    to: draft.to || '',
+                    cc: draft.cc || '',
+                    bcc: draft.bcc || '',
+                    subject: draft.subject || '',
+                    body: shouldApplySignature
+                        ? `${baseBody}${baseBody ? '\n\n' : ''}${signature}`
+                        : baseBody
+                });
+            }
+        };
+
+        loadComposeState();
         setShowCc(Boolean(draft.show_cc || draft.cc));
         setShowBcc(Boolean(draft.show_bcc || draft.bcc));
         setAttachments([]);
@@ -63,6 +88,10 @@ const ComposeMail = ({ onSent }) => {
                 setContactOptions(result.data);
             }
         });
+
+        return () => {
+            cancelled = true;
+        };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, draft]);
 
