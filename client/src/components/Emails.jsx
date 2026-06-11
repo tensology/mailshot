@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { Archive, RefreshCw, Trash2 } from 'lucide-react';
+import { Archive, OctagonAlert, RefreshCw, Trash2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -69,6 +69,8 @@ const Emails = () => {
 
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
+    const [highlightedEmail, setHighlightedEmail] = useState('');
+    const [deleteTargetIds, setDeleteTargetIds] = useState([]);
     const [loadError, setLoadError] = useState('');
     const [emails, setEmails] = useState(() => readEmailListCache(listCacheParams) || []);
     const [isFetching, setIsFetching] = useState(false);
@@ -91,6 +93,7 @@ const Emails = () => {
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
+    const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
 
     const syncRequestId = useRef(0);
     const listRequestId = useRef(0);
@@ -318,6 +321,8 @@ const Emails = () => {
 
     useEffect(() => {
         setSelectedEmails([]);
+        setHighlightedEmail('');
+        setDeleteTargetIds([]);
         setPage(1);
         setTotalEmails(0);
         setTotalPages(1);
@@ -355,23 +360,7 @@ const Emails = () => {
     };
 
     const handleRowSelect = (email, index, event) => {
-        if (event.shiftKey) {
-            selectRangeFromAnchor(index);
-            return;
-        }
-
-        if (event.metaKey || event.ctrlKey) {
-            setSelectedEmails((current) => (
-                current.includes(email._id)
-                    ? current.filter((id) => id !== email._id)
-                    : [...current, email._id]
-            ));
-            selectionAnchorIndex.current = index;
-            return;
-        }
-
-        setSelectedEmails([email._id]);
-        selectionAnchorIndex.current = index;
+        setHighlightedEmail(email._id);
     };
 
     const handleCheckboxSelect = (email, index, event) => {
@@ -389,7 +378,7 @@ const Emails = () => {
     };
 
     const handleKeyboardDelete = (email) => {
-        setSelectedEmails((current) => (current.includes(email._id) ? current : [email._id]));
+        setDeleteTargetIds([email._id]);
         setConfirmDeleteOpen(true);
     };
 
@@ -406,7 +395,37 @@ const Emails = () => {
         if (!selectedEmails.length) {
             return;
         }
+        setDeleteTargetIds([...selectedEmails]);
         setConfirmDeleteOpen(true);
+    };
+
+    const markSelectedAsSpam = async () => {
+        if (!selectedEmails.length) {
+            return;
+        }
+
+        const idsToRemove = [...selectedEmails];
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
+        const previousEmails = emails;
+        const previousTotal = totalEmails;
+        const nextEmails = previousEmails.filter((email) => !idsToRemove.includes(email._id));
+
+        setSelectedEmails([]);
+        setEmails(nextEmails);
+        setTotalEmails(Math.max(0, previousTotal - idsToRemove.length));
+        removeEmailsFromListCache(idsToRemove);
+        writeEmailListCache(cacheParams, nextEmails);
+
+        const result = await markSpamEmailsService.call(idsToRemove);
+        if (result.error) {
+            setEmails(previousEmails);
+            setTotalEmails(previousTotal);
+            writeEmailListCache(cacheParams, previousEmails);
+            showActionToast(result.error, 'error');
+            return;
+        }
+
+        showActionToast(`${idsToRemove.length} message${idsToRemove.length === 1 ? '' : 's'} marked as spam`);
     };
 
     const moveSelectedToLabel = (labelSlug, ids, error) => {
@@ -442,11 +461,13 @@ const Emails = () => {
     };
 
     const deleteSelectedEmails = () => {
-        if (!selectedEmails.length) {
+        const idsForDelete = deleteTargetIds.length ? deleteTargetIds : selectedEmails;
+
+        if (!idsForDelete.length) {
             return;
         }
 
-        const idsToRemove = [...selectedEmails];
+        const idsToRemove = [...idsForDelete];
         const isPermanentDelete = type === 'bin';
         const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
         const previousEmails = emails;
@@ -458,6 +479,7 @@ const Emails = () => {
         const nextCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page: nextPage };
 
         setConfirmDeleteOpen(false);
+        setDeleteTargetIds([]);
         setSelectedEmails([]);
         setEmails(nextEmails);
         setTotalEmails(nextTotal);
@@ -478,6 +500,7 @@ const Emails = () => {
                 setTotalEmails(previousTotal);
                 setTotalPages(Math.max(1, Math.ceil(previousTotal / PAGE_SIZE)));
                 setPage(page);
+                setDeleteTargetIds(idsToRemove);
                 writeEmailListCache(cacheParams, previousEmails);
                 showActionToast(result.error, 'error');
                 return;
@@ -518,6 +541,11 @@ const Emails = () => {
                     {hasSelection && type !== 'bin' && (
                         <IconButton label="Archive" onClick={archiveSelectedEmails}>
                             <Archive className="h-4 w-4" />
+                        </IconButton>
+                    )}
+                    {hasSelection && type !== 'bin' && type !== 'spam' && (
+                        <IconButton label="Mark as spam" onClick={markSelectedAsSpam}>
+                            <OctagonAlert className="h-4 w-4" />
                         </IconButton>
                     )}
                     {hasSelection && type !== 'bin' && availableLabels.length > 0 && (
@@ -566,7 +594,8 @@ const Emails = () => {
                                 index={index}
                                 key={email._id || email.messageId}
                                 setStarredEmail={setStarredEmail}
-                                selectedEmails={selectedEmails}
+                                checkedEmails={selectedEmails}
+                                highlightedEmail={highlightedEmail}
                                 labelNameMap={labelNameMap}
                                 onRowSelect={handleRowSelect}
                                 onCheckboxSelect={handleCheckboxSelect}
@@ -649,11 +678,14 @@ const Emails = () => {
                 open={confirmDeleteOpen}
                 title={type === 'bin' ? 'Delete forever?' : 'Move to Bin?'}
                 message={type === 'bin'
-                    ? `Permanently delete ${selectedEmails.length} selected message${selectedEmails.length === 1 ? '' : 's'}? This cannot be undone.`
-                    : `Move ${selectedEmails.length} selected message${selectedEmails.length === 1 ? '' : 's'} to Bin?`}
+                    ? `Permanently delete ${(deleteTargetIds.length || selectedEmails.length)} selected message${(deleteTargetIds.length || selectedEmails.length) === 1 ? '' : 's'}? This cannot be undone.`
+                    : `Move ${(deleteTargetIds.length || selectedEmails.length)} selected message${(deleteTargetIds.length || selectedEmails.length) === 1 ? '' : 's'} to Bin?`}
                 confirmLabel={type === 'bin' ? 'Delete forever' : 'Move to Bin'}
                 onConfirm={deleteSelectedEmails}
-                onCancel={() => setConfirmDeleteOpen(false)}
+                onCancel={() => {
+                    setConfirmDeleteOpen(false);
+                    setDeleteTargetIds([]);
+                }}
             />
 
             <Toast

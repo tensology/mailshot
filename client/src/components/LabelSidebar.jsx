@@ -14,6 +14,8 @@ const labelNavClass = (isActive) => (
     }`
 );
 
+const RESERVED_LABEL_SLUGS = new Set(['archived', 'archive', 'spam']);
+
 const LabelSidebar = ({ onNavigate }) => {
     const [searchParams] = useSearchParams();
     const activeLabel = searchParams.get('label') || '';
@@ -69,7 +71,7 @@ const LabelSidebar = ({ onNavigate }) => {
                 </button>
             </div>
             <div className="space-y-1">
-                {labels.map((label) => (
+                {labels.filter((label) => !RESERVED_LABEL_SLUGS.has(label.slug)).map((label) => (
                     <div key={label._id} className="flex items-center gap-1">
                         <NavLink
                             to={`${routes.emails.path}/allmail?label=${encodeURIComponent(label.slug)}`}

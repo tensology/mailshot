@@ -1,4 +1,5 @@
 import Email from "../model/email.js";
+import Label from '../model/label.js';
 import { sendMail } from '../services/mailer.js';
 import {
     getCachedEmails,
@@ -15,8 +16,12 @@ import {
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
 import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
+import { deleteCachedLabelBySlug } from '../services/label-store.js';
 
-const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'allmail', 'archived']);
+const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived']);
+const RESERVED_SYSTEM_LABELS = new Set(['archived', 'archive', 'spam']);
+let cachedTaxonomyRecalibrated = false;
+let dbTaxonomyRecalibrated = false;
 
 const serializeEmail = (email) => {
     if (!email) return null;
@@ -25,6 +30,98 @@ const serializeEmail = (email) => {
         ...plain,
         _id: String(plain._id)
     };
+};
+
+const removeReservedLabels = (labels = []) => (
+    Array.isArray(labels) ? labels.filter((label) => !RESERVED_SYSTEM_LABELS.has(String(label).toLowerCase())) : []
+);
+
+const applyFalseOrMissingFilter = (dbFilter, fields = []) => {
+    const andConditions = Array.isArray(dbFilter.$and) ? [...dbFilter.$and] : [];
+
+    fields.forEach((field) => {
+        if (dbFilter[field] !== false) {
+            return;
+        }
+
+        delete dbFilter[field];
+        andConditions.push({ $or: [{ [field]: false }, { [field]: { $exists: false } }] });
+    });
+
+    if (andConditions.length) {
+        dbFilter.$and = andConditions;
+    }
+};
+
+const buildDbFilter = (filter = {}) => {
+    const dbFilter = { ...filter };
+    delete dbFilter.label;
+    delete dbFilter.search;
+    delete dbFilter.participant;
+
+    if (filter.in_inbox) {
+        delete dbFilter.in_inbox;
+        dbFilter.$and = [
+            ...(dbFilter.$and || []),
+            { $or: [{ in_inbox: true }, { in_inbox: { $exists: false } }] }
+        ];
+    }
+
+    applyFalseOrMissingFilter(dbFilter, ['bin', 'archived', 'spam']);
+
+    if (filter.label) {
+        dbFilter.labels = filter.label;
+    }
+
+    return dbFilter;
+};
+
+const recalibrateMailTaxonomy = async () => {
+    try {
+        if (!cachedTaxonomyRecalibrated) {
+            cachedTaxonomyRecalibrated = true;
+            getCachedEmails().forEach((email) => {
+                const labels = Array.isArray(email.labels) ? email.labels : [];
+                const slugs = labels.map((label) => String(label).toLowerCase());
+                const updates = {
+                    labels: removeReservedLabels(labels)
+                };
+
+                if (slugs.includes('archived') || slugs.includes('archive')) {
+                    updates.archived = true;
+                    updates.in_inbox = false;
+                }
+                if (slugs.includes('spam')) {
+                    updates.spam = true;
+                    updates.in_inbox = false;
+                    updates.archived = false;
+                }
+
+                if (updates.labels.length !== labels.length || updates.archived !== undefined || updates.spam !== undefined) {
+                    updateCachedEmail(email._id, updates);
+                }
+            });
+            deleteCachedLabelBySlug('archived');
+            deleteCachedLabelBySlug('archive');
+            deleteCachedLabelBySlug('spam');
+            saveMailboxCacheToDisk();
+        }
+
+        if (isDbConnected() && !dbTaxonomyRecalibrated) {
+            dbTaxonomyRecalibrated = true;
+            await Email.updateMany(
+                { labels: { $in: ['archived', 'archive'] } },
+                { $set: { archived: true, in_inbox: false }, $pull: { labels: { $in: ['archived', 'archive'] } } }
+            );
+            await Email.updateMany(
+                { labels: 'spam' },
+                { $set: { spam: true, in_inbox: false, archived: false }, $pull: { labels: 'spam' } }
+            );
+            await Label.deleteMany({ slug: { $in: ['archived', 'archive', 'spam'] } });
+        }
+    } catch (error) {
+        console.error('Mail taxonomy recalibration failed:', error.message);
+    }
 };
 
 export const saveSendEmails = async (request, response) => {
@@ -45,25 +142,14 @@ export const saveSendEmails = async (request, response) => {
 
 export const getEmails = async (request, response) => {
     try {
+        await recalibrateMailTaxonomy();
         let emails = [];
         const filter = buildEmailFilter(request.params.type, request.query);
 
         const dbConnected = isDbConnected();
         if (dbConnected) {
             try {
-                const dbFilter = { ...filter };
-                delete dbFilter.label;
-                delete dbFilter.search;
-                delete dbFilter.participant;
-
-                if (filter.in_inbox) {
-                    dbFilter.$or = [{ in_inbox: true }, { in_inbox: { $exists: false } }];
-                    delete dbFilter.in_inbox;
-                }
-
-                if (filter.label) {
-                    dbFilter.labels = filter.label;
-                }
+                const dbFilter = buildDbFilter(filter);
 
                 emails = await Email.find(dbFilter).sort({ date: -1 });
 
@@ -106,6 +192,26 @@ export const getEmails = async (request, response) => {
         });
     } catch (error) {
         response.status(500).json(error.message);
+    }
+};
+
+export const getMailboxCounts = async (_, response) => {
+    try {
+        await recalibrateMailTaxonomy();
+
+        const inboxUnreadFilter = buildEmailFilter('inbox');
+        inboxUnreadFilter.read = false;
+
+        if (isDbConnected()) {
+            const dbFilter = buildDbFilter(inboxUnreadFilter);
+            const inboxUnread = await Email.countDocuments(dbFilter);
+            return response.status(200).json({ inbox_unread: inboxUnread });
+        }
+
+        const inboxUnread = getCachedEmails(inboxUnreadFilter).length;
+        return response.status(200).json({ inbox_unread: inboxUnread });
+    } catch (error) {
+        return response.status(500).json(error.message);
     }
 };
 
@@ -359,7 +465,7 @@ export const moveEmailsToBin = async (request, response) => {
                 continue;
             }
             if (resolved.source === 'cache') {
-                updateCachedEmail(id, { bin: true, starred: false, type: '', archived: false });
+                updateCachedEmail(id, { bin: true, spam: false, starred: false, type: '', archived: false });
             } else {
                 dbIds.push(id);
             }
@@ -368,11 +474,53 @@ export const moveEmailsToBin = async (request, response) => {
         if (dbIds.length > 0 && isDbConnected()) {
             await Email.updateMany(
                 { _id: { $in: dbIds }},
-                { $set: { bin: true, starred: false, type: '', archived: false }}
+                { $set: { bin: true, spam: false, starred: false, type: '', archived: false }}
             );
         }
 
         response.status(201).json('emails moved to bin');
+    } catch (error) {
+        response.status(500).json(error.message);
+    }
+};
+
+export const markEmailsAsSpam = async (request, response) => {
+    try {
+        const ids = Array.isArray(request.body) ? request.body : [];
+        const dbIds = [];
+
+        for (const id of ids) {
+            const resolved = await findEmailRecord(id);
+            if (!resolved) {
+                continue;
+            }
+
+            if (resolved.source === 'cache') {
+                updateCachedEmail(id, {
+                    spam: true,
+                    in_inbox: false,
+                    archived: false,
+                    bin: false,
+                    starred: false,
+                    labels: removeReservedLabels(resolved.email.labels)
+                });
+            } else {
+                dbIds.push(id);
+            }
+        }
+
+        if (dbIds.length > 0 && isDbConnected()) {
+            await Email.updateMany(
+                { _id: { $in: dbIds }},
+                {
+                    $set: { spam: true, in_inbox: false, archived: false, bin: false, starred: false },
+                    $pull: { labels: { $in: ['spam', 'archived', 'archive'] } }
+                }
+            );
+        }
+
+        saveMailboxCacheToDisk();
+        response.status(200).json('emails marked as spam');
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -389,7 +537,14 @@ export const archiveEmails = async (request, response) => {
                 continue;
             }
             if (resolved.source === 'cache') {
-                updateCachedEmail(id, { archived: true, bin: false, starred: false });
+                updateCachedEmail(id, {
+                    archived: true,
+                    in_inbox: false,
+                    spam: false,
+                    bin: false,
+                    starred: false,
+                    labels: removeReservedLabels(resolved.email.labels)
+                });
             } else {
                 dbIds.push(id);
             }
@@ -398,7 +553,10 @@ export const archiveEmails = async (request, response) => {
         if (dbIds.length > 0 && isDbConnected()) {
             await Email.updateMany(
                 { _id: { $in: dbIds }},
-                { $set: { archived: true, bin: false, starred: false }}
+                {
+                    $set: { archived: true, in_inbox: false, spam: false, bin: false, starred: false },
+                    $pull: { labels: { $in: ['archived', 'archive', 'spam'] } }
+                }
             );
         }
 

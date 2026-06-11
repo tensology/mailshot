@@ -12,9 +12,11 @@ import {
     toggleReadEmail,
     deleteEmails,
     moveEmailsToBin,
+    markEmailsAsSpam,
     archiveEmails,
     sendEmail,
     syncMailbox,
+    getMailboxCounts,
     isMailTypeRoute
 } from '../controller/email-controller.js';
 
@@ -71,6 +73,7 @@ routes.get('/email/:id/labels', getEmailLabels);
 routes.post('/email/:id/labels', updateEmailLabels);
 routes.get('/email/:id/thread', getEmailThread);
 routes.get('/email/:id', getEmailById);
+routes.get('/emails/counts', getMailboxCounts);
 routes.get('/emails/:type', (request, response, next) => {
     if (!isMailTypeRoute(request.params.type)) {
         return response.status(404).json('Unknown mailbox type');
@@ -81,6 +84,7 @@ routes.post('/starred', toggleStarredEmail);
 routes.post('/read', toggleReadEmail);
 routes.delete('/delete', deleteEmails);
 routes.post('/bin', moveEmailsToBin);
+routes.post('/spam', markEmailsAsSpam);
 routes.post('/archive', archiveEmails);
 routes.post('/move-to-label', moveEmailsToLabel);
 routes.post('/sync', syncMailbox);

@@ -138,3 +138,14 @@ export const deleteCachedLabel = (id) => {
     saveLabelsToDisk();
     return removed;
 };
+
+export const deleteCachedLabelBySlug = (slug) => {
+    const index = labelCache.findIndex((item) => item.slug === slug);
+    if (index < 0) {
+        return null;
+    }
+
+    const [removed] = labelCache.splice(index, 1);
+    saveLabelsToDisk();
+    return removed;
+};

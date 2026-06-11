@@ -24,7 +24,7 @@ export default defineConfig({
     server: {
         port: 3000,
         proxy: {
-            '^/(auth|emails|email|send|save|save-draft|starred|read|delete|bin|archive|move-to-label|sync|settings|labels|contacts)': apiProxy
+            '^/(auth|emails|email|send|save|save-draft|starred|read|delete|bin|spam|archive|move-to-label|sync|settings|labels|contacts)': apiProxy
         }
     }
 });

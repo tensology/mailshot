@@ -48,6 +48,11 @@ export const API_URLS = {
         endpoint: 'emails',
         method: 'GET'
     },
+    getMailboxCounts: {
+        endpoint: 'emails/counts',
+        method: 'GET',
+        pathBuilder: () => 'emails/counts'
+    },
     getEmailById: {
         endpoint: 'email',
         method: 'GET',
@@ -87,6 +92,10 @@ export const API_URLS = {
     },
     archiveEmails: {
         endpoint: 'archive',
+        method: 'POST'
+    },
+    markSpamEmails: {
+        endpoint: 'spam',
         method: 'POST'
     },
     syncMailbox: {

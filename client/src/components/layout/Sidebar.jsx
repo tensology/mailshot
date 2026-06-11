@@ -1,9 +1,12 @@
 import { NavLink, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { PenSquare } from 'lucide-react';
 import { SIDEBAR_DATA } from '../../config/sidebar.config';
 import { routes } from '../../routes/routes';
 import { useLayout } from '../../context/LayoutContext';
 import { useCompose } from '../../context/ComposeContext';
+import useApi from '../../hooks/useApi';
+import { API_URLS } from '../../services/api.urls';
 import LabelSidebar from '../LabelSidebar';
 import ContactSidebar from '../ContactSidebar';
 import ComposeMail from '../ComposeMail';
@@ -20,6 +23,17 @@ const Sidebar = ({ onSent }) => {
     const activeLabel = searchParams.get('label') || '';
     const { isMobile, sidebarOpen, closeSidebar } = useLayout();
     const { openCompose } = useCompose();
+    const getMailboxCountsService = useApi(API_URLS.getMailboxCounts);
+    const [counts, setCounts] = useState({ inbox_unread: 0 });
+
+    useEffect(() => {
+        getMailboxCountsService.call({}, '', { silent: true }).then((result) => {
+            if (!result.error) {
+                setCounts(result.data || { inbox_unread: 0 });
+            }
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type]);
 
     const handleCompose = () => {
         openCompose();
@@ -76,7 +90,12 @@ const Sidebar = ({ onSent }) => {
                                 onClick={handleNavigate}
                             >
                                 <Icon className="h-4 w-4 shrink-0" />
-                                {item.title}
+                                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                                {item.name === 'inbox' && counts.inbox_unread > 0 && (
+                                    <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+                                        {counts.inbox_unread}
+                                    </span>
+                                )}
                             </NavLink>
                         );
                     })}

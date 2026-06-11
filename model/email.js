@@ -47,6 +47,10 @@ const EmailSchema = mongoose.Schema({
         type: Boolean,
         default: false
     },
+    spam: {
+        type: Boolean,
+        default: false
+    },
     in_inbox: {
         type: Boolean,
         default: true

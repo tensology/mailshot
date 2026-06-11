@@ -11,7 +11,8 @@ const Email = ({
     email,
     index,
     setStarredEmail,
-    selectedEmails,
+    checkedEmails,
+    highlightedEmail,
     labelNameMap,
     onRowSelect,
     onCheckboxSelect,
@@ -29,7 +30,8 @@ const Email = ({
     const snippet = formatListPreview(email, 120);
     const hasAttachments = Array.isArray(email.attachments) && email.attachments.length > 0;
     const unread = !email.read;
-    const isSelected = selectedEmails.includes(email._id);
+    const isChecked = checkedEmails.includes(email._id);
+    const isHighlighted = highlightedEmail === email._id;
 
     const toggleStarredEmail = async (event) => {
         event.stopPropagation();
@@ -73,19 +75,19 @@ const Email = ({
             onClick={handleRowClick}
             onDoubleClick={openEmail}
             onKeyDown={openEmailFromKeyboard}
-            aria-selected={isSelected}
+            aria-selected={isHighlighted}
             className={`group flex w-full items-start gap-0 border-b border-slate-100 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 sm:items-center ${
-                isSelected ? 'bg-blue-50/80' : unread ? 'bg-white' : 'bg-slate-50/60'
+                isHighlighted ? 'bg-blue-50/80' : unread ? 'bg-white' : 'bg-slate-50/60'
             }`}
         >
             <div
                 className="flex min-h-[4.5rem] w-11 shrink-0 items-start justify-center px-3 py-3 sm:items-center"
                 onClick={handleCheckboxClick}
-                title={isSelected ? 'Unselect' : 'Select'}
+                title={isChecked ? 'Uncheck' : 'Check'}
             >
                 <input
                     type="checkbox"
-                    checked={isSelected}
+                    checked={isChecked}
                     readOnly
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 sm:mt-0"
                 />

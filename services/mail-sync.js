@@ -229,6 +229,7 @@ const persistCachedEmail = (payload = {}) => {
             starred: current.starred,
             bin: current.bin,
             archived: current.archived,
+            spam: current.spam,
             labels: current.labels?.length ? current.labels : (payload.labels || []),
             date: new Date(payload.date || current.date || Date.now())
         };
@@ -241,6 +242,7 @@ const persistCachedEmail = (payload = {}) => {
         labels: [],
         attachments: [],
         archived: false,
+        spam: false,
         body_html: '',
         in_reply_to: '',
         references: [],
@@ -258,6 +260,7 @@ const persistCachedEmail = (payload = {}) => {
 const matchesFilter = (item, filter = {}) => {
     if (filter.bin !== undefined && filter.bin !== item.bin) return false;
     if (filter.archived !== undefined && filter.archived !== item.archived) return false;
+    if (filter.spam !== undefined && filter.spam !== Boolean(item.spam)) return false;
     if (filter.starred !== undefined && filter.starred !== item.starred) return false;
     if (filter.type && filter.type !== item.type) return false;
     if (filter.in_inbox === true && item.in_inbox === false) return false;
@@ -337,16 +340,19 @@ export const deleteCachedEmails = (ids = []) => {
 
 export const buildEmailFilter = (type, query = {}) => {
     if (type === 'starred') {
-        return { starred: true, bin: false, archived: false };
+        return { starred: true, bin: false, archived: false, spam: false };
     }
     if (type === 'bin') {
         return { bin: true };
     }
+    if (type === 'spam') {
+        return { spam: true, bin: false };
+    }
     if (type === 'archived') {
-        return { archived: true, bin: false };
+        return { archived: true, bin: false, spam: false };
     }
     if (type === 'allmail') {
-        const filter = {};
+        const filter = { bin: false, spam: false };
         if (query.label) {
             filter.label = query.label;
         }
@@ -356,9 +362,9 @@ export const buildEmailFilter = (type, query = {}) => {
         return filter;
     }
     if (type === 'inbox') {
-        return { type: 'inbox', bin: false, archived: false, in_inbox: true, ...(query.label ? { label: query.label } : {}) };
+        return { type: 'inbox', bin: false, archived: false, spam: false, in_inbox: true, ...(query.label ? { label: query.label } : {}) };
     }
-    return { type, ...(query.label ? { label: query.label } : {}) };
+    return { type, spam: false, ...(query.label ? { label: query.label } : {}) };
 };
 
 const SYNC_RECENT_UID_WINDOW = Number(process.env.MAILBOX_SYNC_UID_WINDOW || 200);
@@ -502,6 +508,7 @@ const syncOnce = async () => {
                             starred: false,
                             bin: false,
                             archived: false,
+                            spam: false,
                             labels: []
                         });
                         if (!emailDoc) {
@@ -521,6 +528,7 @@ const syncOnce = async () => {
                                 starred: false,
                                 bin: false,
                                 archived: false,
+                                spam: false,
                                 labels: []
                             });
                             synced++;

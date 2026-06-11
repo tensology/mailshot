@@ -12,14 +12,17 @@ import {
 } from '../services/label-store.js';
 import { slugify } from '../utils/slug.js';
 
+const RESERVED_LABEL_SLUGS = new Set(['archived', 'archive', 'spam']);
+const visibleLabels = (labels = []) => labels.filter((label) => !RESERVED_LABEL_SLUGS.has(label.slug));
+
 export const getLabels = async (_, response) => {
     try {
         if (!isDbConnected()) {
-            return response.status(200).json(getCachedLabels());
+            return response.status(200).json(visibleLabels(getCachedLabels()));
         }
 
         const labels = await Label.find().sort({ name: 1 });
-        response.status(200).json(labels);
+        response.status(200).json(visibleLabels(labels));
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -32,16 +35,20 @@ export const createLabel = async (request, response) => {
             return response.status(400).json('Label name is required');
         }
 
+        const slug = slugify(request.body.slug || name);
+        if (RESERVED_LABEL_SLUGS.has(slug)) {
+            return response.status(400).json('That name is reserved for a system mailbox');
+        }
+
         if (!isDbConnected()) {
             const label = createCachedLabel({
                 name,
                 color: request.body.color || '#5f6368',
-                slug: request.body.slug
+                slug
             });
             return response.status(201).json(label);
         }
 
-        const slug = slugify(request.body.slug || name);
         const label = await Label.create({
             name,
             slug,
@@ -147,6 +154,10 @@ export const moveEmailsToLabel = async (request, response) => {
         }
 
         const labelSlug = slugify(labelInput);
+        if (RESERVED_LABEL_SLUGS.has(labelSlug)) {
+            return response.status(400).json('That name is reserved for a system mailbox');
+        }
+
         let label = getLabelBySlug(labelSlug);
 
         if (!label) {

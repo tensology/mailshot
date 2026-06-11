@@ -30,6 +30,10 @@ export const EMPTY_TABS = {
         heading: 'No conversations in Bin.',
         subHeading: ''
     },
+    spam: {
+        heading: 'No spam messages',
+        subHeading: 'Messages marked as spam will appear here.'
+    },
     allmail: {
         heading: 'No mail to show',
         subHeading: 'All messages in your mailbox appear here.'
