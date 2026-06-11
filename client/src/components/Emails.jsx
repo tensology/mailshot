@@ -64,7 +64,8 @@ const Emails = () => {
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
     const participantFilter = searchParams.get('participant') || '';
-    const listCacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
+    const [page, setPage] = useState(1);
+    const listCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
 
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
@@ -74,7 +75,6 @@ const Emails = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [hasCache, setHasCache] = useState(() => Boolean(readEmailListCache(listCacheParams)?.length));
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-    const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalEmails, setTotalEmails] = useState(0);
     const [syncError, setSyncError] = useState('');
@@ -99,8 +99,8 @@ const Emails = () => {
 
     const fetchEmailList = useCallback(async ({ silent = false, pageOverride, requestId } = {}) => {
         const activeRequestId = requestId ?? ++listRequestId.current;
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
         const listPage = pageOverride ?? page;
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page: listPage };
         if (!silent) {
             setIsFetching(true);
         }
@@ -416,7 +416,7 @@ const Emails = () => {
         }
 
         const idSet = new Set(ids);
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
         const previousEmails = emails;
         const shouldRemoveFromView = activeTab === 'inbox' || labelFilter;
 
@@ -448,17 +448,25 @@ const Emails = () => {
 
         const idsToRemove = [...selectedEmails];
         const isPermanentDelete = type === 'bin';
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
         const nextEmails = previousEmails.filter((email) => !idsToRemove.includes(email._id));
+        const nextTotal = Math.max(0, previousTotal - idsToRemove.length);
+        const nextTotalPages = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
+        const nextPage = Math.min(page, nextTotalPages);
+        const nextCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page: nextPage };
 
         setConfirmDeleteOpen(false);
         setSelectedEmails([]);
         setEmails(nextEmails);
-        setTotalEmails(Math.max(0, previousTotal - idsToRemove.length));
+        setTotalEmails(nextTotal);
+        setTotalPages(nextTotalPages);
+        if (nextPage !== page) {
+            setPage(nextPage);
+        }
         removeEmailsFromListCache(idsToRemove);
-        writeEmailListCache(cacheParams, nextEmails);
+        writeEmailListCache(nextCacheParams, nextEmails);
 
         const apiCall = isPermanentDelete
             ? deleteEmailsService.call(idsToRemove)
@@ -468,6 +476,8 @@ const Emails = () => {
             if (result.error) {
                 setEmails(previousEmails);
                 setTotalEmails(previousTotal);
+                setTotalPages(Math.max(1, Math.ceil(previousTotal / PAGE_SIZE)));
+                setPage(page);
                 writeEmailListCache(cacheParams, previousEmails);
                 showActionToast(result.error, 'error');
                 return;
@@ -579,17 +589,47 @@ const Emails = () => {
                 )}
             </div>
 
-            {emails.length > 0 && totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
-                    <span>{totalEmails} messages · page {page} of {totalPages}</span>
-                    <div className="flex gap-2">
-                        <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
-                            Newer
+            {totalPages > 1 && (
+                <div className="grid items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm text-slate-600 sm:grid-cols-[1fr_auto_1fr]">
+                    <span className="text-center sm:text-left">
+                        {totalEmails} messages
+                    </span>
+                    <div className="flex items-center justify-center gap-2">
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={page <= 1}
+                            onClick={() => setPage((value) => Math.max(1, value - 1))}
+                        >
+                            Previous
                         </Button>
-                        <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>
-                            Older
+                        <label className="flex items-center gap-2 whitespace-nowrap">
+                            <span>Page</span>
+                            <select
+                                value={page}
+                                onChange={(event) => setPage(Number(event.target.value))}
+                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            >
+                                {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+                                    <option key={pageNumber} value={pageNumber}>
+                                        {pageNumber}
+                                    </option>
+                                ))}
+                            </select>
+                            <span>of {totalPages}</span>
+                        </label>
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={page >= totalPages}
+                            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                        >
+                            Next
                         </Button>
                     </div>
+                    <span className="hidden text-right sm:block">
+                        Page {page} of {totalPages}
+                    </span>
                 </div>
             )}
 
