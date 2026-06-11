@@ -1,5 +1,5 @@
 import { Paperclip, Star } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -11,6 +11,7 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labe
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
     const navigate = useNavigate();
     const { type } = useParams();
+    const [searchParams] = useSearchParams();
 
     const senderName = email.type === 'sent'
         ? parseSenderName(email.to)
@@ -40,7 +41,8 @@ const Email = ({ email, setStarredEmail, selectedEmails, setSelectedEmails, labe
         if (!email.read) {
             markEmailReadInCache(email._id);
         }
-        navigate(`${routes.emails.path}/${type || 'inbox'}/${email._id}`);
+        const queryString = searchParams.toString();
+        navigate(`${routes.emails.path}/${type || 'inbox'}/${email._id}${queryString ? `?${queryString}` : ''}`);
     };
 
     const openEmailFromKeyboard = (event) => {

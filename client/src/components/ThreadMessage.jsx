@@ -1,31 +1,29 @@
 import { emptyProfilePic } from '../constants/constant';
-import { parseSenderEmail, parseSenderName, formatEmailBody } from '../utils/emailFormatter';
+import { parseSenderEmail, parseSenderName } from '../utils/emailFormatter';
 import QuotedContent from './common/QuotedContent';
-import Button from './ui/Button';
 
-const ThreadMessage = ({ message, onReply, onReplyAll, onForward }) => {
+const ThreadMessage = ({ message }) => {
     const senderName = parseSenderName(message.from);
     const senderEmail = parseSenderEmail(message.from);
-    const plainBody = formatEmailBody(message.body);
 
     return (
-        <article className="border-t border-slate-100 py-4 first:border-t-0">
-            <div className="flex gap-3">
+        <article className="border-t border-slate-100 py-5 first:border-t-0">
+            <div className="mx-auto flex w-fit max-w-full gap-3">
                 <img
                     src={emptyProfilePic}
                     alt=""
                     className="mt-1 h-10 w-10 shrink-0 rounded-full bg-slate-100"
                 />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 max-w-full">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
+                        <div className="min-w-0">
                             <p className="text-sm font-semibold text-slate-900">
                                 {senderName}
-                                <span className="ml-2 text-xs font-normal text-slate-500">
+                                <span className="ml-2 break-all text-xs font-normal text-slate-500">
                                     &lt;{senderEmail}&gt;
                                 </span>
                             </p>
-                            <p className="text-xs text-slate-500">
+                            <p className="break-words text-xs text-slate-500">
                                 to {message.to}
                                 {message.cc ? `, cc ${message.cc}` : ''}
                             </p>
@@ -35,20 +33,8 @@ const ThreadMessage = ({ message, onReply, onReplyAll, onForward }) => {
                         </time>
                     </div>
 
-                    <div className="mt-3">
+                    <div className="mt-3 inline-block max-w-full align-top">
                         <QuotedContent body={message.body} bodyHtml={message.body_html} />
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => onReply(message, plainBody)}>
-                            Reply
-                        </Button>
-                        <Button variant="secondary" size="sm" onClick={() => onReplyAll(message, plainBody)}>
-                            Reply all
-                        </Button>
-                        <Button variant="secondary" size="sm" onClick={() => onForward(message, plainBody)}>
-                            Forward
-                        </Button>
                     </div>
                 </div>
             </div>

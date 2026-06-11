@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Trash2 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Forward, Reply, ReplyAll, Trash2 } from 'lucide-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
@@ -24,6 +24,7 @@ import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
+import { formatEmailBody } from '../utils/emailFormatter';
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -41,6 +42,8 @@ const ViewEmail = () => {
     const [loadError, setLoadError] = useState('');
     const { type, id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const backUrl = `/emails/${type || 'inbox'}${location.search || ''}`;
 
     useEffect(() => {
         if (!id) {
@@ -110,7 +113,7 @@ const ViewEmail = () => {
             <div className="px-4 py-8 sm:px-6">
                 <h1 className="text-lg font-semibold text-slate-900">Could not load this message.</h1>
                 {loadError && <p className="mt-2 text-sm text-slate-600">{loadError}</p>}
-                <Button className="mt-4" onClick={() => navigate(`/emails/${type || 'inbox'}`)}>
+                <Button className="mt-4" onClick={() => navigate(backUrl)}>
                     Back to inbox
                 </Button>
             </div>
@@ -213,13 +216,21 @@ const ViewEmail = () => {
 
         removeEmailsFromListCache([emailId]);
         setActionNotice(isPermanentDelete ? 'Message deleted permanently' : 'Moved to Bin');
-        navigate(`/emails/${type || 'inbox'}`);
+        navigate(backUrl);
+    };
+
+    const openPrimaryReplyDraft = (mode) => {
+        if (!primaryEmail) {
+            return;
+        }
+
+        openReplyDraft(primaryEmail, formatEmailBody(primaryEmail.body), mode);
     };
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-white">
             <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
-                <IconButton label="Back" onClick={() => navigate(`/emails/${type || 'inbox'}`)}>
+                <IconButton label="Back" onClick={() => navigate(backUrl)}>
                     <ArrowLeft className="h-5 w-5" />
                 </IconButton>
                 {labels.length > 0 && primaryEmail && (
@@ -233,55 +244,65 @@ const ViewEmail = () => {
                 <IconButton label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
                     <Trash2 className="h-5 w-5" />
                 </IconButton>
+                <div className="ml-auto flex items-center gap-1">
+                    <IconButton label="Reply" onClick={() => openPrimaryReplyDraft('reply')}>
+                        <Reply className="h-5 w-5" />
+                    </IconButton>
+                    <IconButton label="Reply all" onClick={() => openPrimaryReplyDraft('reply-all')}>
+                        <ReplyAll className="h-5 w-5" />
+                    </IconButton>
+                    <IconButton label="Forward" onClick={() => openPrimaryReplyDraft('forward')}>
+                        <Forward className="h-5 w-5" />
+                    </IconButton>
+                </div>
             </div>
 
             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-                <div className="mb-4 flex flex-wrap items-center gap-2">
-                    <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{subject}</h1>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                        {primaryEmail.type || 'inbox'}
-                    </span>
-                </div>
+                <div className="mx-auto w-full max-w-[min(100%,72rem)]">
+                    <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-center">
+                        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{subject}</h1>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                            {primaryEmail.type || 'inbox'}
+                        </span>
+                    </div>
 
-                <div className="mb-4 flex flex-wrap items-center gap-2">
-                    {emailLabels.map((label) => (
-                        <button
-                            key={label}
-                            type="button"
-                            onClick={() => saveLabels(emailLabels.filter((item) => item !== label))}
-                            className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
-                        >
-                            {getLabelDisplayName(label, buildLabelNameMap(labels))} ×
-                        </button>
-                    ))}
-                </div>
-
-                {Array.isArray(primaryEmail.attachments) && primaryEmail.attachments.length > 0 && (
-                    <div className="mb-4 flex flex-wrap gap-2">
-                        {primaryEmail.attachments.map((attachment) => (
-                            <a
-                                key={attachment.attachment_id}
-                                href={`${API_URL}/email/${primaryEmail._id}/attachments/${attachment.attachment_id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+                    <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+                        {emailLabels.map((label) => (
+                            <button
+                                key={label}
+                                type="button"
+                                onClick={() => saveLabels(emailLabels.filter((item) => item !== label))}
+                                className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
                             >
-                                {attachment.filename}
-                            </a>
+                                {getLabelDisplayName(label, buildLabelNameMap(labels))} ×
+                            </button>
                         ))}
                     </div>
-                )}
 
-                <div className="max-w-4xl">
-                    {thread.map((message) => (
-                        <ThreadMessage
-                            key={message._id || message.messageId}
-                            message={message}
-                            onReply={(item, plainBody) => openReplyDraft(item, plainBody, 'reply')}
-                            onReplyAll={(item, plainBody) => openReplyDraft(item, plainBody, 'reply-all')}
-                            onForward={(item, plainBody) => openReplyDraft(item, plainBody, 'forward')}
-                        />
-                    ))}
+                    {Array.isArray(primaryEmail.attachments) && primaryEmail.attachments.length > 0 && (
+                        <div className="mb-4 flex flex-wrap justify-center gap-2">
+                            {primaryEmail.attachments.map((attachment) => (
+                                <a
+                                    key={attachment.attachment_id}
+                                    href={`${API_URL}/email/${primaryEmail._id}/attachments/${attachment.attachment_id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+                                >
+                                    {attachment.filename}
+                                </a>
+                            ))}
+                        </div>
+                    )}
+
+                    <div>
+                        {thread.map((message) => (
+                            <ThreadMessage
+                                key={message._id || message.messageId}
+                                message={message}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
 
