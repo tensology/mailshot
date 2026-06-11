@@ -16,7 +16,9 @@ const Email = ({
     labelNameMap,
     onRowSelect,
     onCheckboxSelect,
-    onKeyboardDelete
+    onKeyboardDelete,
+    onKeyboardNavigate,
+    deleteDialogOpen
 }) => {
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
     const navigate = useNavigate();
@@ -55,11 +57,21 @@ const Email = ({
     const openEmailFromKeyboard = (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            openEmail();
+            if (!deleteDialogOpen) {
+                openEmail();
+            }
         }
         if (event.key === 'Backspace' || event.key === 'Delete') {
             event.preventDefault();
             onKeyboardDelete(email);
+        }
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            onKeyboardNavigate(index, 1);
+        }
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            onKeyboardNavigate(index, -1);
         }
     };
 
@@ -75,6 +87,7 @@ const Email = ({
             onClick={handleRowClick}
             onDoubleClick={openEmail}
             onKeyDown={openEmailFromKeyboard}
+            data-email-row-id={email._id}
             aria-selected={isHighlighted}
             className={`group flex w-full items-start gap-0 border-b border-slate-100 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 sm:items-center ${
                 isHighlighted ? 'bg-blue-50/80' : unread ? 'bg-white' : 'bg-slate-50/60'

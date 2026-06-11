@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import Dialog, { DialogActions, DialogButton } from '../ui/Dialog';
 
 const ConfirmDialog = ({
@@ -9,24 +10,45 @@ const ConfirmDialog = ({
     onConfirm,
     onCancel,
     loading = false
-}) => (
-    <Dialog
-        open={open}
-        onClose={onCancel}
-        title={title}
-        footer={(
-            <DialogActions>
-                <DialogButton variant="secondary" onClick={onCancel} disabled={loading}>
-                    {cancelLabel}
-                </DialogButton>
-                <DialogButton variant="danger" onClick={onConfirm} disabled={loading}>
-                    {confirmLabel}
-                </DialogButton>
-            </DialogActions>
-        )}
-    >
-        <p className="text-sm text-slate-600">{message}</p>
-    </Dialog>
-);
+}) => {
+    useEffect(() => {
+        if (!open) {
+            return undefined;
+        }
+
+        const onKeyDown = (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!loading) {
+                    onConfirm();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [loading, onConfirm, open]);
+
+    return (
+        <Dialog
+            open={open}
+            onClose={onCancel}
+            title={title}
+            footer={(
+                <DialogActions>
+                    <DialogButton variant="secondary" onClick={onCancel} disabled={loading}>
+                        {cancelLabel}
+                    </DialogButton>
+                    <DialogButton variant="danger" onClick={onConfirm} disabled={loading} autoFocus>
+                        {confirmLabel}
+                    </DialogButton>
+                </DialogActions>
+            )}
+        >
+            <p className="text-sm text-slate-600">{message}</p>
+        </Dialog>
+    );
+};
 
 export default ConfirmDialog;

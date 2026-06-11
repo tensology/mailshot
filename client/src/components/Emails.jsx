@@ -99,6 +99,14 @@ const Emails = () => {
     const listRequestId = useRef(0);
     const syncNoticeTimer = useRef(null);
     const selectionAnchorIndex = useRef(null);
+    const pendingFocusPosition = useRef(null);
+
+    const focusEmailRow = (emailId) => {
+        window.requestAnimationFrame(() => {
+            const escapedId = window.CSS?.escape ? window.CSS.escape(emailId) : String(emailId).replace(/"/g, '\\"');
+            document.querySelector(`[data-email-row-id="${escapedId}"]`)?.focus();
+        });
+    };
 
     const fetchEmailList = useCallback(async ({ silent = false, pageOverride, requestId } = {}) => {
         const activeRequestId = requestId ?? ++listRequestId.current;
@@ -302,6 +310,20 @@ const Emails = () => {
     }, [activeTab, labelFilter, searchFilter, participantFilter, starredEmail, page]);
 
     useEffect(() => {
+        if (!pendingFocusPosition.current || emails.length === 0) {
+            return;
+        }
+
+        const nextIndex = pendingFocusPosition.current === 'last' ? emails.length - 1 : 0;
+        const nextEmail = emails[nextIndex];
+        pendingFocusPosition.current = null;
+        if (nextEmail?._id) {
+            setHighlightedEmail(nextEmail._id);
+            focusEmailRow(nextEmail._id);
+        }
+    }, [emails]);
+
+    useEffect(() => {
         if (searchFilter || participantFilter || !SYNC_TYPES.has(activeTab)) {
             return undefined;
         }
@@ -380,6 +402,27 @@ const Emails = () => {
     const handleKeyboardDelete = (email) => {
         setDeleteTargetIds([email._id]);
         setConfirmDeleteOpen(true);
+    };
+
+    const handleKeyboardNavigate = (index, direction) => {
+        const nextIndex = index + direction;
+        if (nextIndex >= 0 && nextIndex < emails.length) {
+            const nextEmail = emails[nextIndex];
+            setHighlightedEmail(nextEmail._id);
+            focusEmailRow(nextEmail._id);
+            return;
+        }
+
+        if (direction > 0 && page < totalPages) {
+            pendingFocusPosition.current = 'first';
+            setPage((value) => Math.min(totalPages, value + 1));
+            return;
+        }
+
+        if (direction < 0 && page > 1) {
+            pendingFocusPosition.current = 'last';
+            setPage((value) => Math.max(1, value - 1));
+        }
     };
 
     const archiveSelectedEmails = async () => {
@@ -600,6 +643,8 @@ const Emails = () => {
                                 onRowSelect={handleRowSelect}
                                 onCheckboxSelect={handleCheckboxSelect}
                                 onKeyboardDelete={handleKeyboardDelete}
+                                onKeyboardNavigate={handleKeyboardNavigate}
+                                deleteDialogOpen={confirmDeleteOpen}
                             />
                         ))}
                     </div>
