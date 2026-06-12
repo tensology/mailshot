@@ -15,6 +15,7 @@ const Email = ({
     highlightedEmail,
     labelNameMap,
     senderColumnWidthCh,
+    rowTone,
     onRowSelect,
     onCheckboxSelect,
     onKeyboardDelete,
@@ -103,12 +104,12 @@ const Email = ({
             onKeyDown={openEmailFromKeyboard}
             data-email-row-id={email._id}
             aria-selected={isHighlighted}
-            className={`group flex w-full items-start gap-0 border-b border-slate-100 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
-                isHighlighted ? 'bg-blue-50/80' : unread ? 'bg-white' : 'bg-slate-50/60'
+            className={`group flex w-full items-center gap-0 border-b border-slate-100 text-left transition hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
+                isHighlighted ? 'bg-blue-50/90' : rowTone === 'muted' ? 'bg-slate-50/70' : 'bg-white'
             }`}
         >
             <div
-                className="flex min-h-[4.25rem] w-11 shrink-0 items-start justify-center px-3 py-3"
+                className="flex min-h-[4.25rem] w-11 shrink-0 items-center justify-center px-3 py-3"
                 onClick={handleCheckboxClick}
                 title={isChecked ? 'Uncheck' : 'Check'}
             >
@@ -116,22 +117,22 @@ const Email = ({
                     type="checkbox"
                     checked={isChecked}
                     readOnly
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 sm:mt-0"
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
             </div>
 
             <button
                 type="button"
                 onClick={toggleStarredEmail}
-                className="mt-3 shrink-0 text-slate-400 transition hover:text-amber-500"
+                className="flex h-[4.25rem] shrink-0 items-center text-slate-400 transition hover:text-amber-500"
                 aria-label={email.starred ? 'Unstar' : 'Star'}
             >
                 <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
             </button>
 
-            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_4.75rem] gap-3 px-3 py-2.5 sm:px-4">
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_4.75rem] items-center gap-3 px-3 py-2.5 sm:px-4">
                 <div className="min-w-0">
-                    <div className="flex min-w-0 items-baseline gap-2 overflow-hidden text-sm leading-5">
+                    <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5">
                         <span
                             className={`shrink-0 whitespace-nowrap ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
                             style={{ width: `${senderColumnWidthCh || 14}ch` }}

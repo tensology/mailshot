@@ -145,6 +145,7 @@ const Emails = () => {
     const syncNoticeTimer = useRef(null);
     const selectionAnchorIndex = useRef(null);
     const pendingFocusPosition = useRef(null);
+    const pendingFocusEmailId = useRef(null);
 
     const focusEmailRow = (emailId) => {
         window.requestAnimationFrame(() => {
@@ -365,6 +366,16 @@ const Emails = () => {
     }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, starredEmail, page]);
 
     useEffect(() => {
+        if (pendingFocusEmailId.current && emails.length > 0) {
+            const nextEmail = emails.find((email) => email._id === pendingFocusEmailId.current);
+            pendingFocusEmailId.current = null;
+            if (nextEmail?._id) {
+                setHighlightedEmail(nextEmail._id);
+                focusEmailRow(nextEmail._id);
+            }
+            return;
+        }
+
         if (!pendingFocusPosition.current || emails.length === 0) {
             return;
         }
@@ -629,6 +640,10 @@ const Emails = () => {
         const previousTotal = totalEmails;
         const removedRows = previousEmails.filter((email) => emailMatchesRemoval(email, idsToRemove));
         const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, idsToRemove));
+        const firstRemovedIndex = previousEmails.findIndex((email) => emailMatchesRemoval(email, idsToRemove));
+        const nextFocusEmail = firstRemovedIndex >= 0
+            ? nextEmails[Math.min(firstRemovedIndex, Math.max(0, nextEmails.length - 1))]
+            : null;
         const nextTotal = Math.max(0, previousTotal - removedRows.length);
         const nextTotalPages = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
         const nextPage = Math.min(page, nextTotalPages);
@@ -638,6 +653,13 @@ const Emails = () => {
         setDeleteTargetIds([]);
         setSelectedEmails([]);
         setEmails(nextEmails);
+        if (nextPage === page && nextFocusEmail?._id) {
+            pendingFocusEmailId.current = nextFocusEmail._id;
+        } else if (nextPage < page) {
+            pendingFocusPosition.current = 'last';
+        } else {
+            setHighlightedEmail('');
+        }
         setTotalEmails(nextTotal);
         setTotalPages(nextTotalPages);
         if (nextPage !== page) {
@@ -796,6 +818,7 @@ const Emails = () => {
                                 highlightedEmail={highlightedEmail}
                                 labelNameMap={labelNameMap}
                                 senderColumnWidthCh={senderColumnWidthCh}
+                                rowTone={index % 2 === 1 ? 'muted' : 'plain'}
                                 onRowSelect={handleRowSelect}
                                 onCheckboxSelect={handleCheckboxSelect}
                                 onKeyboardDelete={handleKeyboardDelete}
