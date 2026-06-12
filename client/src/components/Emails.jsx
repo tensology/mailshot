@@ -120,6 +120,7 @@ const Emails = () => {
 
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
+    const [allMatchingSelected, setAllMatchingSelected] = useState(false);
     const [highlightedEmail, setHighlightedEmail] = useState('');
     const [deleteTargetIds, setDeleteTargetIds] = useState([]);
     const [loadError, setLoadError] = useState('');
@@ -419,6 +420,7 @@ const Emails = () => {
 
     useEffect(() => {
         setSelectedEmails([]);
+        setAllMatchingSelected(false);
         setHighlightedEmail('');
         setDeleteTargetIds([]);
         setPage(1);
@@ -433,6 +435,11 @@ const Emails = () => {
             : labelFilter
                 ? getLabelDisplayName(labelFilter, labelNameMap)
                 : tabTitles[activeTab] || 'Mail';
+    const selectionScopeLabel = searchFilter
+        ? `this search`
+        : labelFilter
+            ? `the ${listTitle} label`
+            : listTitle;
 
     const updateListSearchParams = (updates = {}) => {
         const next = new URLSearchParams(searchParams);
@@ -462,9 +469,12 @@ const Emails = () => {
     };
 
     const showBlockingLoader = emails.length === 0 && (isFetching || isSyncing);
+    const pageSelectionIds = emails.flatMap(getEmailSelectionIds);
     const hasSelection = selectedEmails.length > 0;
-    const allSelected = emails.length > 0 && selectedEmails.length === emails.length;
-    const someSelected = hasSelection && !allSelected;
+    const allSelected = allMatchingSelected || (pageSelectionIds.length > 0 && pageSelectionIds.every((id) => selectedEmails.includes(id)));
+    const someSelected = !allMatchingSelected && pageSelectionIds.some((id) => selectedEmails.includes(id)) && !allSelected;
+    const selectionCount = allMatchingSelected ? totalEmails : selectedEmails.length;
+    const canSelectAllMatching = allSelected && !allMatchingSelected && totalEmails > emails.length;
     const isRefreshing = isFetching || isSyncing;
     const senderColumnWidthCh = Math.max(
         14,
@@ -476,11 +486,13 @@ const Emails = () => {
             setSelectedEmails(emails.flatMap(getEmailSelectionIds));
         } else {
             setSelectedEmails([]);
+            setAllMatchingSelected(false);
         }
         selectionAnchorIndex.current = null;
     };
 
     const selectRangeFromAnchor = (toIndex) => {
+        setAllMatchingSelected(false);
         const fromIndex = selectionAnchorIndex.current ?? toIndex;
         const start = Math.min(fromIndex, toIndex);
         const end = Math.max(fromIndex, toIndex);
@@ -493,6 +505,15 @@ const Emails = () => {
     };
 
     const handleCheckboxSelect = (email, index, event) => {
+        if (allMatchingSelected) {
+            const threadIds = getEmailSelectionIds(email);
+            setAllMatchingSelected(false);
+            setSelectedEmails(pageSelectionIds.filter((id) => !threadIds.includes(id)));
+            selectionAnchorIndex.current = index;
+            return;
+        }
+
+        setAllMatchingSelected(false);
         if (event.shiftKey) {
             selectRangeFromAnchor(index);
             return;
@@ -510,8 +531,29 @@ const Emails = () => {
     };
 
     const handleKeyboardDelete = (email) => {
+        setAllMatchingSelected(false);
         setDeleteTargetIds(getEmailSelectionIds(email));
         setConfirmDeleteOpen(true);
+    };
+
+    const buildBulkScope = () => ({
+        all: true,
+        type: activeTab,
+        label: labelFilter,
+        search: searchFilter,
+        participant: participantFilter,
+        unread: unreadFilter
+    });
+
+    const getBulkPayload = () => (
+        allMatchingSelected
+            ? { scope: buildBulkScope() }
+            : selectedEmails
+    );
+
+    const clearBulkSelection = () => {
+        setSelectedEmails([]);
+        setAllMatchingSelected(false);
     };
 
     const handleKeyboardNavigate = (index, direction) => {
@@ -562,21 +604,47 @@ const Emails = () => {
         if (!selectedEmails.length) {
             return;
         }
-        await archiveEmailsService.call(selectedEmails);
-        setSelectedEmails([]);
+        const result = await archiveEmailsService.call(getBulkPayload());
+        if (result.error) {
+            showActionToast(result.error, 'error');
+            return;
+        }
+        const count = Number(result.data?.count) || selectionCount;
+        clearBulkSelection();
+        clearEmailListCache();
         setStarredEmail((prevState) => !prevState);
+        requestMailboxCountsRefresh();
+        showActionToast(`${count} message${count === 1 ? '' : 's'} archived`);
     };
 
     const requestDeleteSelectedEmails = () => {
         if (!selectedEmails.length) {
             return;
         }
-        setDeleteTargetIds([...selectedEmails]);
+        setDeleteTargetIds(allMatchingSelected ? [] : [...selectedEmails]);
         setConfirmDeleteOpen(true);
     };
 
     const markSelectedAsSpam = async () => {
         if (!selectedEmails.length) {
+            return;
+        }
+
+        if (allMatchingSelected) {
+            const count = selectionCount;
+            const result = await markSpamEmailsService.call(getBulkPayload());
+            if (result.error) {
+                showActionToast(result.error, 'error');
+                return;
+            }
+            clearBulkSelection();
+            clearEmailListCache();
+            setEmails([]);
+            setTotalEmails(0);
+            setTotalPages(1);
+            setPage(1);
+            requestMailboxCountsRefresh();
+            showActionToast(`${Number(result.data?.count) || count} messages marked as spam`);
             return;
         }
 
@@ -606,36 +674,47 @@ const Emails = () => {
         showActionToast(`${idsToRemove.length} message${idsToRemove.length === 1 ? '' : 's'} marked as spam`);
     };
 
-    const moveSelectedToLabel = (labelSlug, ids, error) => {
+    const moveSelectedToLabel = (labelSlug, ids, error, affectedCount) => {
         if (error) {
             setSyncError(error);
             return;
         }
 
-        const idSet = new Set(ids);
         const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
         const previousEmails = emails;
         const shouldRemoveFromView = activeTab === 'inbox' || labelFilter;
 
         if (!shouldRemoveFromView) {
-            setSelectedEmails([]);
+            clearBulkSelection();
+            return;
+        }
+
+        if (allMatchingSelected) {
+            clearBulkSelection();
+            clearEmailListCache();
+            setEmails([]);
+            setTotalEmails(0);
+            setTotalPages(1);
+            setPage(1);
+            requestMailboxCountsRefresh();
             return;
         }
 
         const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, ids));
         const removedRows = previousEmails.length - nextEmails.length;
         setEmails(nextEmails);
-        setTotalEmails(Math.max(0, totalEmails - removedRows));
-        setSelectedEmails([]);
+        setTotalEmails(Math.max(0, totalEmails - (affectedCount || removedRows)));
+        clearBulkSelection();
         removeEmailsFromListCache(ids);
         writeEmailListCache(cacheParams, nextEmails);
     };
 
-    const confirmMoveToLabel = (labelSlug, ids) => {
+    const confirmMoveToLabel = (labelSlug, ids, affectedCount) => {
         const labelName = getLabelDisplayName(labelSlug, labelNameMap);
-        const message = ids.length === 1
+        const count = Number(affectedCount) || ids.length;
+        const message = count === 1
             ? `Moved to ${labelName}`
-            : `${ids.length} messages moved to ${labelName}`;
+            : `${count} messages moved to ${labelName}`;
         showActionToast(message);
     };
 
@@ -643,6 +722,41 @@ const Emails = () => {
         const idsForDelete = deleteTargetIds.length ? deleteTargetIds : selectedEmails;
 
         if (!idsForDelete.length) {
+            return;
+        }
+
+        if (allMatchingSelected && !deleteTargetIds.length) {
+            const count = selectionCount;
+            const isPermanentDelete = type === 'bin';
+            const payload = getBulkPayload();
+            setConfirmDeleteOpen(false);
+            setDeleteTargetIds([]);
+            clearBulkSelection();
+            clearEmailListCache();
+            setEmails([]);
+            setHighlightedEmail('');
+            setTotalEmails(0);
+            setTotalPages(1);
+            setPage(1);
+
+            const apiCall = isPermanentDelete
+                ? deleteEmailsService.call(payload)
+                : moveEmailsToBin.call(payload);
+
+            apiCall.then((result) => {
+                if (result.error) {
+                    showActionToast(result.error, 'error');
+                    setStarredEmail((prevState) => !prevState);
+                    return;
+                }
+
+                const affectedCount = Number(result.data?.count) || count;
+                const message = isPermanentDelete
+                    ? `${affectedCount} message${affectedCount === 1 ? '' : 's'} deleted permanently`
+                    : `${affectedCount} message${affectedCount === 1 ? '' : 's'} moved to Bin`;
+                requestMailboxCountsRefresh();
+                showActionToast(message);
+            });
             return;
         }
 
@@ -664,7 +778,7 @@ const Emails = () => {
 
         setConfirmDeleteOpen(false);
         setDeleteTargetIds([]);
-        setSelectedEmails([]);
+        clearBulkSelection();
         setEmails(nextEmails);
         if (nextPage === page && nextFocusEmail?._id) {
             pendingFocusEmailId.current = nextFocusEmail._id;
@@ -748,6 +862,8 @@ const Emails = () => {
                         {hasSelection && type !== 'bin' && availableLabels.length > 0 && (
                             <MoveToLabelMenu
                                 emailIds={selectedEmails}
+                                selectionPayload={allMatchingSelected ? { scope: buildBulkScope() } : null}
+                                selectionCount={selectionCount}
                                 labels={availableLabels}
                                 onMoved={moveSelectedToLabel}
                                 onMoveConfirmed={confirmMoveToLabel}
@@ -757,6 +873,32 @@ const Emails = () => {
                             <IconButton label="Delete" onClick={requestDeleteSelectedEmails}>
                                 <Trash2 className="h-4 w-4" />
                             </IconButton>
+                        )}
+                        {canSelectAllMatching && (
+                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs text-blue-800">
+                                <span>
+                                    All {emails.length} on this page selected.
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setAllMatchingSelected(true)}
+                                    className="font-semibold underline-offset-2 hover:underline"
+                                >
+                                    Select all {totalEmails} in {selectionScopeLabel}
+                                </button>
+                            </div>
+                        )}
+                        {allMatchingSelected && (
+                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-blue-200 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm">
+                                <span>All {totalEmails} in {selectionScopeLabel} selected.</span>
+                                <button
+                                    type="button"
+                                    onClick={clearBulkSelection}
+                                    className="font-semibold underline-offset-2 hover:underline"
+                                >
+                                    Clear
+                                </button>
+                            </div>
                         )}
                         <div className="min-w-0 flex-1 text-xs">
                             {isSyncing && emails.length > 0 && (
@@ -827,7 +969,7 @@ const Emails = () => {
                                 index={index}
                                 key={email._id || email.messageId}
                                 setStarredEmail={setStarredEmail}
-                                checkedEmails={selectedEmails}
+                                checkedEmails={allMatchingSelected ? pageSelectionIds : selectedEmails}
                                 highlightedEmail={highlightedEmail}
                                 labelNameMap={labelNameMap}
                                 senderColumnWidthCh={senderColumnWidthCh}
@@ -915,8 +1057,8 @@ const Emails = () => {
                 open={confirmDeleteOpen}
                 title={type === 'bin' ? 'Delete forever?' : 'Move to Bin?'}
                 message={type === 'bin'
-                    ? `Permanently delete ${(deleteTargetIds.length || selectedEmails.length)} selected message${(deleteTargetIds.length || selectedEmails.length) === 1 ? '' : 's'}? This cannot be undone.`
-                    : `Move ${(deleteTargetIds.length || selectedEmails.length)} selected message${(deleteTargetIds.length || selectedEmails.length) === 1 ? '' : 's'} to Bin?`}
+                    ? `Permanently delete ${(deleteTargetIds.length || selectionCount)} selected message${(deleteTargetIds.length || selectionCount) === 1 ? '' : 's'}? This cannot be undone.`
+                    : `Move ${(deleteTargetIds.length || selectionCount)} selected message${(deleteTargetIds.length || selectionCount) === 1 ? '' : 's'} to Bin?`}
                 confirmLabel={type === 'bin' ? 'Delete forever' : 'Move to Bin'}
                 onConfirm={deleteSelectedEmails}
                 onCancel={() => {

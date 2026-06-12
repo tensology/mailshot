@@ -84,6 +84,78 @@ const buildDbFilter = (filter = {}) => {
     return dbFilter;
 };
 
+const filterDbEmailsInMemory = (emails = [], filter = {}) => {
+    let result = emails;
+
+    if (filter.search) {
+        const search = String(filter.search).toLowerCase();
+        result = result.filter((item) => {
+            const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
+            return haystack.includes(search);
+        });
+    }
+
+    if (filter.participant) {
+        const participant = String(filter.participant).toLowerCase();
+        result = result.filter((item) => {
+            const haystack = [item.from, item.to, item.cc].join(' ').toLowerCase();
+            return haystack.includes(participant);
+        });
+    }
+
+    return result;
+};
+
+const normalizeBulkSelection = (body = {}, defaultType = 'inbox') => {
+    if (Array.isArray(body)) {
+        return { ids: body.map(String).filter(Boolean), scope: null };
+    }
+
+    const ids = Array.isArray(body.ids) ? body.ids.map(String).filter(Boolean) : [];
+    if (ids.length) {
+        return { ids, scope: null };
+    }
+
+    const scope = body.scope || body.selection?.scope || null;
+    if (!scope || scope.all !== true) {
+        return { ids: [], scope: null };
+    }
+
+    const type = MAIL_TYPES.has(scope.type) ? scope.type : defaultType;
+    return {
+        ids: [],
+        scope: {
+            type,
+            label: scope.label || '',
+            search: scope.search || '',
+            participant: scope.participant || '',
+            unread: Boolean(scope.unread)
+        }
+    };
+};
+
+export const resolveBulkEmailSelection = async (body = {}, defaultType = 'inbox') => {
+    const selection = normalizeBulkSelection(body, defaultType);
+    if (!selection.scope) {
+        return selection.ids;
+    }
+
+    const query = {
+        ...(selection.scope.label ? { label: selection.scope.label } : {}),
+        ...(selection.scope.search ? { search: selection.scope.search } : {}),
+        ...(selection.scope.participant ? { participant: selection.scope.participant } : {}),
+        ...(selection.scope.unread ? { unread: 'true' } : {})
+    };
+    const filter = buildEmailFilter(selection.scope.type, query);
+
+    if (isDbConnected()) {
+        const dbEmails = await Email.find(buildDbFilter(filter)).sort({ date: -1 });
+        return filterDbEmailsInMemory(dbEmails, filter).map((email) => String(email._id));
+    }
+
+    return getCachedEmails(filter).map((email) => String(email._id));
+};
+
 const recalibrateMailTaxonomy = async () => {
     try {
         if (!cachedTaxonomyRecalibrated) {
@@ -242,23 +314,7 @@ export const getEmails = async (request, response) => {
             try {
                 const dbFilter = buildDbFilter(filter);
 
-                emails = await Email.find(dbFilter).sort({ date: -1 });
-
-                if (filter.search) {
-                    const search = filter.search.toLowerCase();
-                    emails = emails.filter((item) => {
-                        const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
-                        return haystack.includes(search);
-                    });
-                }
-
-                if (filter.participant) {
-                    const participant = String(filter.participant).toLowerCase();
-                    emails = emails.filter((item) => {
-                        const haystack = [item.from, item.to, item.cc].join(' ').toLowerCase();
-                        return haystack.includes(participant);
-                    });
-                }
+                emails = filterDbEmailsInMemory(await Email.find(dbFilter).sort({ date: -1 }), filter);
             } catch (error) {
                 dbQueryFailed = true;
                 console.error('Database query failed, using cache:', error.message);
@@ -589,7 +645,7 @@ export const toggleReadEmail = async (request, response) => {
 
 export const deleteEmails = async (request, response) => {
     try {
-        const ids = Array.isArray(request.body) ? request.body : [];
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
         for (const id of ids) {
@@ -614,7 +670,8 @@ export const deleteEmails = async (request, response) => {
             await Email.deleteMany({ _id: { $in: dbIds }});
         }
 
-        response.status(200).json('emails deleted successfully');
+        saveMailboxCacheToDisk();
+        response.status(200).json({ message: 'emails deleted successfully', count: ids.length });
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -622,7 +679,7 @@ export const deleteEmails = async (request, response) => {
 
 export const moveEmailsToBin = async (request, response) => {
     try {
-        const ids = Array.isArray(request.body) ? request.body : [];
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
         for (const id of ids) {
@@ -644,7 +701,8 @@ export const moveEmailsToBin = async (request, response) => {
             );
         }
 
-        response.status(201).json('emails moved to bin');
+        saveMailboxCacheToDisk();
+        response.status(201).json({ message: 'emails moved to bin', count: ids.length });
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -652,7 +710,7 @@ export const moveEmailsToBin = async (request, response) => {
 
 export const markEmailsAsSpam = async (request, response) => {
     try {
-        const ids = Array.isArray(request.body) ? request.body : [];
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
         for (const id of ids) {
@@ -686,7 +744,7 @@ export const markEmailsAsSpam = async (request, response) => {
         }
 
         saveMailboxCacheToDisk();
-        response.status(200).json('emails marked as spam');
+        response.status(200).json({ message: 'emails marked as spam', count: ids.length });
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -694,7 +752,7 @@ export const markEmailsAsSpam = async (request, response) => {
 
 export const archiveEmails = async (request, response) => {
     try {
-        const ids = Array.isArray(request.body) ? request.body : [];
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
         for (const id of ids) {
@@ -726,7 +784,8 @@ export const archiveEmails = async (request, response) => {
             );
         }
 
-        response.status(200).json('emails archived');
+        saveMailboxCacheToDisk();
+        response.status(200).json({ message: 'emails archived', count: ids.length });
     } catch (error) {
         response.status(500).json(error.message);
     }

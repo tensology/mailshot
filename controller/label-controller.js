@@ -2,6 +2,7 @@ import Label from '../model/label.js';
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
 import { findEmailRecord, updateCachedEmail, getCachedEmails, saveMailboxCacheToDisk } from '../services/mail-sync.js';
+import { resolveBulkEmailSelection } from './email-controller.js';
 import {
     getCachedLabels,
     createCachedLabel,
@@ -147,7 +148,7 @@ export const updateEmailLabels = async (request, response) => {
 
 export const moveEmailsToLabel = async (request, response) => {
     try {
-        const ids = Array.isArray(request.body.ids) ? request.body.ids : [];
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const labelInput = String(request.body.label || '').trim();
 
         if (!ids.length || !labelInput) {

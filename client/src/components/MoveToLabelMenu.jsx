@@ -9,6 +9,8 @@ import { requestMailboxCountsRefresh } from '../utils/emailListCache';
 
 const MoveToLabelMenu = ({
     emailIds = [],
+    selectionPayload = null,
+    selectionCount,
     labels = [],
     onMoved,
     onMoveConfirmed,
@@ -21,6 +23,8 @@ const MoveToLabelMenu = ({
     const menuRef = useRef(null);
     const moveToLabelService = useApi(API_URLS.moveEmailsToLabel);
     const createLabelRuleService = useApi(API_URLS.createLabelRule);
+    const hasSelection = Boolean(selectionPayload) || emailIds.length > 0;
+    const selectedCount = Number(selectionCount) || emailIds.length;
 
     useEffect(() => {
         if (!open) {
@@ -38,16 +42,21 @@ const MoveToLabelMenu = ({
     }, [open]);
 
     const moveToLabel = (labelSlug) => {
-        if (!emailIds.length || !labelSlug) {
+        if (!hasSelection || !labelSlug) {
             return;
         }
 
         setOpen(false);
 
-        moveToLabelService.call({ ids: emailIds, label: labelSlug }, '', { silent: true }).then((result) => {
+        const payload = selectionPayload
+            ? { ...selectionPayload, label: labelSlug }
+            : { ids: emailIds, label: labelSlug };
+
+        moveToLabelService.call(payload, '', { silent: true }).then((result) => {
+            const affectedCount = Number(result.data?.updated) || selectedCount;
             if (result.error) {
                 if (onMoved) {
-                    onMoved(labelSlug, emailIds, result.error);
+                    onMoved(labelSlug, emailIds, result.error, affectedCount);
                 }
                 return;
             }
@@ -62,10 +71,10 @@ const MoveToLabelMenu = ({
             }
 
             if (onMoved) {
-                onMoved(labelSlug, emailIds);
+                onMoved(labelSlug, emailIds, '', affectedCount);
             }
             if (onMoveConfirmed) {
-                onMoveConfirmed(labelSlug, emailIds);
+                onMoveConfirmed(labelSlug, emailIds, affectedCount);
             }
         });
     };
@@ -106,7 +115,7 @@ const MoveToLabelMenu = ({
             <div className="relative" ref={menuRef}>
                 <IconButton
                     label={buttonLabel}
-                    disabled={disabled || !emailIds.length}
+                    disabled={disabled || !hasSelection}
                     onClick={() => setOpen((value) => !value)}
                 >
                     <Tag className="h-4 w-4" />
