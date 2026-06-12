@@ -31,7 +31,9 @@ import {
     deleteLabel,
     updateEmailLabels,
     getEmailLabels,
-    moveEmailsToLabel
+    moveEmailsToLabel,
+    listLabelRules,
+    createLabelRule
 } from '../controller/label-controller.js';
 
 import {
@@ -105,6 +107,8 @@ routes.get('/labels', getLabels);
 routes.post('/labels', createLabel);
 routes.put('/labels/:id', updateLabel);
 routes.delete('/labels/:id', deleteLabel);
+routes.get('/label-rules', listLabelRules);
+routes.post('/label-rules', createLabelRule);
 
 routes.get('/contacts', getContacts);
 routes.get('/contacts/:id', getContactById);

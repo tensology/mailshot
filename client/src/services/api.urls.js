@@ -142,6 +142,16 @@ export const API_URLS = {
         method: 'POST',
         pathBuilder: () => 'move-to-label'
     },
+    getLabelRules: {
+        endpoint: 'label-rules',
+        method: 'GET',
+        pathBuilder: () => 'label-rules'
+    },
+    createLabelRule: {
+        endpoint: 'label-rules',
+        method: 'POST',
+        pathBuilder: () => 'label-rules'
+    },
     getContacts: {
         endpoint: 'contacts',
         method: 'GET',

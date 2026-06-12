@@ -10,6 +10,7 @@ import {
     ensureCachedLabel,
     getLabelBySlug
 } from '../services/label-store.js';
+import { createLabelRules, extractEmailAddress, getLabelRules } from '../services/label-rule-store.js';
 import { slugify } from '../utils/slug.js';
 
 const RESERVED_LABEL_SLUGS = new Set(['archived', 'archive', 'spam']);
@@ -180,11 +181,16 @@ export const moveEmailsToLabel = async (request, response) => {
         }
 
         let updatedCount = 0;
+        const movedSenders = new Set();
 
         for (const emailId of ids) {
             const resolved = await findEmailRecord(emailId);
             if (!resolved) {
                 continue;
+            }
+            const sender = extractEmailAddress(resolved.email.from);
+            if (sender) {
+                movedSenders.add(sender);
             }
 
             const currentLabels = Array.isArray(resolved.email.labels) ? resolved.email.labels : [];
@@ -214,10 +220,35 @@ export const moveEmailsToLabel = async (request, response) => {
 
         return response.status(200).json({
             label: label.slug,
-            updated: updatedCount
+            updated: updatedCount,
+            senders: [...movedSenders]
         });
     } catch (error) {
         return response.status(500).json(error.message);
+    }
+};
+
+export const listLabelRules = async (_, response) => {
+    try {
+        return response.status(200).json(await getLabelRules());
+    } catch (error) {
+        return response.status(500).json(error.message);
+    }
+};
+
+export const createLabelRule = async (request, response) => {
+    try {
+        const rules = await createLabelRules({
+            from: request.body.from,
+            label: request.body.label
+        });
+
+        return response.status(201).json({
+            created: rules.length,
+            rules
+        });
+    } catch (error) {
+        return response.status(400).json(error.message);
     }
 };
 

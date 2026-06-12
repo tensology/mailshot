@@ -10,6 +10,7 @@ import { loadLabelsFromDisk } from './services/label-store.js';
 import { loadContactsFromDisk } from './services/contact-store.js';
 import { loadSessionsFromDisk } from './services/auth-store.js';
 import { loadSettingsFromDisk } from './services/settings-store.js';
+import { loadLabelRulesFromDisk } from './services/label-rule-store.js';
 import { startReadAloudCleanup } from './services/read-aloud-service.js';
 
 const __dirname = path.resolve();
@@ -95,6 +96,11 @@ if (loadedContacts > 0) {
 const loadedSettings = loadSettingsFromDisk();
 if (loadedSettings > 0) {
     console.log('Loaded app settings from disk cache');
+}
+
+const loadedLabelRules = loadLabelRulesFromDisk();
+if (loadedLabelRules > 0) {
+    console.log(`Loaded ${loadedLabelRules} label rules from disk cache`);
 }
 
 startMailboxSync({

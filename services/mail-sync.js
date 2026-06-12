@@ -10,6 +10,7 @@ import { slugify } from '../utils/slug.js';
 import { sendMail } from './mailer.js';
 import { findSettingsForEmail, getSettings, markAutoresponderSent } from './settings-store.js';
 import { findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
+import { findLabelRuleForEmail } from './label-rule-store.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -63,6 +64,28 @@ const stripHtml = (value = '') => decodeHtmlEntities(
         .replace(/<[^>]*>/g, ' ')
         .replace(/\s+/g, ' ')
 ).trim();
+
+const applyLabelRule = async (payload = {}) => {
+    if (payload.type !== 'inbox') {
+        return {
+            labels: [],
+            in_inbox: true
+        };
+    }
+
+    const rule = await findLabelRuleForEmail(payload.from);
+    if (!rule) {
+        return {
+            labels: [],
+            in_inbox: true
+        };
+    }
+
+    return {
+        labels: [rule.label],
+        in_inbox: false
+    };
+};
 
 const getSyncConfig = () => ({
     host: process.env.MAIL_IMAP_HOST,
@@ -505,13 +528,15 @@ const syncOnce = async () => {
                             continue;
                         }
 
+                        const labelState = await applyLabelRule(payload);
                         const emailDoc = await Email.create({
                             ...payload,
                             starred: false,
                             bin: false,
                             archived: false,
                             spam: false,
-                            labels: []
+                            in_inbox: labelState.in_inbox,
+                            labels: labelState.labels
                         });
                         if (!emailDoc) {
                             skipped++;
@@ -525,13 +550,15 @@ const syncOnce = async () => {
                             persistCachedEmail(payload);
                             skipped++;
                         } else {
+                            const labelState = await applyLabelRule(payload);
                             persistCachedEmail({
                                 ...payload,
                                 starred: false,
                                 bin: false,
                                 archived: false,
                                 spam: false,
-                                labels: []
+                                in_inbox: labelState.in_inbox,
+                                labels: labelState.labels
                             });
                             synced++;
                             await sendAutoResponderIfNeeded(payload);

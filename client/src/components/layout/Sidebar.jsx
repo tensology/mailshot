@@ -105,7 +105,10 @@ const Sidebar = ({ onSent }) => {
                     })}
 
                     <div className="pt-3">
-                        <LabelSidebar onNavigate={handleNavigate} />
+                        <LabelSidebar
+                            counts={counts.label_unread || {}}
+                            onNavigate={handleNavigate}
+                        />
                         <ContactSidebar onNavigate={handleNavigate} />
                     </div>
                 </nav>

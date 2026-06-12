@@ -23,6 +23,7 @@ import {
     getReadAloudJob,
     startReadAloudJob
 } from '../services/read-aloud-service.js';
+import { getCachedLabels } from '../services/label-store.js';
 
 const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived']);
 const RESERVED_SYSTEM_LABELS = new Set(['archived', 'archive', 'spam']);
@@ -281,15 +282,32 @@ export const getMailboxCounts = async (_, response) => {
 
         const inboxUnreadFilter = buildEmailFilter('inbox');
         inboxUnreadFilter.read = false;
+        const labelUnread = {};
 
         if (isDbConnected()) {
             const dbFilter = buildDbFilter(inboxUnreadFilter);
             const inboxUnread = await Email.countDocuments(dbFilter);
-            return response.status(200).json({ inbox_unread: inboxUnread });
+            const labels = await Label.find().select('slug').lean();
+
+            await Promise.all(labels.map(async (label) => {
+                const filter = buildDbFilter({ label: label.slug, read: false, bin: false, spam: false });
+                labelUnread[label.slug] = await Email.countDocuments(filter);
+            }));
+
+            return response.status(200).json({ inbox_unread: inboxUnread, label_unread: labelUnread });
         }
 
         const inboxUnread = getCachedEmails(inboxUnreadFilter).length;
-        return response.status(200).json({ inbox_unread: inboxUnread });
+        getCachedLabels().forEach((label) => {
+            labelUnread[label.slug] = getCachedEmails({
+                label: label.slug,
+                read: false,
+                bin: false,
+                spam: false
+            }).length;
+        });
+
+        return response.status(200).json({ inbox_unread: inboxUnread, label_unread: labelUnread });
     } catch (error) {
         return response.status(500).json(error.message);
     }

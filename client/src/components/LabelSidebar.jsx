@@ -16,7 +16,7 @@ const labelNavClass = (isActive) => (
 
 const RESERVED_LABEL_SLUGS = new Set(['archived', 'archive', 'spam']);
 
-const LabelSidebar = ({ onNavigate }) => {
+const LabelSidebar = ({ counts = {}, onNavigate }) => {
     const [searchParams] = useSearchParams();
     const activeLabel = searchParams.get('label') || '';
     const getLabelsService = useApi(API_URLS.getLabels);
@@ -71,26 +71,35 @@ const LabelSidebar = ({ onNavigate }) => {
                 </button>
             </div>
             <div className="space-y-1">
-                {labels.filter((label) => !RESERVED_LABEL_SLUGS.has(label.slug)).map((label) => (
-                    <div key={label._id} className="flex items-center gap-1">
-                        <NavLink
-                            to={`${routes.emails.path}/allmail?label=${encodeURIComponent(label.slug)}`}
-                            onClick={onNavigate}
-                            className={labelNavClass(activeLabel === label.slug)}
-                        >
-                            <Tag className="h-4 w-4 shrink-0" style={{ color: label.color || '#64748b' }} />
-                            <span className="truncate">{label.name}</span>
-                        </NavLink>
-                        <button
-                            type="button"
-                            onClick={() => setLabelToDelete(label)}
-                            aria-label={`Delete ${label.name}`}
-                            className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        >
-                            ×
-                        </button>
-                    </div>
-                ))}
+                {labels.filter((label) => !RESERVED_LABEL_SLUGS.has(label.slug)).map((label) => {
+                    const unread = Number(counts[label.slug] || 0);
+
+                    return (
+                        <div key={label._id} className="flex items-center gap-1">
+                            <NavLink
+                                to={`${routes.emails.path}/allmail?label=${encodeURIComponent(label.slug)}`}
+                                onClick={onNavigate}
+                                className={labelNavClass(activeLabel === label.slug)}
+                            >
+                                <Tag className="h-4 w-4 shrink-0" style={{ color: label.color || '#64748b' }} />
+                                <span className="min-w-0 flex-1 truncate">{label.name}</span>
+                                {unread > 0 && (
+                                    <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+                                        {unread}
+                                    </span>
+                                )}
+                            </NavLink>
+                            <button
+                                type="button"
+                                onClick={() => setLabelToDelete(label)}
+                                aria-label={`Delete ${label.name}`}
+                                className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    );
+                })}
             </div>
 
             <Dialog
