@@ -33,29 +33,4 @@
     scrollbar-color: #cbd5e1 transparent;
   }
 
-  .mailshot-marquee {
-    min-width: 100%;
-    animation: mailshot-marquee 18s linear infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .mailshot-marquee {
-      animation: none;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
-}
-
-@keyframes mailshot-marquee {
-  0%,
-  18% {
-    transform: translateX(0);
-  }
-
-  82%,
-  100% {
-    transform: translateX(calc(-100% + min(100%, 70vw)));
-  }
 }

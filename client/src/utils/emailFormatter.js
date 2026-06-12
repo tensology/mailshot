@@ -96,9 +96,9 @@ export const formatListPreview = ({ subject, body, body_html }, limit = 140) => 
     return truncateText(combined, limit);
 };
 
-export const formatBodyPreview = ({ body, body_html }, limit = 220) => {
+export const formatBodyPreview = ({ body, body_html }) => {
     const normalizedBody = stripHtml(body_html || body);
-    return truncateText(normalizedBody, limit);
+    return normalizedBody;
 };
 
 export const formatEmailBody = (value) => {
@@ -159,4 +159,20 @@ export const formatEmailDateTime = (value) => {
     });
     const timePart = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     return `${datePart} ${timePart}`;
+};
+
+export const formatEmailDateParts = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return { date: '', time: '' };
+    }
+
+    return {
+        date: date.toLocaleDateString([], {
+            month: 'short',
+            day: 'numeric',
+            ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' })
+        }),
+        time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    };
 };

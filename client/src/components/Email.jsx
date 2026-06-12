@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
-import { formatBodyPreview, parseSenderName, formatEmailDateTime } from '../utils/emailFormatter';
+import { formatBodyPreview, formatEmailDateParts, parseSenderName } from '../utils/emailFormatter';
 import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
 
@@ -34,6 +34,7 @@ const Email = ({
             : parseSenderName(email.from);
     const subject = email?.subject || '(no subject)';
     const snippet = formatBodyPreview(email, 260);
+    const dateParts = formatEmailDateParts(email.date);
     const hasAttachments = Array.isArray(email.attachments) && email.attachments.length > 0;
     const unread = !email.read;
     const threadIds = Array.isArray(email.thread_ids) && email.thread_ids.length > 0
@@ -127,32 +128,31 @@ const Email = ({
                 <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
             </button>
 
-            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-3 px-3 py-2.5 sm:px-4">
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_4.75rem] gap-3 px-3 py-2.5 sm:px-4">
                 <div className="min-w-0">
-                    <p className={`truncate text-sm leading-5 ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}>
-                        {senderName}
-                    </p>
-
-                    <div className="mt-0.5 flex min-w-0 items-center gap-2">
-                        <p className={`truncate text-sm leading-5 ${unread ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
+                    <div className="flex min-w-0 items-baseline gap-2 text-sm leading-5">
+                        <span className={`min-w-[8rem] max-w-[12rem] shrink-0 truncate ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}>
+                            {senderName}
+                        </span>
+                        <span className={`min-w-[10rem] max-w-[20rem] shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
                             {isDraft && <span className="font-semibold text-red-600">Draft </span>}
                             {subject}
-                        </p>
+                        </span>
                         {email.thread_count > 1 && (
                             <span className="shrink-0 text-xs font-medium text-slate-500">
                                 ({email.thread_count})
                             </span>
                         )}
                         {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                        {snippet && (
+                            <>
+                                <span className="shrink-0 text-slate-300">-</span>
+                                <span className="min-w-0 flex-1 truncate text-slate-500">
+                                    {snippet}
+                                </span>
+                            </>
+                        )}
                     </div>
-
-                    {snippet && (
-                        <div className="mt-0.5 overflow-hidden text-sm leading-5 text-slate-500">
-                            <span className={snippet.length > 120 ? 'mailshot-marquee inline-block whitespace-nowrap' : 'block truncate'}>
-                                {snippet}
-                            </span>
-                        </div>
-                    )}
 
                     {(email.labels || []).length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
@@ -167,9 +167,10 @@ const Email = ({
                         </div>
                     )}
                 </div>
-                <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-slate-500">
-                    {formatEmailDateTime(email.date)}
-                </span>
+                <div className="mt-0.5 shrink-0 text-right text-xs leading-4 text-slate-500">
+                    <div className="whitespace-nowrap">{dateParts.date}</div>
+                    <div className="whitespace-nowrap text-slate-400">{dateParts.time}</div>
+                </div>
             </div>
         </div>
     );
