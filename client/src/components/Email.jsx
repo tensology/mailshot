@@ -14,6 +14,7 @@ const Email = ({
     checkedEmails,
     highlightedEmail,
     labelNameMap,
+    senderColumnWidthCh,
     onRowSelect,
     onCheckboxSelect,
     onKeyboardDelete,
@@ -131,7 +132,10 @@ const Email = ({
             <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_4.75rem] gap-3 px-3 py-2.5 sm:px-4">
                 <div className="min-w-0">
                     <div className="flex min-w-0 items-baseline gap-2 overflow-hidden text-sm leading-5">
-                        <span className={`min-w-[11rem] max-w-[16rem] shrink-0 truncate ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}>
+                        <span
+                            className={`shrink-0 whitespace-nowrap ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
+                            style={{ width: `${senderColumnWidthCh || 14}ch` }}
+                        >
                             {senderName}
                         </span>
                         <span className={`shrink-0 whitespace-nowrap ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>

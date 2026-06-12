@@ -24,6 +24,7 @@ import MoveToLabelMenu from './MoveToLabelMenu';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { useCompose } from '../context/ComposeContext';
+import { parseSenderName } from '../utils/emailFormatter';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -38,6 +39,17 @@ const getEmailSelectionIds = (email) => (
 const emailMatchesRemoval = (email, idsToRemove) => {
     const threadIds = getEmailSelectionIds(email);
     return threadIds.some((id) => idsToRemove.includes(id));
+};
+
+const getListSenderName = (email, activeTab) => {
+    const isDraft = activeTab === 'drafts' || email.type === 'drafts';
+    if (isDraft) {
+        return email.to ? parseSenderName(email.to) : '(no recipient)';
+    }
+    if (email.type === 'sent') {
+        return parseSenderName(email.to);
+    }
+    return parseSenderName(email.from);
 };
 
 const normalizeEmailListResponse = (data) => {
@@ -437,6 +449,10 @@ const Emails = () => {
     const allSelected = emails.length > 0 && selectedEmails.length === emails.length;
     const someSelected = hasSelection && !allSelected;
     const isRefreshing = isFetching || isSyncing;
+    const senderColumnWidthCh = Math.max(
+        14,
+        ...emails.map((email) => getListSenderName(email, activeTab).length)
+    ) + 1;
 
     const selectAllEmails = (event) => {
         if (event.target.checked) {
@@ -779,6 +795,7 @@ const Emails = () => {
                                 checkedEmails={selectedEmails}
                                 highlightedEmail={highlightedEmail}
                                 labelNameMap={labelNameMap}
+                                senderColumnWidthCh={senderColumnWidthCh}
                                 onRowSelect={handleRowSelect}
                                 onCheckboxSelect={handleCheckboxSelect}
                                 onKeyboardDelete={handleKeyboardDelete}
