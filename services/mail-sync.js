@@ -287,6 +287,7 @@ const matchesFilter = (item, filter = {}) => {
     if (filter.archived !== undefined && filter.archived !== item.archived) return false;
     if (filter.spam !== undefined && filter.spam !== Boolean(item.spam)) return false;
     if (filter.starred !== undefined && filter.starred !== item.starred) return false;
+    if (filter.read !== undefined && filter.read !== Boolean(item.read)) return false;
     if (filter.type && filter.type !== item.type) return false;
     if (filter.in_inbox === true && item.in_inbox === false) return false;
     if (filter.label) {
