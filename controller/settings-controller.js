@@ -48,6 +48,10 @@ const normalizeSignatures = (body = {}) => {
         });
     }
 
+    if (!byEmail.has(SUPERUSER_EMAIL)) {
+        byEmail.set(SUPERUSER_EMAIL, { email: SUPERUSER_EMAIL, signature_html: '' });
+    }
+
     return [...byEmail.values()];
 };
 
@@ -73,6 +77,15 @@ const normalizeAutoresponders = (body = {}) => {
             enabled: Boolean(body.autoresponder_enabled),
             html: normalizeHtml(body.autoresponder_html),
             subject: String(body.autoresponder_subject || 'Re: {{subject}}').trim() || 'Re: {{subject}}'
+        });
+    }
+
+    if (!byEmail.has(SUPERUSER_EMAIL)) {
+        byEmail.set(SUPERUSER_EMAIL, {
+            email: SUPERUSER_EMAIL,
+            enabled: false,
+            html: '',
+            subject: 'Re: {{subject}}'
         });
     }
 

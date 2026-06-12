@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bold, Italic, List, Plus, Save, Trash2 } from 'lucide-react';
+import { Bold, Check, Image, Italic, List, Plus, Save, Trash2, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
 import Button from './ui/Button';
+import IconButton from './ui/IconButton';
 import Input from './ui/Input';
 import Toast from './ui/Toast';
 
@@ -80,8 +81,19 @@ const normalizeGeneral = (settings = {}) => {
     };
 };
 
-const RichTextEditor = ({ label, value, onChange }) => {
+const isValidImageUrl = (value = '') => {
+    try {
+        const url = new URL(value.trim());
+        return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+        return false;
+    }
+};
+
+const RichTextEditor = ({ label, value, onChange, allowImages = false }) => {
     const editorRef = useRef(null);
+    const [imageUrl, setImageUrl] = useState('');
+    const [showImageInput, setShowImageInput] = useState(false);
 
     useEffect(() => {
         if (editorRef.current && editorRef.current.innerHTML !== value) {
@@ -89,35 +101,101 @@ const RichTextEditor = ({ label, value, onChange }) => {
         }
     }, [value]);
 
+    const syncEditor = () => {
+        onChange(editorRef.current?.innerHTML || '');
+    };
+
     const applyCommand = (command) => {
         editorRef.current?.focus();
         document.execCommand(command, false, null);
-        onChange(editorRef.current?.innerHTML || '');
+        syncEditor();
+    };
+
+    const insertImage = () => {
+        const url = imageUrl.trim();
+        if (!isValidImageUrl(url)) {
+            return false;
+        }
+
+        editorRef.current?.focus();
+        const imageHtml = `<img src="${url.replace(/"/g, '&quot;')}" alt="" style="max-width:240px;height:auto;display:block;margin-top:8px;" />`;
+        document.execCommand('insertHTML', false, imageHtml);
+        syncEditor();
+        setImageUrl('');
+        setShowImageInput(false);
+        return true;
     };
 
     return (
         <div>
-            <div className="mb-1.5 flex items-center justify-between">
+            <div className="mb-1.5 flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-slate-700">{label}</span>
-                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
-                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" onClick={() => applyCommand('bold')} aria-label="Bold">
+                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('bold')} aria-label="Bold">
                         <Bold className="h-4 w-4" />
                     </button>
-                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" onClick={() => applyCommand('italic')} aria-label="Italic">
+                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('italic')} aria-label="Italic">
                         <Italic className="h-4 w-4" />
                     </button>
-                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100" onClick={() => applyCommand('insertUnorderedList')} aria-label="Bullet list">
+                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('insertUnorderedList')} aria-label="Bullet list">
                         <List className="h-4 w-4" />
                     </button>
+                    {allowImages && (
+                        <button
+                            type="button"
+                            className={`rounded-lg p-1.5 hover:bg-white ${showImageInput ? 'bg-white text-blue-600' : 'text-slate-600'}`}
+                            onClick={() => setShowImageInput((current) => !current)}
+                            aria-label="Insert image from URL"
+                        >
+                            <Image className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
             </div>
+            {allowImages && showImageInput && (
+                <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    <input
+                        type="url"
+                        value={imageUrl}
+                        onChange={(event) => setImageUrl(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                insertImage();
+                            }
+                        }}
+                        placeholder="https://example.com/logo.png"
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                    <IconButton
+                        label="Insert image"
+                        size="sm"
+                        disabled={!isValidImageUrl(imageUrl)}
+                        onClick={insertImage}
+                        className="text-emerald-600 hover:bg-emerald-50"
+                    >
+                        <Check className="h-4 w-4" />
+                    </IconButton>
+                    <IconButton
+                        label="Cancel"
+                        size="sm"
+                        onClick={() => {
+                            setImageUrl('');
+                            setShowImageInput(false);
+                        }}
+                    >
+                        <X className="h-4 w-4" />
+                    </IconButton>
+                </div>
+            )}
             <div
                 ref={editorRef}
                 contentEditable
-                className="min-h-32 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                onInput={() => onChange(editorRef.current?.innerHTML || '')}
+                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:max-h-32 [&_img]:max-w-full [&_img]:rounded-md"
+                onInput={syncEditor}
                 role="textbox"
                 aria-multiline="true"
+                data-placeholder="Write your signature here…"
             />
         </div>
     );
@@ -128,6 +206,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const [general, setGeneral] = useState(emptyGeneral);
     const [selectedEmail, setSelectedEmail] = useState(DEFAULT_EMAIL);
     const [newEmail, setNewEmail] = useState('');
+    const [showAddEmail, setShowAddEmail] = useState(false);
     const [ai, setAi] = useState(emptyAi);
     const [providers, setProviders] = useState({});
     const [models, setModels] = useState([]);
@@ -156,6 +235,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setModels(result.data?.ai?.model ? [{ id: result.data.ai.model, name: result.data.ai.model }] : []);
             setModelsLoaded(Boolean(result.data?.ai?.model));
             setNewEmail('');
+            setShowAddEmail(false);
             setActiveTab('signature');
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,6 +251,9 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         ]);
         return [...emails].filter(Boolean);
     }, [general.autoresponders, general.signatures]);
+
+    const canRemoveSelectedEmail = emailOptions.length > 1
+        && normalizeEmail(selectedEmail) !== DEFAULT_EMAIL;
 
     const buildGeneralPayload = (overrides = {}) => {
         const payload = {
@@ -220,6 +303,10 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setToast({ open: true, message: 'Enter an email address', severity: 'error' });
             return;
         }
+        if (emailOptions.includes(email)) {
+            setToast({ open: true, message: 'That email is already in the list', severity: 'error' });
+            return;
+        }
         setGeneral((current) => ({
             ...current,
             signatures: uniqueEntriesByEmail([...current.signatures, emptySignature(email)], emptySignature),
@@ -227,10 +314,14 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         }));
         setSelectedEmail(email);
         setNewEmail('');
+        setShowAddEmail(false);
     };
 
     const removeEmail = () => {
-        if (emailOptions.length <= 1) {
+        if (!canRemoveSelectedEmail) {
+            if (normalizeEmail(selectedEmail) === DEFAULT_EMAIL) {
+                setToast({ open: true, message: `${DEFAULT_EMAIL} cannot be removed`, severity: 'error' });
+            }
             return;
         }
         const nextEmails = emailOptions.filter((email) => email !== selectedEmail);
@@ -340,34 +431,71 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                 </div>
 
                 {(activeTab === 'signature' || activeTab === 'autoresponder') && (
-                    <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-                        <label className="block">
-                            <span className="mb-1.5 block text-sm font-medium text-slate-700">Email address</span>
+                    <div className="mb-5 space-y-2">
+                        <span className="block text-sm font-medium text-slate-700">Email address</span>
+                        <div className="flex items-center gap-2">
                             <select
                                 value={selectedEmail}
                                 onChange={(event) => setSelectedEmail(event.target.value)}
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
                                 {emailOptions.map((email) => (
                                     <option key={email} value={email}>{email}</option>
                                 ))}
                             </select>
-                        </label>
-                        <div className="flex items-end gap-2">
-                            <Input
-                                label="Add email"
-                                value={newEmail}
-                                onChange={(event) => setNewEmail(event.target.value)}
-                                placeholder="name@example.com"
-                            />
-                            <Button onClick={addEmail} variant="secondary" className="shrink-0">
-                                <Plus className="h-4 w-4" />
-                                Add
-                            </Button>
-                            <Button onClick={removeEmail} variant="ghost" disabled={emailOptions.length <= 1} className="shrink-0">
+                            <IconButton
+                                label={canRemoveSelectedEmail ? `Remove ${selectedEmail}` : 'Cannot remove this email'}
+                                size="sm"
+                                disabled={!canRemoveSelectedEmail}
+                                onClick={removeEmail}
+                                className="shrink-0 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                            >
                                 <Trash2 className="h-4 w-4" />
-                            </Button>
+                            </IconButton>
+                            <IconButton
+                                label="Add email address"
+                                size="sm"
+                                onClick={() => setShowAddEmail((current) => !current)}
+                                className={`shrink-0 ${showAddEmail ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </IconButton>
                         </div>
+                        {showAddEmail && (
+                            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                                <input
+                                    type="email"
+                                    value={newEmail}
+                                    onChange={(event) => setNewEmail(event.target.value)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            addEmail();
+                                        }
+                                    }}
+                                    placeholder="name@example.com"
+                                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                />
+                                <IconButton
+                                    label="Confirm add email"
+                                    size="sm"
+                                    onClick={addEmail}
+                                    className="text-emerald-600 hover:bg-emerald-50"
+                                >
+                                    <Check className="h-4 w-4" />
+                                </IconButton>
+                                <IconButton
+                                    label="Cancel"
+                                    size="sm"
+                                    onClick={() => {
+                                        setNewEmail('');
+                                        setShowAddEmail(false);
+                                    }}
+                                >
+                                    <X className="h-4 w-4" />
+                                </IconButton>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -377,6 +505,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             label="Signature"
                             value={currentSignature.signature_html}
                             onChange={updateSignature}
+                            allowImages
                         />
                         <Button onClick={() => saveGeneral('Signature saved')} disabled={updateGeneralService.isLoading}>
                             <Save className="h-4 w-4" />
