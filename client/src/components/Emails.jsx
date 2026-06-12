@@ -25,6 +25,7 @@ import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { useCompose } from '../context/ComposeContext';
 import { parseSenderName } from '../utils/emailFormatter';
+import { useReadSummary } from '../context/ReadSummaryContext';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -105,6 +106,11 @@ const Emails = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
     const { openComposeDraft } = useCompose();
+    const {
+        enabled: readSummaryEnabled,
+        pendingEmailId: readSummaryPendingEmailId,
+        startReadSummary
+    } = useReadSummary();
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
     const participantFilter = searchParams.get('participant') || '';
@@ -529,6 +535,13 @@ const Emails = () => {
         }
     };
 
+    const handleReadSummary = async (email) => {
+        const result = await startReadSummary(email?._id);
+        if (result.error) {
+            showActionToast(result.error, 'error');
+        }
+    };
+
     const openDraftEmail = (email) => {
         openComposeDraft({
             _id: email._id,
@@ -819,6 +832,9 @@ const Emails = () => {
                                 labelNameMap={labelNameMap}
                                 senderColumnWidthCh={senderColumnWidthCh}
                                 rowTone={index % 2 === 1 ? 'muted' : 'plain'}
+                                readSummaryEnabled={readSummaryEnabled}
+                                readSummaryLoading={readSummaryPendingEmailId === email._id}
+                                onReadSummary={handleReadSummary}
                                 onRowSelect={handleRowSelect}
                                 onCheckboxSelect={handleCheckboxSelect}
                                 onKeyboardDelete={handleKeyboardDelete}

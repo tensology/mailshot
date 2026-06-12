@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Forward, Loader2, Reply, ReplyAll, Trash2, Volume2, X } from 'lucide-react';
+import { ArrowLeft, Forward, Loader2, Reply, ReplyAll, Trash2, Volume2 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -26,59 +26,7 @@ import Spinner from './ui/Spinner';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { formatEmailBody } from '../utils/emailFormatter';
-import { getAuthToken } from '../context/AuthContext';
-
-const playbackRates = [0.75, 1, 1.25, 1.5, 2];
-
-const ReadAloudPlayer = ({ audioUrl, summary, onClose }) => {
-    const [rate, setRate] = useState(1);
-
-    const updateRate = (event) => {
-        const nextRate = Number(event.target.value);
-        setRate(nextRate);
-        const audio = document.getElementById('read-aloud-audio');
-        if (audio) {
-            audio.playbackRate = nextRate;
-        }
-    };
-
-    return (
-        <div className="fixed bottom-4 left-4 z-[60] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl">
-            <div className="mb-2 flex items-start gap-2">
-                <Volume2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900">Read aloud summary</p>
-                    {summary && <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-600">{summary}</p>}
-                </div>
-                <IconButton label="Close player" size="sm" onClick={onClose}>
-                    <X className="h-4 w-4" />
-                </IconButton>
-            </div>
-            <audio
-                id="read-aloud-audio"
-                src={audioUrl}
-                controls
-                autoPlay
-                className="w-full"
-                onLoadedMetadata={(event) => {
-                    event.currentTarget.playbackRate = rate;
-                }}
-            />
-            <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
-                <span>Speed</span>
-                <select
-                    value={rate}
-                    onChange={updateRate}
-                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                >
-                    {playbackRates.map((value) => (
-                        <option key={value} value={value}>{value}x</option>
-                    ))}
-                </select>
-            </label>
-        </div>
-    );
-};
+import { useReadSummary } from '../context/ReadSummaryContext';
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -88,18 +36,17 @@ const ViewEmail = () => {
     const toggleReadService = useApi(API_URLS.toggleReadMail);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
-    const getSettingsService = useApi(API_URLS.getSettings);
-    const startReadAloudService = useApi(API_URLS.startReadAloud);
-    const getReadAloudJobService = useApi(API_URLS.getReadAloudJob);
+    const {
+        enabled: readSummaryEnabled,
+        pendingEmailId: readSummaryPendingEmailId,
+        startReadSummary
+    } = useReadSummary();
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [labels, setLabels] = useState([]);
     const [emailLabels, setEmailLabels] = useState([]);
     const [thread, setThread] = useState([]);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [loadError, setLoadError] = useState('');
-    const [readAloudEnabled, setReadAloudEnabled] = useState(false);
-    const [readAloudJob, setReadAloudJob] = useState(null);
-    const [readAloudLoading, setReadAloudLoading] = useState(false);
     const { type, id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -144,11 +91,6 @@ const ViewEmail = () => {
 
     useEffect(() => {
         getLabelsService.call();
-        getSettingsService.call({}, '', { silent: true }).then((result) => {
-            if (!result.error) {
-                setReadAloudEnabled(Boolean(result.data?.permissions?.read_aloud_enabled));
-            }
-        });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -297,54 +239,18 @@ const ViewEmail = () => {
         openReplyDraft(primaryEmail, formatEmailBody(primaryEmail.body), mode);
     };
 
-    const pollReadAloudJob = async (jobId) => {
-        const result = await getReadAloudJobService.call({}, jobId, { silent: true });
-        if (result.error) {
-            setReadAloudLoading(false);
-            setSnackbar({ open: true, message: result.error, severity: 'error' });
-            return;
-        }
-
-        setReadAloudJob(result.data);
-        if (result.data?.status === 'ready' || result.data?.status === 'error') {
-            setReadAloudLoading(false);
-            if (result.data?.status === 'error') {
-                setSnackbar({ open: true, message: result.data.error || 'Could not generate audio', severity: 'error' });
-            }
-            return;
-        }
-
-        window.setTimeout(() => pollReadAloudJob(jobId), 2500);
-    };
-
-    const startReadAloud = async () => {
+    const startCurrentReadSummary = async () => {
         if (!primaryEmail) {
             return;
         }
 
-        setReadAloudLoading(true);
-        const result = await startReadAloudService.call({}, primaryEmail._id, { silent: true });
+        const result = await startReadSummary(primaryEmail._id);
         if (result.error) {
-            setReadAloudLoading(false);
             setSnackbar({ open: true, message: result.error, severity: 'error' });
-            return;
         }
-
-        setReadAloudJob(result.data);
-        if (result.data?.status === 'ready' || result.data?.status === 'error') {
-            setReadAloudLoading(false);
-            if (result.data?.status === 'error') {
-                setSnackbar({ open: true, message: result.data.error || 'Could not generate audio', severity: 'error' });
-            }
-            return;
-        }
-
-        pollReadAloudJob(result.data.job_id);
     };
 
-    const readAloudAudioUrl = readAloudJob?.audio_url
-        ? `${API_URL}${readAloudJob.audio_url}?auth_token=${encodeURIComponent(getAuthToken())}`
-        : '';
+    const readSummaryLoading = readSummaryPendingEmailId === primaryEmail._id;
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-white">
@@ -364,13 +270,13 @@ const ViewEmail = () => {
                     <Trash2 className="h-5 w-5" />
                 </IconButton>
                 <div className="ml-auto flex items-center gap-1">
-                    {readAloudEnabled && (
+                    {readSummaryEnabled && (
                         <IconButton
-                            label={readAloudLoading ? 'Preparing read aloud' : 'Read aloud'}
-                            onClick={startReadAloud}
-                            disabled={readAloudLoading}
+                            label={readSummaryLoading ? 'Preparing read summary' : 'Read Summary'}
+                            onClick={startCurrentReadSummary}
+                            disabled={readSummaryLoading}
                         >
-                            {readAloudLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
+                            {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
                         </IconButton>
                     )}
                     <IconButton label="Reply" onClick={() => openPrimaryReplyDraft('reply')}>
@@ -451,13 +357,6 @@ const ViewEmail = () => {
                 severity={snackbar.severity}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
             />
-            {readAloudJob?.status === 'ready' && readAloudAudioUrl && (
-                <ReadAloudPlayer
-                    audioUrl={readAloudAudioUrl}
-                    summary={readAloudJob.summary}
-                    onClose={() => setReadAloudJob(null)}
-                />
-            )}
         </div>
     );
 };

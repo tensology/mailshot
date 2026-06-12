@@ -286,6 +286,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         setModels([]);
         setModelsLoaded(false);
         await loadModels(nextAi);
+        window.dispatchEvent(new Event('mailshot:settings-updated'));
     };
 
     const saveModel = async (model) => {
@@ -296,6 +297,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setToast({ open: true, message: result.error, severity: 'error' });
             return;
         }
+        window.dispatchEvent(new Event('mailshot:settings-updated'));
         setToast({ open: true, message: 'AI model saved', severity: 'success' });
     };
 

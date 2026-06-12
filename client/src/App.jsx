@@ -5,6 +5,7 @@ import SuspenseLoader from './components/common/SuspenseLoader';
 import DataProvider from './context/DataProvider';
 import { ComposeProvider } from './context/ComposeContext';
 import { AuthProvider } from './context/AuthContext';
+import { ReadSummaryProvider } from './context/ReadSummaryContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const ErrorComponent = lazy(() => import('./components/common/ErrorComponent'));
@@ -40,7 +41,9 @@ function App() {
             <AuthProvider>
                 <DataProvider>
                     <ComposeProvider>
-                        <RouterProvider router={router} />
+                        <ReadSummaryProvider>
+                            <RouterProvider router={router} />
+                        </ReadSummaryProvider>
                     </ComposeProvider>
                 </DataProvider>
             </AuthProvider>

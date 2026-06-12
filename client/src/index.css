@@ -40,11 +40,17 @@
   }
 
   .mailshot-marquee-track {
+    display: inline-flex;
+    width: max-content;
+    white-space: nowrap;
+    animation: mailshot-marquee 22s linear infinite;
+    will-change: transform;
+  }
+
+  .mailshot-marquee-copy {
     display: inline-block;
     min-width: 100%;
     padding-right: 4rem;
-    white-space: nowrap;
-    animation: mailshot-marquee 24s linear infinite;
   }
 
   .mailshot-marquee-viewport:hover .mailshot-marquee-track {
@@ -59,13 +65,11 @@
 }
 
 @keyframes mailshot-marquee {
-  0%,
-  12% {
+  from {
     transform: translateX(0);
   }
 
-  88%,
-  100% {
-    transform: translateX(calc(-100% + min(100%, 32rem)));
+  to {
+    transform: translateX(-50%);
   }
 }

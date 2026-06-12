@@ -1,4 +1,4 @@
-import { Paperclip, Star } from 'lucide-react';
+import { Loader2, Paperclip, Star, Volume2 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -16,6 +16,9 @@ const Email = ({
     labelNameMap,
     senderColumnWidthCh,
     rowTone,
+    readSummaryEnabled,
+    readSummaryLoading,
+    onReadSummary,
     onRowSelect,
     onCheckboxSelect,
     onKeyboardDelete,
@@ -95,6 +98,11 @@ const Email = ({
         onRowSelect(email, index, event);
     };
 
+    const handleReadSummary = (event) => {
+        event.stopPropagation();
+        onReadSummary?.(email);
+    };
+
     return (
         <div
             role="button"
@@ -154,10 +162,26 @@ const Email = ({
                                 <span className="shrink-0 text-slate-300">-</span>
                                 <span className="mailshot-marquee-viewport min-w-0 flex-1 text-slate-500">
                                     <span className="mailshot-marquee-track">
-                                        {snippet}
+                                        <span className="mailshot-marquee-copy">{snippet}</span>
+                                        <span className="mailshot-marquee-copy" aria-hidden="true">{snippet}</span>
                                     </span>
                                 </span>
                             </>
+                        )}
+                        {readSummaryEnabled && (
+                            <button
+                                type="button"
+                                onClick={handleReadSummary}
+                                disabled={readSummaryLoading}
+                                className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-blue-100 bg-white px-2.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-wait disabled:opacity-75"
+                            >
+                                {readSummaryLoading ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Volume2 className="h-3.5 w-3.5" />
+                                )}
+                                <span>Read Summary</span>
+                            </button>
                         )}
                     </div>
 
