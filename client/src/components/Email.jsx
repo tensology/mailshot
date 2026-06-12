@@ -130,11 +130,11 @@ const Email = ({
 
             <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_4.75rem] gap-3 px-3 py-2.5 sm:px-4">
                 <div className="min-w-0">
-                    <div className="flex min-w-0 items-baseline gap-2 text-sm leading-5">
-                        <span className={`min-w-[8rem] max-w-[12rem] shrink-0 truncate ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}>
+                    <div className="flex min-w-0 items-baseline gap-2 overflow-hidden text-sm leading-5">
+                        <span className={`min-w-[11rem] max-w-[16rem] shrink-0 truncate ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}>
                             {senderName}
                         </span>
-                        <span className={`min-w-[10rem] max-w-[20rem] shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                        <span className={`shrink-0 whitespace-nowrap ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
                             {isDraft && <span className="font-semibold text-red-600">Draft </span>}
                             {subject}
                         </span>
@@ -147,8 +147,10 @@ const Email = ({
                         {snippet && (
                             <>
                                 <span className="shrink-0 text-slate-300">-</span>
-                                <span className="min-w-0 flex-1 truncate text-slate-500">
-                                    {snippet}
+                                <span className="mailshot-marquee-viewport min-w-0 flex-1 text-slate-500">
+                                    <span className="mailshot-marquee-track">
+                                        {snippet}
+                                    </span>
                                 </span>
                             </>
                         )}

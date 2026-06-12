@@ -33,4 +33,39 @@
     scrollbar-color: #cbd5e1 transparent;
   }
 
+  .mailshot-marquee-viewport {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .mailshot-marquee-track {
+    display: inline-block;
+    min-width: 100%;
+    padding-right: 4rem;
+    white-space: nowrap;
+    animation: mailshot-marquee 24s linear infinite;
+  }
+
+  .mailshot-marquee-viewport:hover .mailshot-marquee-track {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mailshot-marquee-track {
+      animation: none;
+    }
+  }
+}
+
+@keyframes mailshot-marquee {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+
+  88%,
+  100% {
+    transform: translateX(calc(-100% + min(100%, 32rem)));
+  }
 }
