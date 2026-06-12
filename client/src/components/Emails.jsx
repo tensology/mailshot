@@ -13,7 +13,8 @@ import {
     removeEmailsFromListCache,
     clearEmailListCache,
     consumeActionError,
-    consumeActionNotice
+    consumeActionNotice,
+    requestMailboxCountsRefresh
 } from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
@@ -27,6 +28,17 @@ import { useCompose } from '../context/ComposeContext';
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
 const BACKGROUND_SYNC_MS = 60000;
+
+const getEmailSelectionIds = (email) => (
+    Array.isArray(email.thread_ids) && email.thread_ids.length > 0
+        ? email.thread_ids
+        : [email._id]
+);
+
+const emailMatchesRemoval = (email, idsToRemove) => {
+    const threadIds = getEmailSelectionIds(email);
+    return threadIds.some((id) => idsToRemove.includes(id));
+};
 
 const normalizeEmailListResponse = (data) => {
     if (Array.isArray(data)) {
@@ -401,7 +413,7 @@ const Emails = () => {
 
     const selectAllEmails = (event) => {
         if (event.target.checked) {
-            setSelectedEmails(emails.map((email) => email._id));
+            setSelectedEmails(emails.flatMap(getEmailSelectionIds));
         } else {
             setSelectedEmails([]);
         }
@@ -412,7 +424,7 @@ const Emails = () => {
         const fromIndex = selectionAnchorIndex.current ?? toIndex;
         const start = Math.min(fromIndex, toIndex);
         const end = Math.max(fromIndex, toIndex);
-        const rangeIds = emails.slice(start, end + 1).map((email) => email._id);
+        const rangeIds = emails.slice(start, end + 1).flatMap(getEmailSelectionIds);
         setSelectedEmails((current) => [...new Set([...current, ...rangeIds])]);
     };
 
@@ -426,16 +438,19 @@ const Emails = () => {
             return;
         }
 
+        const threadIds = getEmailSelectionIds(email);
+        const allSelected = threadIds.every((id) => selectedEmails.includes(id));
+
         setSelectedEmails((current) => (
-            current.includes(email._id)
-                ? current.filter((id) => id !== email._id)
-                : [...current, email._id]
+            allSelected
+                ? current.filter((id) => !threadIds.includes(id))
+                : [...new Set([...current, ...threadIds])]
         ));
         selectionAnchorIndex.current = index;
     };
 
     const handleKeyboardDelete = (email) => {
-        setDeleteTargetIds([email._id]);
+        setDeleteTargetIds(getEmailSelectionIds(email));
         setConfirmDeleteOpen(true);
     };
 
@@ -502,11 +517,12 @@ const Emails = () => {
         const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
-        const nextEmails = previousEmails.filter((email) => !idsToRemove.includes(email._id));
+        const removedRows = previousEmails.filter((email) => emailMatchesRemoval(email, idsToRemove));
+        const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, idsToRemove));
 
         setSelectedEmails([]);
         setEmails(nextEmails);
-        setTotalEmails(Math.max(0, previousTotal - idsToRemove.length));
+        setTotalEmails(Math.max(0, previousTotal - removedRows.length));
         removeEmailsFromListCache(idsToRemove);
         writeEmailListCache(cacheParams, nextEmails);
 
@@ -519,6 +535,7 @@ const Emails = () => {
             return;
         }
 
+        requestMailboxCountsRefresh();
         showActionToast(`${idsToRemove.length} message${idsToRemove.length === 1 ? '' : 's'} marked as spam`);
     };
 
@@ -538,9 +555,10 @@ const Emails = () => {
             return;
         }
 
-        const nextEmails = previousEmails.filter((email) => !idSet.has(email._id));
+        const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, ids));
+        const removedRows = previousEmails.length - nextEmails.length;
         setEmails(nextEmails);
-        setTotalEmails(Math.max(0, totalEmails - ids.length));
+        setTotalEmails(Math.max(0, totalEmails - removedRows));
         setSelectedEmails([]);
         removeEmailsFromListCache(ids);
         writeEmailListCache(cacheParams, nextEmails);
@@ -566,8 +584,9 @@ const Emails = () => {
         const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
-        const nextEmails = previousEmails.filter((email) => !idsToRemove.includes(email._id));
-        const nextTotal = Math.max(0, previousTotal - idsToRemove.length);
+        const removedRows = previousEmails.filter((email) => emailMatchesRemoval(email, idsToRemove));
+        const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, idsToRemove));
+        const nextTotal = Math.max(0, previousTotal - removedRows.length);
         const nextTotalPages = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
         const nextPage = Math.min(page, nextTotalPages);
         const nextCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page: nextPage };
@@ -604,6 +623,7 @@ const Emails = () => {
             const message = isPermanentDelete
                 ? `${count} message${count === 1 ? '' : 's'} deleted permanently`
                 : `${count} message${count === 1 ? '' : 's'} moved to Bin`;
+            requestMailboxCountsRefresh();
             showActionToast(message);
         });
     };

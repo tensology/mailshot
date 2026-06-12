@@ -63,6 +63,16 @@ export const API_URLS = {
         method: 'GET',
         pathBuilder: (path) => `email/${path}`
     },
+    startReadAloud: {
+        endpoint: 'email',
+        method: 'POST',
+        pathBuilder: (id) => `email/${id}/read-aloud`
+    },
+    getReadAloudJob: {
+        endpoint: 'read-aloud',
+        method: 'GET',
+        pathBuilder: (jobId) => `read-aloud/${jobId}`
+    },
     searchEmails: {
         endpoint: 'emails/search',
         method: 'GET',

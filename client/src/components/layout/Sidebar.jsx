@@ -27,11 +27,15 @@ const Sidebar = ({ onSent }) => {
     const [counts, setCounts] = useState({ inbox_unread: 0 });
 
     useEffect(() => {
-        getMailboxCountsService.call({}, '', { silent: true }).then((result) => {
+        const refreshCounts = () => getMailboxCountsService.call({}, '', { silent: true }).then((result) => {
             if (!result.error) {
                 setCounts(result.data || { inbox_unread: 0 });
             }
         });
+
+        refreshCounts();
+        window.addEventListener('mailshot:counts-refresh', refreshCounts);
+        return () => window.removeEventListener('mailshot:counts-refresh', refreshCounts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [type]);
 

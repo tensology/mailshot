@@ -9,6 +9,7 @@ import { parseMailAttachments } from './attachments.js';
 import { slugify } from '../utils/slug.js';
 import { sendMail } from './mailer.js';
 import { findSettingsForEmail, getSettings, markAutoresponderSent } from './settings-store.js';
+import { findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -637,13 +638,11 @@ export const getThreadForEmail = (anchorEmail) => {
         }
     }
 
-    const thread = allEmails
+    const idThread = allEmails
         .filter((item) => item.messageId && relatedIds.has(item.messageId))
         .sort((left, right) => new Date(left.date) - new Date(right.date));
 
-    if (!thread.some((item) => item._id === anchorEmail._id)) {
-        return [anchorEmail, ...thread].sort((left, right) => new Date(left.date) - new Date(right.date));
-    }
+    const subjectThread = findEmailsBySubject(allEmails, anchorEmail);
 
-    return thread;
+    return mergeThreadEmails(anchorEmail, idThread, subjectThread);
 };

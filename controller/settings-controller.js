@@ -1,38 +1,13 @@
 import { SUPERUSER_EMAIL, isSuperUser, getSettings, updateSettingsSection } from '../services/settings-store.js';
-
-const providerDefaults = {
-    openai: {
-        label: 'OpenAI',
-        base_url: 'https://api.openai.com/v1',
-        modelsPath: '/models',
-        auth: 'bearer'
-    },
-    anthropic: {
-        label: 'Anthropic',
-        base_url: 'https://api.anthropic.com/v1',
-        modelsPath: '/models',
-        auth: 'anthropic'
-    },
-    openrouter: {
-        label: 'OpenRouter',
-        base_url: 'https://openrouter.ai/api/v1',
-        modelsPath: '/models',
-        auth: 'bearer'
-    },
-    kilocode: {
-        label: 'Kilo Code',
-        base_url: 'https://api.kilo.ai/api/gateway',
-        modelsPath: '/models',
-        auth: 'bearer'
-    }
-};
+import { buildProviderHeaders, buildProviderUrl, getProviderConfig, providerDefaults } from '../services/ai-provider.js';
 
 const sanitizeForUser = (settings, superUser) => ({
     general: settings.general,
     ai: superUser ? settings.ai : null,
     permissions: {
         is_superuser: superUser,
-        ai_enabled: superUser && Boolean(settings.ai?.enabled)
+        ai_enabled: superUser && Boolean(settings.ai?.enabled),
+        read_aloud_enabled: superUser && Boolean(settings.ai?.enabled && settings.ai?.api_key && settings.ai?.model)
     },
     providers: providerDefaults
 });
@@ -152,9 +127,8 @@ export const updateAiSettings = async (request, response) => {
 };
 
 const buildModelsUrl = (provider) => {
-    const defaults = providerDefaults[provider] || providerDefaults.openai;
-    const root = String(defaults.base_url).replace(/\/+$/, '');
-    return `${root}${defaults.modelsPath}`;
+    const defaults = getProviderConfig(provider);
+    return buildProviderUrl(provider, defaults.modelsPath);
 };
 
 const parseModels = (payload) => {
@@ -190,22 +164,13 @@ export const fetchAiModels = async (request, response) => {
     const current = await getSettings();
     const provider = providerDefaults[request.body?.provider] ? request.body.provider : current.ai.provider;
     const apiKey = String(request.body?.api_key || current.ai.api_key || '').trim();
-    const defaults = providerDefaults[provider] || providerDefaults.openai;
 
     if (!apiKey) {
         return response.status(400).json('API key is required before loading models');
     }
 
-    const headers = { Accept: 'application/json' };
-    if (defaults.auth === 'anthropic') {
-        headers['x-api-key'] = apiKey;
-        headers['anthropic-version'] = '2023-06-01';
-    } else {
-        headers.Authorization = `Bearer ${apiKey}`;
-    }
-
     try {
-        const result = await fetch(buildModelsUrl(provider), { headers });
+        const result = await fetch(buildModelsUrl(provider), { headers: buildProviderHeaders(provider, apiKey) });
         const payload = await result.json().catch(() => ({}));
         if (!result.ok) {
             return response.status(result.status).json(payload?.error?.message || payload?.message || 'Could not load models');

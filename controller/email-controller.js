@@ -17,6 +17,12 @@ import {
 import { isDbConnected } from '../database/db.js';
 import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
 import { deleteCachedLabelBySlug } from '../services/label-store.js';
+import { compactEmailsBySubject, findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
+import {
+    getReadAloudAudioPath,
+    getReadAloudJob,
+    startReadAloudJob
+} from '../services/read-aloud-service.js';
 
 const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived']);
 const RESERVED_SYSTEM_LABELS = new Set(['archived', 'archive', 'spam']);
@@ -248,11 +254,14 @@ export const getEmails = async (request, response) => {
             emails = getCachedEmails(filter);
         }
 
+        const shouldCompact = request.params.type !== 'drafts';
+        const listEmails = shouldCompact ? compactEmailsBySubject(emails) : emails;
+
         const page = Math.max(1, Number(request.query.page) || 1);
         const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
-        const total = emails.length;
+        const total = listEmails.length;
         const offset = (page - 1) * limit;
-        const paginated = emails.slice(offset, offset + limit);
+        const paginated = listEmails.slice(offset, offset + limit);
 
         response.status(200).json({
             emails: paginated.map(serializeEmail),
@@ -305,9 +314,10 @@ export const searchEmails = async (request, response) => {
             emails = getCachedEmails({ search: query });
         }
 
-        const total = emails.length;
+        const listEmails = compactEmailsBySubject(emails);
+        const total = listEmails.length;
         const offset = (page - 1) * limit;
-        const paginated = emails.slice(offset, offset + limit);
+        const paginated = listEmails.slice(offset, offset + limit);
 
         return response.status(200).json({
             emails: paginated.map(serializeEmail),
@@ -317,7 +327,7 @@ export const searchEmails = async (request, response) => {
             total_pages: Math.max(1, Math.ceil(total / limit))
         });
     } catch (error) {
-        const emails = getCachedEmails({ search: String(request.query.q || '').trim() });
+        const emails = compactEmailsBySubject(getCachedEmails({ search: String(request.query.q || '').trim() }));
         const page = Math.max(1, Number(request.query.page) || 1);
         const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
         const total = emails.length;
@@ -369,7 +379,11 @@ const findDbThread = async (anchorEmail) => {
         }
     }
 
-    return Email.find({ messageId: { $in: [...relatedIds] } }).sort({ date: 1 });
+    const idThread = await Email.find({ messageId: { $in: [...relatedIds] } }).sort({ date: 1 });
+    const subjectCandidates = await Email.find({ subject: { $exists: true, $ne: '' } });
+    const subjectThread = findEmailsBySubject(subjectCandidates, anchorEmail);
+
+    return mergeThreadEmails(anchorEmail, idThread, subjectThread);
 };
 
 export const getEmailThread = async (request, response) => {
@@ -447,6 +461,39 @@ export const downloadAttachment = async (request, response) => {
     } catch (error) {
         response.status(500).json(error.message);
     }
+};
+
+export const startEmailReadAloud = async (request, response) => {
+    try {
+        const resolved = await findEmailRecord(request.params.id);
+        if (!resolved) {
+            return response.status(404).json('Email not found');
+        }
+
+        const job = await startReadAloudJob(resolved.email);
+        return response.status(200).json(job);
+    } catch (error) {
+        return response.status(500).json(error.message || 'Could not start read aloud');
+    }
+};
+
+export const getEmailReadAloudJob = async (request, response) => {
+    const job = getReadAloudJob(request.params.jobId);
+    if (!job) {
+        return response.status(404).json('Read aloud job not found');
+    }
+    return response.status(200).json(job);
+};
+
+export const streamReadAloudAudio = async (request, response) => {
+    const audioPath = getReadAloudAudioPath(request.params.filename);
+    if (!audioPath) {
+        return response.status(404).json('Audio not found');
+    }
+
+    response.setHeader('Content-Type', 'audio/ogg');
+    response.setHeader('Cache-Control', 'private, max-age=7200');
+    return response.sendFile(audioPath);
 };
 
 export const toggleStarredEmail = async (request, response) => {

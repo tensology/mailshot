@@ -10,6 +10,7 @@ import { loadLabelsFromDisk } from './services/label-store.js';
 import { loadContactsFromDisk } from './services/contact-store.js';
 import { loadSessionsFromDisk } from './services/auth-store.js';
 import { loadSettingsFromDisk } from './services/settings-store.js';
+import { startReadAloudCleanup } from './services/read-aloud-service.js';
 
 const __dirname = path.resolve();
 const SPA_ENTRY_POINT = path.join(__dirname, './client/build/index.html');
@@ -100,5 +101,6 @@ startMailboxSync({
     intervalMs: Number(process.env.MAILBOX_POLL_INTERVAL_MS || 60000),
     enabled: syncEnabled
 });
+startReadAloudCleanup();
 
 app.listen(PORT, () => console.log(`Server started on PORT ${PORT}`));

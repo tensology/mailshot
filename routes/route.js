@@ -18,6 +18,9 @@ import {
     sendEmail,
     syncMailbox,
     getMailboxCounts,
+    startEmailReadAloud,
+    getEmailReadAloudJob,
+    streamReadAloudAudio,
     isMailTypeRoute
 } from '../controller/email-controller.js';
 
@@ -70,6 +73,9 @@ routes.post('/send', upload.array('attachments', 10), sendEmail);
 routes.post('/save-draft', saveDraftEmail);
 routes.get('/emails/search', searchEmails);
 routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);
+routes.post('/email/:id/read-aloud', startEmailReadAloud);
+routes.get('/read-aloud/audio/:filename', streamReadAloudAudio);
+routes.get('/read-aloud/:jobId', getEmailReadAloudJob);
 routes.get('/email/:id/labels', getEmailLabels);
 routes.post('/email/:id/labels', updateEmailLabels);
 routes.get('/email/:id/thread', getEmailThread);

@@ -52,6 +52,7 @@ export const writeEmailListCache = ({ activeTab, labelFilter, searchFilter, part
 };
 
 export const markEmailReadInCache = (emailId) => {
+    const ids = new Set(Array.isArray(emailId) ? emailId : [emailId]);
     try {
         Object.keys(sessionStorage).forEach((key) => {
             if (!key.startsWith(CACHE_PREFIX)) {
@@ -69,7 +70,9 @@ export const markEmailReadInCache = (emailId) => {
             }
 
             const nextEmails = parsed.emails.map((email) => (
-                email._id === emailId ? { ...email, read: true } : email
+                ids.has(email._id) || (email.thread_ids || []).some((id) => ids.has(id))
+                    ? { ...email, read: true }
+                    : email
             ));
 
             sessionStorage.setItem(key, JSON.stringify({
@@ -79,6 +82,14 @@ export const markEmailReadInCache = (emailId) => {
         });
     } catch {
         // ignore cache update errors
+    }
+};
+
+export const requestMailboxCountsRefresh = () => {
+    try {
+        window.dispatchEvent(new CustomEvent('mailshot:counts-refresh'));
+    } catch {
+        // ignore
     }
 };
 
@@ -103,7 +114,9 @@ export const removeEmailsFromListCache = (emailIds = []) => {
 
             sessionStorage.setItem(key, JSON.stringify({
                 ...parsed,
-                emails: parsed.emails.filter((email) => !idSet.has(email._id))
+                emails: parsed.emails.filter((email) => (
+                    !idSet.has(email._id) && !(email.thread_ids || []).some((id) => idSet.has(id))
+                ))
             }));
         });
     } catch {

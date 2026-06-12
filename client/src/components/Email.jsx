@@ -36,7 +36,10 @@ const Email = ({
     const snippet = formatListPreview(email, 120);
     const hasAttachments = Array.isArray(email.attachments) && email.attachments.length > 0;
     const unread = !email.read;
-    const isChecked = checkedEmails.includes(email._id);
+    const threadIds = Array.isArray(email.thread_ids) && email.thread_ids.length > 0
+        ? email.thread_ids
+        : [email._id];
+    const isChecked = threadIds.every((id) => checkedEmails.includes(id));
     const isHighlighted = highlightedEmail === email._id;
 
     const toggleStarredEmail = async (event) => {
@@ -137,6 +140,11 @@ const Email = ({
                         {isDraft && <span className="font-semibold text-red-600">Draft </span>}
                         {subject}
                     </p>
+                    {email.thread_count > 1 && (
+                        <span className="shrink-0 text-xs font-medium text-slate-500">
+                            ({email.thread_count})
+                        </span>
+                    )}
                     {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
                 </div>
 
