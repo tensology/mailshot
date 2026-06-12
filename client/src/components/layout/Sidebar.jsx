@@ -85,6 +85,9 @@ const Sidebar = ({ onSent }) => {
                     {SIDEBAR_DATA.map((item) => {
                         const Icon = item.icon;
                         const active = type === item.name && !(item.name === 'allmail' && activeLabel);
+                        const unread = Number(counts.system_unread?.[item.name] ?? (
+                            item.name === 'inbox' ? counts.inbox_unread : 0
+                        ));
 
                         return (
                             <NavLink
@@ -95,9 +98,9 @@ const Sidebar = ({ onSent }) => {
                             >
                                 <Icon className="h-4 w-4 shrink-0" />
                                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                                {item.name === 'inbox' && counts.inbox_unread > 0 && (
+                                {unread > 0 && (
                                     <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
-                                        {counts.inbox_unread}
+                                        {unread}
                                     </span>
                                 )}
                             </NavLink>
