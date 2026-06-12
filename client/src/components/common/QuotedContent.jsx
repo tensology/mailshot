@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { ChevronUp, MoreHorizontal } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { splitPlainQuotedContent, splitHtmlQuotedContent } from '../../utils/quoteSplitter';
 import { formatEmailBody, extractHtmlBody } from '../../utils/emailFormatter';
@@ -46,18 +46,26 @@ const QuotedContent = ({ body, bodyHtml }) => {
                         </IconButton>
                     ) : (
                         <div className="mt-2 border-l-2 border-slate-200 pl-3 text-slate-600">
-                            <button
-                                type="button"
-                                className="mb-2 text-xs font-medium text-blue-600"
+                            <IconButton
+                                label="Hide quoted text"
+                                size="sm"
+                                className="mb-2 rounded-xl border border-slate-200 bg-white"
                                 onClick={() => setExpanded(false)}
                             >
-                                Hide quoted text
-                            </button>
+                                <ChevronUp className="h-4 w-4" />
+                            </IconButton>
                             {quotedHtml && quotedHtml.replace(/<[^>]+>/g, '').trim() ? (
                                 <div dangerouslySetInnerHTML={{ __html: quotedHtml }} />
                             ) : (
                                 <p className="whitespace-pre-wrap text-sm">{plainParts.quoted}</p>
                             )}
+                            <button
+                                type="button"
+                                className="mt-3 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+                                onClick={() => setExpanded(false)}
+                            >
+                                Collapse quoted text
+                            </button>
                         </div>
                     )}
                 </div>
