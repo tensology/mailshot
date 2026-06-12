@@ -117,6 +117,17 @@ const recalibrateMailTaxonomy = async () => {
 
         if (isDbConnected() && !dbTaxonomyRecalibrated) {
             dbTaxonomyRecalibrated = true;
+            const readMessageIds = getCachedEmails()
+                .filter((email) => email.read === true && email.messageId)
+                .map((email) => email.messageId);
+
+            if (readMessageIds.length > 0) {
+                await Email.updateMany(
+                    { messageId: { $in: readMessageIds }, read: false },
+                    { $set: { read: true } }
+                );
+            }
+
             await Email.updateMany(
                 { labels: { $in: ['archived', 'archive'] } },
                 { $set: { archived: true, in_inbox: false }, $pull: { labels: { $in: ['archived', 'archive'] } } }
