@@ -365,32 +365,50 @@ export const deleteCachedEmails = (ids = []) => {
 };
 
 export const buildEmailFilter = (type, query = {}) => {
+    const unreadFilter = String(query.unread || '') === 'true' ? { read: false } : {};
+    const searchFilter = query.search ? { search: String(query.search).trim() } : {};
+    const participantFilter = query.participant ? { participant: String(query.participant).trim() } : {};
+
     if (type === 'starred') {
-        return { starred: true, bin: false, archived: false, spam: false };
+        return { starred: true, bin: false, archived: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
     }
     if (type === 'bin') {
-        return { bin: true };
+        return { bin: true, ...unreadFilter, ...searchFilter, ...participantFilter };
     }
     if (type === 'spam') {
-        return { spam: true, bin: false };
+        return { spam: true, bin: false, ...unreadFilter, ...searchFilter, ...participantFilter };
     }
     if (type === 'archived') {
-        return { archived: true, bin: false, spam: false };
+        return { archived: true, bin: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
     }
     if (type === 'allmail') {
-        const filter = { bin: false, spam: false };
+        const filter = { bin: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
         if (query.label) {
             filter.label = query.label;
-        }
-        if (query.participant) {
-            filter.participant = String(query.participant).trim();
         }
         return filter;
     }
     if (type === 'inbox') {
-        return { type: 'inbox', bin: false, archived: false, spam: false, in_inbox: true, ...(query.label ? { label: query.label } : {}) };
+        return {
+            type: 'inbox',
+            bin: false,
+            archived: false,
+            spam: false,
+            in_inbox: true,
+            ...unreadFilter,
+            ...searchFilter,
+            ...participantFilter,
+            ...(query.label ? { label: query.label } : {}),
+        };
     }
-    return { type, spam: false, ...(query.label ? { label: query.label } : {}) };
+    return {
+        type,
+        spam: false,
+        ...unreadFilter,
+        ...searchFilter,
+        ...participantFilter,
+        ...(query.label ? { label: query.label } : {}),
+    };
 };
 
 const SYNC_RECENT_UID_WINDOW = Number(process.env.MAILBOX_SYNC_UID_WINDOW || 200);

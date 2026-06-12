@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
-import { formatListPreview, parseSenderName, formatEmailDate } from '../utils/emailFormatter';
+import { formatBodyPreview, parseSenderName, formatEmailDateTime } from '../utils/emailFormatter';
 import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
 
@@ -33,7 +33,7 @@ const Email = ({
             ? parseSenderName(email.to)
             : parseSenderName(email.from);
     const subject = email?.subject || '(no subject)';
-    const snippet = formatListPreview(email, 120);
+    const snippet = formatBodyPreview(email, 260);
     const hasAttachments = Array.isArray(email.attachments) && email.attachments.length > 0;
     const unread = !email.read;
     const threadIds = Array.isArray(email.thread_ids) && email.thread_ids.length > 0
@@ -101,12 +101,12 @@ const Email = ({
             onKeyDown={openEmailFromKeyboard}
             data-email-row-id={email._id}
             aria-selected={isHighlighted}
-            className={`group flex w-full items-start gap-0 border-b border-slate-100 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 sm:items-center ${
+            className={`group flex w-full items-start gap-0 border-b border-slate-100 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
                 isHighlighted ? 'bg-blue-50/80' : unread ? 'bg-white' : 'bg-slate-50/60'
             }`}
         >
             <div
-                className="flex min-h-[4.5rem] w-11 shrink-0 items-start justify-center px-3 py-3 sm:items-center"
+                className="flex min-h-[4.25rem] w-11 shrink-0 items-start justify-center px-3 py-3"
                 onClick={handleCheckboxClick}
                 title={isChecked ? 'Uncheck' : 'Check'}
             >
@@ -121,49 +121,55 @@ const Email = ({
             <button
                 type="button"
                 onClick={toggleStarredEmail}
-                className="mt-3 shrink-0 text-slate-400 transition hover:text-amber-500 sm:mt-0"
+                className="mt-3 shrink-0 text-slate-400 transition hover:text-amber-500"
                 aria-label={email.starred ? 'Unstar' : 'Star'}
             >
                 <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
             </button>
 
-            <div className="min-w-0 flex-1 px-3 py-3 sm:px-4">
-                <div className="flex items-start justify-between gap-2 sm:items-center">
-                    <p className={`truncate text-sm ${unread ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-3 px-3 py-2.5 sm:px-4">
+                <div className="min-w-0">
+                    <p className={`truncate text-sm leading-5 ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}>
                         {senderName}
                     </p>
-                    <span className="shrink-0 text-xs text-slate-500">{formatEmailDate(email.date)}</span>
-                </div>
 
-                <div className="mt-0.5 flex min-w-0 items-center gap-2">
-                    <p className={`truncate text-sm ${unread ? 'font-medium text-slate-900' : 'text-slate-700'}`}>
-                        {isDraft && <span className="font-semibold text-red-600">Draft </span>}
-                        {subject}
-                    </p>
-                    {email.thread_count > 1 && (
-                        <span className="shrink-0 text-xs font-medium text-slate-500">
-                            ({email.thread_count})
-                        </span>
-                    )}
-                    {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                </div>
-
-                <p className="mt-1 line-clamp-2 text-sm text-slate-500 sm:line-clamp-1">
-                    {snippet}
-                </p>
-
-                {(email.labels || []).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                        {(email.labels || []).slice(0, 3).map((label) => (
-                            <span
-                                key={label}
-                                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
-                            >
-                                {getLabelDisplayName(label, labelNameMap)}
+                    <div className="mt-0.5 flex min-w-0 items-center gap-2">
+                        <p className={`truncate text-sm leading-5 ${unread ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
+                            {isDraft && <span className="font-semibold text-red-600">Draft </span>}
+                            {subject}
+                        </p>
+                        {email.thread_count > 1 && (
+                            <span className="shrink-0 text-xs font-medium text-slate-500">
+                                ({email.thread_count})
                             </span>
-                        ))}
+                        )}
+                        {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
                     </div>
-                )}
+
+                    {snippet && (
+                        <div className="mt-0.5 overflow-hidden text-sm leading-5 text-slate-500">
+                            <span className={snippet.length > 120 ? 'mailshot-marquee inline-block whitespace-nowrap' : 'block truncate'}>
+                                {snippet}
+                            </span>
+                        </div>
+                    )}
+
+                    {(email.labels || []).length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                            {(email.labels || []).slice(0, 2).map((label) => (
+                                <span
+                                    key={label}
+                                    className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                                >
+                                    {getLabelDisplayName(label, labelNameMap)}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-slate-500">
+                    {formatEmailDateTime(email.date)}
+                </span>
             </div>
         </div>
     );

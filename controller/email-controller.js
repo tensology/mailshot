@@ -237,6 +237,7 @@ export const getEmails = async (request, response) => {
         const filter = buildEmailFilter(request.params.type, request.query);
 
         const dbConnected = isDbConnected();
+        let dbQueryFailed = false;
         if (dbConnected) {
             try {
                 const dbFilter = buildDbFilter(filter);
@@ -259,11 +260,12 @@ export const getEmails = async (request, response) => {
                     });
                 }
             } catch (error) {
+                dbQueryFailed = true;
                 console.error('Database query failed, using cache:', error.message);
             }
         }
 
-        if (!dbConnected || !emails || emails.length === 0) {
+        if (!dbConnected || dbQueryFailed) {
             emails = getCachedEmails(filter);
         }
 

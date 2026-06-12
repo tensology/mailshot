@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { Archive, OctagonAlert, RefreshCw, Trash2 } from 'lucide-react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { Archive, OctagonAlert, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -90,16 +90,15 @@ const buildEmptyMessage = ({ searchFilter, participantFilter, labelFilter, listT
 
 const Emails = () => {
     const { type } = useParams();
-    const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
-
+    const [searchParams, setSearchParams] = useSearchParams();
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
     const { openComposeDraft } = useCompose();
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
     const participantFilter = searchParams.get('participant') || '';
+    const unreadFilter = searchParams.get('unread') === 'true';
     const [page, setPage] = useState(1);
-    const listCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
+    const listCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
 
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
@@ -116,13 +115,13 @@ const Emails = () => {
     const [syncError, setSyncError] = useState('');
     const [syncNotice, setSyncNotice] = useState('');
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+    const [searchInput, setSearchInput] = useState(searchFilter);
 
     const [labelNameMap, setLabelNameMap] = useState(new Map());
     const [availableLabels, setAvailableLabels] = useState([]);
 
     const getEmailsService = useApi(API_URLS.getEmailFromType);
     const getLabelsService = useApi(API_URLS.getLabels);
-    const searchEmailsService = useApi(API_URLS.searchEmails);
     const syncMailboxService = useApi(API_URLS.syncMailbox);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
@@ -145,23 +144,20 @@ const Emails = () => {
     const fetchEmailList = useCallback(async ({ silent = false, pageOverride, requestId } = {}) => {
         const activeRequestId = requestId ?? ++listRequestId.current;
         const listPage = pageOverride ?? page;
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page: listPage };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page: listPage };
         if (!silent) {
             setIsFetching(true);
         }
 
-        let fetchResult;
-        if (searchFilter) {
-            fetchResult = await searchEmailsService.call({ q: searchFilter, page: listPage, limit: PAGE_SIZE }, '', { silent: true });
-        } else {
-            const query = {
-                page: listPage,
-                limit: PAGE_SIZE,
-                ...(labelFilter ? { label: labelFilter } : {}),
-                ...(participantFilter ? { participant: participantFilter } : {})
-            };
-            fetchResult = await getEmailsService.call(query, activeTab, { silent: true });
-        }
+        const query = {
+            page: listPage,
+            limit: PAGE_SIZE,
+            ...(labelFilter ? { label: labelFilter } : {}),
+            ...(searchFilter ? { search: searchFilter } : {}),
+            ...(participantFilter ? { participant: participantFilter } : {}),
+            ...(unreadFilter ? { unread: 'true' } : {})
+        };
+        const fetchResult = await getEmailsService.call(query, activeTab, { silent: true });
 
         if (!silent) {
             setIsFetching(false);
@@ -187,10 +183,10 @@ const Emails = () => {
         writeEmailListCache(cacheParams, normalized.emails);
         setHasCache(true);
         return true;
-    }, [activeTab, labelFilter, searchFilter, participantFilter, getEmailsService, page, searchEmailsService]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, getEmailsService, page]);
 
     const runMailboxSync = useCallback(async ({ silent = true, listPage, listRequestId: listRequestIdOverride } = {}) => {
-        if (searchFilter || participantFilter || !SYNC_TYPES.has(activeTab)) {
+        if (searchFilter || participantFilter || unreadFilter || !SYNC_TYPES.has(activeTab)) {
             return { ok: true };
         }
 
@@ -237,7 +233,7 @@ const Emails = () => {
             skipped: skippedCount,
             synced_at: syncPayload?.synced_at || null
         };
-    }, [activeTab, emails.length, fetchEmailList, hasCache, participantFilter, searchFilter, syncMailboxService]);
+    }, [activeTab, emails.length, fetchEmailList, hasCache, participantFilter, searchFilter, syncMailboxService, unreadFilter]);
 
     const syncInBackground = useCallback(() => runMailboxSync({ silent: true }), [runMailboxSync]);
 
@@ -265,7 +261,7 @@ const Emails = () => {
         });
 
         await Promise.all([fetchPromise, syncPromise]);
-    }, [activeTab, labelFilter, searchFilter, participantFilter, fetchEmailList, runMailboxSync]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, fetchEmailList, runMailboxSync]);
 
     const showSyncNotice = useCallback((message) => {
         setSyncNotice(message);
@@ -354,7 +350,7 @@ const Emails = () => {
     useEffect(() => {
         loadEmails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, labelFilter, searchFilter, participantFilter, starredEmail, page]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, starredEmail, page]);
 
     useEffect(() => {
         if (!pendingFocusPosition.current || emails.length === 0) {
@@ -371,7 +367,7 @@ const Emails = () => {
     }, [emails]);
 
     useEffect(() => {
-        if (searchFilter || participantFilter || !SYNC_TYPES.has(activeTab)) {
+        if (searchFilter || participantFilter || unreadFilter || !SYNC_TYPES.has(activeTab)) {
             return undefined;
         }
 
@@ -380,7 +376,11 @@ const Emails = () => {
         }, BACKGROUND_SYNC_MS);
 
         return () => clearInterval(intervalId);
-    }, [activeTab, participantFilter, searchFilter, syncInBackground]);
+    }, [activeTab, participantFilter, searchFilter, syncInBackground, unreadFilter]);
+
+    useEffect(() => {
+        setSearchInput(searchFilter);
+    }, [searchFilter]);
 
     useEffect(() => () => {
         if (syncNoticeTimer.current) {
@@ -395,7 +395,7 @@ const Emails = () => {
         setPage(1);
         setTotalEmails(0);
         setTotalPages(1);
-    }, [activeTab, labelFilter, searchFilter, participantFilter]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter]);
 
     const listTitle = searchFilter
         ? `Search: ${searchFilter}`
@@ -404,6 +404,33 @@ const Emails = () => {
             : labelFilter
                 ? getLabelDisplayName(labelFilter, labelNameMap)
                 : tabTitles[activeTab] || 'Mail';
+
+    const updateListSearchParams = (updates = {}) => {
+        const next = new URLSearchParams(searchParams);
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === undefined || value === null || value === '' || value === false) {
+                next.delete(key);
+                return;
+            }
+            next.set(key, String(value));
+        });
+        setPage(1);
+        setSearchParams(next);
+    };
+
+    const submitSearch = (event) => {
+        event.preventDefault();
+        updateListSearchParams({ search: searchInput.trim() });
+    };
+
+    const clearSearch = () => {
+        setSearchInput('');
+        updateListSearchParams({ search: '' });
+    };
+
+    const toggleUnreadFilter = () => {
+        updateListSearchParams({ unread: unreadFilter ? '' : 'true' });
+    };
 
     const showBlockingLoader = emails.length === 0 && (isFetching || isSyncing);
     const hasSelection = selectedEmails.length > 0;
@@ -514,7 +541,7 @@ const Emails = () => {
         }
 
         const idsToRemove = [...selectedEmails];
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
         const removedRows = previousEmails.filter((email) => emailMatchesRemoval(email, idsToRemove));
@@ -546,7 +573,7 @@ const Emails = () => {
         }
 
         const idSet = new Set(ids);
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
         const previousEmails = emails;
         const shouldRemoveFromView = activeTab === 'inbox' || labelFilter;
 
@@ -581,7 +608,7 @@ const Emails = () => {
 
         const idsToRemove = [...idsForDelete];
         const isPermanentDelete = type === 'bin';
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page };
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
         const removedRows = previousEmails.filter((email) => emailMatchesRemoval(email, idsToRemove));
@@ -589,7 +616,7 @@ const Emails = () => {
         const nextTotal = Math.max(0, previousTotal - removedRows.length);
         const nextTotalPages = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
         const nextPage = Math.min(page, nextTotalPages);
-        const nextCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, page: nextPage };
+        const nextCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page: nextPage };
 
         setConfirmDeleteOpen(false);
         setDeleteTargetIds([]);
@@ -636,58 +663,99 @@ const Emails = () => {
                 </div>
             )}
 
-            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        checked={allSelected}
-                        ref={(input) => {
-                            if (input) {
-                                input.indeterminate = someSelected;
-                            }
-                        }}
-                        onChange={selectAllEmails}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <IconButton label="Refresh" onClick={refreshMailbox} disabled={isRefreshing}>
-                        <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    </IconButton>
-                    {hasSelection && type !== 'bin' && (
-                        <IconButton label="Archive" onClick={archiveSelectedEmails}>
-                            <Archive className="h-4 w-4" />
-                        </IconButton>
-                    )}
-                    {hasSelection && type !== 'bin' && type !== 'spam' && (
-                        <IconButton label="Mark as spam" onClick={markSelectedAsSpam}>
-                            <OctagonAlert className="h-4 w-4" />
-                        </IconButton>
-                    )}
-                    {hasSelection && type !== 'bin' && availableLabels.length > 0 && (
-                        <MoveToLabelMenu
-                            emailIds={selectedEmails}
-                            labels={availableLabels}
-                            onMoved={moveSelectedToLabel}
-                            onMoveConfirmed={confirmMoveToLabel}
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/70 px-3 py-2.5 shadow-sm backdrop-blur sm:px-4">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={allSelected}
+                            aria-label="Select all messages"
+                            ref={(input) => {
+                                if (input) {
+                                    input.indeterminate = someSelected;
+                                }
+                            }}
+                            onChange={selectAllEmails}
+                            className="h-4 w-4 rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500"
                         />
-                    )}
-                    {hasSelection && (
-                        <IconButton label="Delete" onClick={requestDeleteSelectedEmails}>
-                            <Trash2 className="h-4 w-4" />
+                        <span className="inline-flex max-w-full items-center rounded-full border border-blue-100 bg-white px-3 py-1 text-sm font-semibold text-blue-800 shadow-sm">
+                            <span className="truncate">{listTitle}</span>
+                        </span>
+                        <IconButton label="Refresh" onClick={refreshMailbox} disabled={isRefreshing}>
+                            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                         </IconButton>
-                    )}
-                    <div className="ml-auto min-w-0 text-right">
-                        <p className="truncate text-sm font-medium text-slate-800">
-                            {listTitle}
-                        </p>
-                        {isSyncing && emails.length > 0 && (
-                            <p className="text-xs text-slate-500">Checking for new mail…</p>
+                        {hasSelection && type !== 'bin' && (
+                            <IconButton label="Archive" onClick={archiveSelectedEmails}>
+                                <Archive className="h-4 w-4" />
+                            </IconButton>
                         )}
-                        {!isSyncing && syncNotice && (
-                            <p className="text-xs font-medium text-emerald-600">{syncNotice}</p>
+                        {hasSelection && type !== 'bin' && type !== 'spam' && (
+                            <IconButton label="Mark as spam" onClick={markSelectedAsSpam}>
+                                <OctagonAlert className="h-4 w-4" />
+                            </IconButton>
                         )}
-                        {!isSyncing && !syncNotice && syncError && (
-                            <p className="truncate text-xs text-red-600">{syncError}</p>
+                        {hasSelection && type !== 'bin' && availableLabels.length > 0 && (
+                            <MoveToLabelMenu
+                                emailIds={selectedEmails}
+                                labels={availableLabels}
+                                onMoved={moveSelectedToLabel}
+                                onMoveConfirmed={confirmMoveToLabel}
+                            />
                         )}
+                        {hasSelection && (
+                            <IconButton label="Delete" onClick={requestDeleteSelectedEmails}>
+                                <Trash2 className="h-4 w-4" />
+                            </IconButton>
+                        )}
+                        <div className="min-w-0 flex-1 text-xs">
+                            {isSyncing && emails.length > 0 && (
+                                <span className="text-slate-500">Checking for new mail…</span>
+                            )}
+                            {!isSyncing && syncNotice && (
+                                <span className="font-medium text-emerald-600">{syncNotice}</span>
+                            )}
+                            {!isSyncing && !syncNotice && syncError && (
+                                <span className="text-red-600">{syncError}</span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:justify-end">
+                        <button
+                            type="button"
+                            onClick={toggleUnreadFilter}
+                            aria-pressed={unreadFilter}
+                            className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition ${
+                                unreadFilter
+                                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700'
+                            }`}
+                        >
+                            Unread only
+                        </button>
+                        <form
+                            onSubmit={submitSearch}
+                            className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:min-w-[18rem] lg:w-80"
+                        >
+                            <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                            <input
+                                type="search"
+                                value={searchInput}
+                                onChange={(event) => setSearchInput(event.target.value)}
+                                placeholder={`Search ${labelFilter ? 'label' : 'mail'}`}
+                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                            />
+                            {searchFilter && (
+                                <button
+                                    type="button"
+                                    onClick={clearSearch}
+                                    aria-label="Clear search"
+                                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </form>
                     </div>
                 </div>
             </div>
@@ -780,7 +848,7 @@ const Emails = () => {
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => navigate(searchFilter ? `${routes.emails.path}/inbox` : `${routes.emails.path}/allmail`)}
+                        onClick={() => updateListSearchParams(searchFilter ? { search: '' } : { participant: '' })}
                     >
                         {searchFilter ? 'Clear search' : 'Clear filter'}
                     </Button>

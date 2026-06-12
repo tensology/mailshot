@@ -13,6 +13,16 @@ export const truncateText = (value, maxLength) => {
 export const decodeHtmlEntities = (value = '') => {
     return String(value)
         .replace(/&nbsp;/gi, ' ')
+        .replace(/&zwnj;/gi, '')
+        .replace(/&zwj;/gi, '')
+        .replace(/&shy;/gi, '')
+        .replace(/&mdash;/gi, '-')
+        .replace(/&ndash;/gi, '-')
+        .replace(/&hellip;/gi, '...')
+        .replace(/&rsquo;/gi, "'")
+        .replace(/&lsquo;/gi, "'")
+        .replace(/&rdquo;/gi, '"')
+        .replace(/&ldquo;/gi, '"')
         .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
         .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
         .replace(/&amp;/g, '&')
@@ -28,6 +38,7 @@ export const normalizeText = (value) => {
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
         .replace(/\u00a0/g, ' ')
+        .replace(/[\u034f\u180e\u2000-\u200f\u202f\u205f\u2060\u00ad]/g, '')
         .replace(/\s+$/u, '')
         .replace(/^\s+/u, '')
         .trim();
@@ -85,6 +96,11 @@ export const formatListPreview = ({ subject, body, body_html }, limit = 140) => 
     return truncateText(combined, limit);
 };
 
+export const formatBodyPreview = ({ body, body_html }, limit = 220) => {
+    const normalizedBody = stripHtml(body_html || body);
+    return truncateText(normalizedBody, limit);
+};
+
 export const formatEmailBody = (value) => {
     return normalizeText(value)
         .split('\n')
@@ -128,4 +144,19 @@ export const formatEmailDate = (value) => {
     }
 
     return date.toLocaleDateString();
+};
+
+export const formatEmailDateTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const datePart = date.toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric',
+        ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' })
+    });
+    const timePart = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `${datePart} ${timePart}`;
 };
