@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Paperclip, Star, Volume2 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
@@ -6,6 +7,50 @@ import { routes } from '../routes/routes';
 import { formatBodyPreview, formatEmailDateParts, parseSenderName } from '../utils/emailFormatter';
 import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
+
+const MARQUEE_SPEED_PX_PER_SECOND = 46;
+
+const MarqueePreview = ({ children }) => {
+    const copyRef = useRef(null);
+    const [metrics, setMetrics] = useState({ distance: 640, duration: 14 });
+
+    useEffect(() => {
+        const updateMetrics = () => {
+            const copyWidth = copyRef.current?.getBoundingClientRect().width || 0;
+            if (!copyWidth) {
+                return;
+            }
+
+            setMetrics({
+                distance: copyWidth,
+                duration: Math.max(10, copyWidth / MARQUEE_SPEED_PX_PER_SECOND)
+            });
+        };
+
+        updateMetrics();
+        const observer = new ResizeObserver(updateMetrics);
+        if (copyRef.current) {
+            observer.observe(copyRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, [children]);
+
+    return (
+        <span className="mailshot-marquee-viewport min-w-0 flex-1 text-slate-500">
+            <span
+                className="mailshot-marquee-track"
+                style={{
+                    '--mailshot-marquee-distance': `${metrics.distance}px`,
+                    '--mailshot-marquee-duration': `${metrics.duration}s`
+                }}
+            >
+                <span ref={copyRef} className="mailshot-marquee-copy">{children}</span>
+                <span className="mailshot-marquee-copy" aria-hidden="true">{children}</span>
+            </span>
+        </span>
+    );
+};
 
 const Email = ({
     email,
@@ -160,12 +205,7 @@ const Email = ({
                         {snippet && (
                             <>
                                 <span className="shrink-0 text-slate-300">-</span>
-                                <span className="mailshot-marquee-viewport min-w-0 flex-1 text-slate-500">
-                                    <span className="mailshot-marquee-track">
-                                        <span className="mailshot-marquee-copy">{snippet}</span>
-                                        <span className="mailshot-marquee-copy" aria-hidden="true">{snippet}</span>
-                                    </span>
-                                </span>
+                                <MarqueePreview>{snippet}</MarqueePreview>
                             </>
                         )}
                         {readSummaryEnabled && (

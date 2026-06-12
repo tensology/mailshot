@@ -43,18 +43,14 @@
     display: inline-flex;
     width: max-content;
     white-space: nowrap;
-    animation: mailshot-marquee 22s linear infinite;
+    animation: mailshot-marquee var(--mailshot-marquee-duration, 14s) linear infinite;
     will-change: transform;
   }
 
   .mailshot-marquee-copy {
     display: inline-block;
-    min-width: 100%;
     padding-right: 4rem;
-  }
-
-  .mailshot-marquee-viewport:hover .mailshot-marquee-track {
-    animation-play-state: paused;
+    white-space: nowrap;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -70,6 +66,6 @@
   }
 
   to {
-    transform: translateX(-50%);
+    transform: translateX(calc(var(--mailshot-marquee-distance, 640px) * -1));
   }
 }
