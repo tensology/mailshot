@@ -53,6 +53,8 @@ export const buildProviderHeaders = (provider, apiKey) => {
     return headers;
 };
 
+const COMPLETION_TOKEN_LIMIT = 220;
+
 const extractSummary = (provider, payload = {}) => {
     if (provider === 'anthropic') {
         return (payload.content || [])
@@ -62,6 +64,54 @@ const extractSummary = (provider, payload = {}) => {
     }
 
     return String(payload.choices?.[0]?.message?.content || '').trim();
+};
+
+const modelUsesMaxCompletionTokens = (model = '') => {
+    const normalized = String(model || '').toLowerCase();
+    return (
+        /^o\d/.test(normalized)
+        || /^gpt-4\.1/.test(normalized)
+        || /^gpt-4\.5/.test(normalized)
+        || /^gpt-5/.test(normalized)
+        || normalized.includes('/o1')
+        || normalized.includes('/o3')
+        || normalized.includes('/o4')
+    );
+};
+
+const getTokenLimitField = (provider, model) => {
+    if (provider === 'anthropic') {
+        return { max_tokens: COMPLETION_TOKEN_LIMIT };
+    }
+
+    return modelUsesMaxCompletionTokens(model)
+        ? { max_completion_tokens: COMPLETION_TOKEN_LIMIT }
+        : { max_tokens: COMPLETION_TOKEN_LIMIT };
+};
+
+const isTokenLimitParameterError = (message = '') => {
+    const normalized = String(message).toLowerCase();
+    return normalized.includes('max_tokens') && normalized.includes('max_completion_tokens');
+};
+
+const swapTokenLimitField = (body = {}) => {
+    if (Object.prototype.hasOwnProperty.call(body, 'max_completion_tokens')) {
+        const { max_completion_tokens, ...rest } = body;
+        return { ...rest, max_tokens: max_completion_tokens };
+    }
+
+    const { max_tokens, ...rest } = body;
+    return { ...rest, max_completion_tokens: max_tokens };
+};
+
+const requestSummary = async ({ provider, config, apiKey, body }) => {
+    const result = await fetch(buildProviderUrl(provider, config.chatPath), {
+        method: 'POST',
+        headers: buildProviderHeaders(provider, apiKey),
+        body: JSON.stringify(body)
+    });
+    const payload = await result.json().catch(() => ({}));
+    return { result, payload };
 };
 
 export const summarizeWithProvider = async ({ settings, prompt }) => {
@@ -76,16 +126,16 @@ export const summarizeWithProvider = async ({ settings, prompt }) => {
     }
 
     const system = 'You summarize email for spoken playback. Be concise, natural, and useful. Do not mention raw headers unless they matter.';
-    const body = provider === 'anthropic'
+    let body = provider === 'anthropic'
         ? {
             model,
-            max_tokens: 220,
+            ...getTokenLimitField(provider, model),
             system,
             messages: [{ role: 'user', content: prompt }]
         }
         : {
             model,
-            max_tokens: 220,
+            ...getTokenLimitField(provider, model),
             temperature: 0.3,
             messages: [
                 { role: 'system', content: system },
@@ -93,12 +143,15 @@ export const summarizeWithProvider = async ({ settings, prompt }) => {
             ]
         };
 
-    const result = await fetch(buildProviderUrl(provider, config.chatPath), {
-        method: 'POST',
-        headers: buildProviderHeaders(provider, apiKey),
-        body: JSON.stringify(body)
-    });
-    const payload = await result.json().catch(() => ({}));
+    let { result, payload } = await requestSummary({ provider, config, apiKey, body });
+
+    if (!result.ok) {
+        const message = payload?.error?.message || payload?.message || '';
+        if (isTokenLimitParameterError(message)) {
+            body = swapTokenLimitField(body);
+            ({ result, payload } = await requestSummary({ provider, config, apiKey, body }));
+        }
+    }
 
     if (!result.ok) {
         throw new Error(payload?.error?.message || payload?.message || 'Could not summarize this email');
