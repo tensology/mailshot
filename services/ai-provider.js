@@ -53,20 +53,10 @@ export const buildProviderHeaders = (provider, apiKey) => {
     return headers;
 };
 
-const COMPLETION_TOKEN_LIMIT = 220;
+const STANDARD_COMPLETION_TOKEN_LIMIT = 220;
+const REASONING_COMPLETION_TOKEN_LIMIT = 1000;
 
-const extractSummary = (provider, payload = {}) => {
-    if (provider === 'anthropic') {
-        return (payload.content || [])
-            .map((item) => item?.text || '')
-            .join(' ')
-            .trim();
-    }
-
-    return String(payload.choices?.[0]?.message?.content || '').trim();
-};
-
-const modelUsesMaxCompletionTokens = (model = '') => {
+export const modelUsesMaxCompletionTokens = (model = '') => {
     const normalized = String(model || '').toLowerCase();
     return (
         /^o\d/.test(normalized)
@@ -79,15 +69,49 @@ const modelUsesMaxCompletionTokens = (model = '') => {
     );
 };
 
-const getTokenLimitField = (provider, model) => {
+export const modelSupportsTemperature = (model = '') => !modelUsesMaxCompletionTokens(model);
+
+export const getCompletionRequestOptions = (provider, model, { expanded = false } = {}) => {
     if (provider === 'anthropic') {
-        return { max_tokens: COMPLETION_TOKEN_LIMIT };
+        return { max_tokens: STANDARD_COMPLETION_TOKEN_LIMIT };
     }
 
-    return modelUsesMaxCompletionTokens(model)
-        ? { max_completion_tokens: COMPLETION_TOKEN_LIMIT }
-        : { max_tokens: COMPLETION_TOKEN_LIMIT };
+    if (modelUsesMaxCompletionTokens(model)) {
+        return {
+            max_completion_tokens: expanded ? REASONING_COMPLETION_TOKEN_LIMIT * 2 : REASONING_COMPLETION_TOKEN_LIMIT,
+            reasoning_effort: 'low'
+        };
+    }
+
+    return { max_tokens: STANDARD_COMPLETION_TOKEN_LIMIT };
 };
+
+export const extractSummary = (provider, payload = {}) => {
+    if (provider === 'anthropic') {
+        return (payload.content || [])
+            .map((item) => item?.text || '')
+            .join(' ')
+            .trim();
+    }
+
+    const message = payload.choices?.[0]?.message || {};
+    const content = message.content;
+
+    if (typeof content === 'string') {
+        return content.trim();
+    }
+
+    if (Array.isArray(content)) {
+        return content
+            .map((item) => (typeof item === 'string' ? item : item?.text || ''))
+            .join(' ')
+            .trim();
+    }
+
+    return '';
+};
+
+export const wasSummaryTruncated = (payload = {}) => payload?.choices?.[0]?.finish_reason === 'length';
 
 const isTokenLimitParameterError = (message = '') => {
     const normalized = String(message).toLowerCase();
@@ -104,12 +128,17 @@ const swapTokenLimitField = (body = {}) => {
     return { ...rest, max_completion_tokens: max_tokens };
 };
 
-const modelSupportsTemperature = (model = '') => !modelUsesMaxCompletionTokens(model);
-
 const isTemperatureParameterError = (message = '') => String(message).toLowerCase().includes('temperature');
+
+const isReasoningEffortParameterError = (message = '') => String(message).toLowerCase().includes('reasoning_effort');
 
 const stripTemperature = (body = {}) => {
     const { temperature, ...rest } = body;
+    return rest;
+};
+
+const stripReasoningEffort = (body = {}) => {
+    const { reasoning_effort, ...rest } = body;
     return rest;
 };
 
@@ -124,7 +153,34 @@ const adjustBodyForProviderError = (body = {}, message = '') => {
         next = stripTemperature(next);
     }
 
+    if (isReasoningEffortParameterError(message)) {
+        next = stripReasoningEffort(next);
+    }
+
     return next;
+};
+
+const buildSummaryBody = ({ provider, model, prompt, expanded = false }) => {
+    const system = 'You summarize email for spoken playback. Be concise, natural, and useful. Do not mention raw headers unless they matter.';
+
+    if (provider === 'anthropic') {
+        return {
+            model,
+            ...getCompletionRequestOptions(provider, model, { expanded }),
+            system,
+            messages: [{ role: 'user', content: prompt }]
+        };
+    }
+
+    return {
+        model,
+        ...getCompletionRequestOptions(provider, model, { expanded }),
+        ...(modelSupportsTemperature(model) ? { temperature: 0.3 } : {}),
+        messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: prompt }
+        ]
+    };
 };
 
 const requestSummary = async ({ provider, config, apiKey, body }) => {
@@ -137,35 +193,8 @@ const requestSummary = async ({ provider, config, apiKey, body }) => {
     return { result, payload };
 };
 
-export const summarizeWithProvider = async ({ settings, prompt }) => {
-    const ai = settings.ai || {};
-    const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
-    const config = getProviderConfig(provider);
-    const apiKey = String(ai.api_key || '').trim();
-    const model = String(ai.model || '').trim();
-
-    if (!apiKey || !model || !ai.enabled) {
-        throw new Error('AI provider, API key, and model must be saved before read aloud is available.');
-    }
-
-    const system = 'You summarize email for spoken playback. Be concise, natural, and useful. Do not mention raw headers unless they matter.';
-    let body = provider === 'anthropic'
-        ? {
-            model,
-            ...getTokenLimitField(provider, model),
-            system,
-            messages: [{ role: 'user', content: prompt }]
-        }
-        : {
-            model,
-            ...getTokenLimitField(provider, model),
-            ...(modelSupportsTemperature(model) ? { temperature: 0.3 } : {}),
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-            ]
-        };
-
+const requestSummaryWithRetries = async ({ provider, config, apiKey, model, prompt }) => {
+    let body = buildSummaryBody({ provider, model, prompt });
     let result;
     let payload = {};
 
@@ -189,7 +218,33 @@ export const summarizeWithProvider = async ({ settings, prompt }) => {
         throw new Error(payload?.error?.message || payload?.message || 'Could not summarize this email');
     }
 
-    const summary = extractSummary(provider, payload);
+    let summary = extractSummary(provider, payload);
+    if (!summary && wasSummaryTruncated(payload) && modelUsesMaxCompletionTokens(model)) {
+        body = buildSummaryBody({ provider, model, prompt, expanded: true });
+        ({ result, payload } = await requestSummary({ provider, config, apiKey, body }));
+
+        if (!result.ok) {
+            throw new Error(payload?.error?.message || payload?.message || 'Could not summarize this email');
+        }
+
+        summary = extractSummary(provider, payload);
+    }
+
+    return summary;
+};
+
+export const summarizeWithProvider = async ({ settings, prompt }) => {
+    const ai = settings.ai || {};
+    const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
+    const config = getProviderConfig(provider);
+    const apiKey = String(ai.api_key || '').trim();
+    const model = String(ai.model || '').trim();
+
+    if (!apiKey || !model || !ai.enabled) {
+        throw new Error('AI provider, API key, and model must be saved before read aloud is available.');
+    }
+
+    const summary = await requestSummaryWithRetries({ provider, config, apiKey, model, prompt });
     if (!summary) {
         throw new Error('The AI provider returned an empty summary');
     }
