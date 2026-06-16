@@ -12,6 +12,7 @@ import { loadSessionsFromDisk } from './services/auth-store.js';
 import { loadSettingsFromDisk } from './services/settings-store.js';
 import { loadLabelRulesFromDisk } from './services/label-rule-store.js';
 import { startReadAloudCleanup } from './services/read-aloud-service.js';
+import { startEmailSummaryWorker } from './services/email-summary-service.js';
 
 const __dirname = path.resolve();
 const SPA_ENTRY_POINT = path.join(__dirname, './client/build/index.html');
@@ -108,5 +109,8 @@ startMailboxSync({
     enabled: syncEnabled
 });
 startReadAloudCleanup();
+startEmailSummaryWorker().catch((error) => {
+    console.error('Email summary worker failed to start:', error.message || error);
+});
 
 app.listen(PORT, () => console.log(`Server started on PORT ${PORT}`));

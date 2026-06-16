@@ -115,7 +115,8 @@ const normalizeAiPayload = (body = {}) => ({
     enabled: Boolean(body.enabled ?? body.api_key),
     provider: providerDefaults[body.provider] ? body.provider : 'openai',
     api_key: String(body.api_key || '').trim(),
-    model: String(body.model || '').trim()
+    model: String(body.model || '').trim(),
+    summary_model: String(body.summary_model || '').trim()
 });
 
 export const getAppSettings = async (request, response) => {

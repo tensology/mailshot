@@ -11,6 +11,7 @@ import { sendMail } from './mailer.js';
 import { findSettingsForEmail, getSettings, markAutoresponderSent } from './settings-store.js';
 import { findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
 import { findLabelRuleForEmail } from './label-rule-store.js';
+import { enqueueEmailSummary } from './email-summary-service.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -441,13 +442,51 @@ const createImapClient = (config) => new ImapFlow({
     logger: false
 });
 
-const shouldRetryImapOnLocalhost = (error, host, fallbackHost) => {
+const RETRYABLE_IMAP_CONNECTION_CODES = new Set([
+    'ECONNREFUSED',
+    'ETIMEDOUT',
+    'EHOSTUNREACH',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'ECONNRESET',
+    'ECONNABORTED',
+    'ENETUNREACH',
+    'ENETDOWN',
+    'EHOSTDOWN',
+    'EPIPE'
+]);
+
+const RETRYABLE_IMAP_CONNECTION_MESSAGES = [
+    /client network socket disconnected/i,
+    /socket (?:closed|hang up)/i,
+    /connection (?:closed|reset|terminated|timed out)/i,
+    /\b(?:ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH)\b/i
+];
+
+const isImapAuthFailure = (error) => {
+    const response = String(error?.response || '');
+    const message = String(error?.message || '');
+    return response.includes('AUTHENTICATIONFAILED')
+        || response.includes('Authentication failed')
+        || message.includes('AUTHENTICATIONFAILED')
+        || message.includes('Authentication failed');
+};
+
+export const shouldRetryImapOnLocalhost = (error, host, fallbackHost) => {
     if (host === fallbackHost) {
         return false;
     }
+    if (isImapAuthFailure(error)) {
+        return false;
+    }
 
-    const code = String(error?.code || '');
-    return code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'EHOSTUNREACH';
+    const code = String(error?.code || '').toUpperCase();
+    if (RETRYABLE_IMAP_CONNECTION_CODES.has(code)) {
+        return true;
+    }
+
+    const message = String(error?.message || error?.response || '');
+    return RETRYABLE_IMAP_CONNECTION_MESSAGES.some((pattern) => pattern.test(message));
 };
 
 const connectImapClient = async (config) => {
@@ -562,6 +601,7 @@ const syncOnce = async () => {
                         } else {
                             synced++;
                             await sendAutoResponderIfNeeded(payload);
+                            enqueueEmailSummary(emailDoc.toObject ? emailDoc.toObject() : emailDoc);
                         }
                     } else {
                         const existing = mailboxCache.find((item) => item.messageId === messageId);
@@ -570,7 +610,7 @@ const syncOnce = async () => {
                             skipped++;
                         } else {
                             const labelState = await applyLabelRule(payload);
-                            persistCachedEmail({
+                            const cachedEmail = persistCachedEmail({
                                 ...payload,
                                 starred: false,
                                 bin: false,
@@ -581,6 +621,7 @@ const syncOnce = async () => {
                             });
                             synced++;
                             await sendAutoResponderIfNeeded(payload);
+                            enqueueEmailSummary(cachedEmail);
                         }
                     }
                 } catch (error) {

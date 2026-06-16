@@ -56,6 +56,34 @@ export const buildProviderHeaders = (provider, apiKey) => {
 const STANDARD_COMPLETION_TOKEN_LIMIT = 220;
 const REASONING_COMPLETION_TOKEN_LIMIT = 1000;
 
+export const FAST_SUMMARY_MODEL_DEFAULTS = {
+    openai: 'gpt-4o-mini',
+    anthropic: 'claude-3-5-haiku-20241022',
+    openrouter: 'openai/gpt-4o-mini',
+    kilocode: 'gpt-4o-mini'
+};
+
+export const resolveSummaryModel = (settings = {}) => {
+    const ai = settings.ai || {};
+    const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
+    const envOverride = String(process.env.MAILSHOT_SUMMARY_MODEL || '').trim();
+    if (envOverride) {
+        return envOverride;
+    }
+
+    const configured = String(ai.summary_model || '').trim();
+    if (configured) {
+        return configured;
+    }
+
+    const mainModel = String(ai.model || '').trim();
+    if (mainModel && !modelUsesMaxCompletionTokens(mainModel)) {
+        return mainModel;
+    }
+
+    return FAST_SUMMARY_MODEL_DEFAULTS[provider] || FAST_SUMMARY_MODEL_DEFAULTS.openai;
+};
+
 export const modelUsesMaxCompletionTokens = (model = '') => {
     const normalized = String(model || '').toLowerCase();
     return (
@@ -233,12 +261,12 @@ const requestSummaryWithRetries = async ({ provider, config, apiKey, model, prom
     return summary;
 };
 
-export const summarizeWithProvider = async ({ settings, prompt }) => {
+export const summarizeWithProvider = async ({ settings, prompt, model: modelOverride = '' }) => {
     const ai = settings.ai || {};
     const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
     const config = getProviderConfig(provider);
     const apiKey = String(ai.api_key || '').trim();
-    const model = String(ai.model || '').trim();
+    const model = String(modelOverride || ai.model || '').trim();
 
     if (!apiKey || !model || !ai.enabled) {
         throw new Error('AI provider, API key, and model must be saved before read aloud is available.');
@@ -250,4 +278,13 @@ export const summarizeWithProvider = async ({ settings, prompt }) => {
     }
 
     return summary;
+};
+
+export const summarizeEmailWithSettings = async ({ settings, prompt }) => {
+    const summaryModel = resolveSummaryModel(settings);
+    return summarizeWithProvider({
+        settings,
+        prompt,
+        model: summaryModel
+    });
 };

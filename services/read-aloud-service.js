@@ -4,7 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
-import { summarizeWithProvider } from './ai-provider.js';
+import { summarizeEmailWithSettings } from './ai-provider.js';
+import { buildSummaryPrompt, getStoredEmailSummary } from './email-summary-service.js';
 import { getSettings } from './settings-store.js';
 
 const execFileAsync = promisify(execFile);
@@ -26,24 +27,6 @@ let cleanupTimer = null;
 
 const ensureStorageDir = () => {
     fs.mkdirSync(STORAGE_DIR, { recursive: true });
-};
-
-const stripHtml = (value = '') => String(value || '')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const truncate = (value = '', limit = 8000) => {
-    const text = String(value || '');
-    return text.length > limit ? `${text.slice(0, limit)}\n\n[Email truncated for summarization.]` : text;
 };
 
 const hashValue = (value = '') => crypto.createHash('sha1').update(String(value)).digest('hex').slice(0, 32);
@@ -109,68 +92,91 @@ const getKokoroModel = async () => {
     return kokoroModelPromise;
 };
 
-const buildSummaryPrompt = (email) => {
-    const from = email.from || 'Unknown sender';
-    const to = email.to || '';
-    const subject = email.subject || '(no subject)';
-    const body = truncate(stripHtml(email.body || email.body_html || ''));
-
-    return [
-        'Summarize this email for audio playback in 2 to 4 short sentences.',
-        'Start with "This email is about..." or equivalent natural phrasing.',
-        'Mention the sender, the core point, and any action/date/deadline if present.',
-        '',
-        `From: ${from}`,
-        `To: ${to}`,
-        `Subject: ${subject}`,
-        '',
-        body
-    ].join('\n');
+const createJob = (cacheKey) => {
+    const filename = `${cacheKey}.${AUDIO_EXTENSION}`;
+    return {
+        job_id: cacheKey,
+        status: 'queued',
+        filename,
+        filePath: path.join(STORAGE_DIR, filename),
+        metaPath: path.join(STORAGE_DIR, `${cacheKey}.json`),
+        summary: '',
+        error: ''
+    };
 };
 
-const processJob = async (job, email, settings) => {
+const generateAudioForSummary = async (job, summary) => {
+    const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
+    const tts = await getKokoroModel();
+    const audio = await tts.generate(summary, {
+        voice: KOKORO_VOICE,
+        speed: 1
+    });
+
+    ensureStorageDir();
+    await audio.save(wavPath);
+    await execFileAsync(FFMPEG_PATH, [
+        '-y',
+        '-i',
+        wavPath,
+        '-c:a',
+        'libopus',
+        '-b:a',
+        OGG_BITRATE,
+        '-vbr',
+        'on',
+        job.filePath
+    ]);
+    fs.rmSync(wavPath, { force: true });
+    fs.writeFileSync(job.metaPath, JSON.stringify({
+        summary,
+        created_at: new Date().toISOString()
+    }));
+};
+
+const processJob = async (job, email, settings, summaryText = '') => {
     const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
 
     try {
         job.status = 'processing';
-        const summary = await summarizeWithProvider({
+        const storedSummary = summaryText || getStoredEmailSummary(email);
+        const summary = storedSummary || await summarizeEmailWithSettings({
             settings,
             prompt: buildSummaryPrompt(email)
         });
 
         job.summary = summary;
-        const tts = await getKokoroModel();
-        const audio = await tts.generate(summary, {
-            voice: KOKORO_VOICE,
-            speed: 1
-        });
-
-        ensureStorageDir();
-        await audio.save(wavPath);
-        await execFileAsync(FFMPEG_PATH, [
-            '-y',
-            '-i',
-            wavPath,
-            '-c:a',
-            'libopus',
-            '-b:a',
-            OGG_BITRATE,
-            '-vbr',
-            'on',
-            job.filePath
-        ]);
-        fs.rmSync(wavPath, { force: true });
-        fs.writeFileSync(job.metaPath, JSON.stringify({
-            summary,
-            created_at: new Date().toISOString()
-        }));
-
+        await generateAudioForSummary(job, summary);
         job.status = 'ready';
     } catch (error) {
         job.status = 'error';
         job.error = error.message || 'Could not generate read aloud audio';
         fs.rmSync(wavPath, { force: true });
     }
+};
+
+export const prefetchReadAloudAudio = (email, settings, summaryText = '') => {
+    if (!settings?.ai?.enabled || !summaryText) {
+        return null;
+    }
+
+    ensureStorageDir();
+    const cacheKey = getCacheKey(email, settings);
+    const cached = getCachedJob(cacheKey);
+    if (cached) {
+        jobs.set(cacheKey, cached);
+        return getJobSnapshot(cached);
+    }
+
+    const existing = jobs.get(cacheKey);
+    if (existing && existing.status !== 'error') {
+        return getJobSnapshot(existing);
+    }
+
+    const job = createJob(cacheKey);
+    jobs.set(cacheKey, job);
+    processJob(job, email, settings, summaryText);
+    return getJobSnapshot(job);
 };
 
 export const canReadAloud = async () => {
@@ -198,19 +204,14 @@ export const startReadAloudJob = async (email) => {
         return getJobSnapshot(existing);
     }
 
-    const filename = `${cacheKey}.${AUDIO_EXTENSION}`;
-    const job = {
-        job_id: cacheKey,
-        status: 'queued',
-        filename,
-        filePath: path.join(STORAGE_DIR, filename),
-        metaPath: path.join(STORAGE_DIR, `${cacheKey}.json`),
-        summary: '',
-        error: ''
-    };
+    const storedSummary = getStoredEmailSummary(email);
+    const job = createJob(cacheKey);
+    if (storedSummary) {
+        job.summary = storedSummary;
+    }
 
     jobs.set(cacheKey, job);
-    processJob(job, email, settings);
+    processJob(job, email, settings, storedSummary);
     return getJobSnapshot(job);
 };
 

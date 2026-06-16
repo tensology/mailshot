@@ -82,6 +82,17 @@ const EmailSchema = mongoose.Schema({
     attachments: {
         type: [AttachmentSchema],
         default: []
+    },
+    read_summary: {
+        type: String,
+        default: ''
+    },
+    read_summary_status: {
+        type: String,
+        default: ''
+    },
+    read_summary_at: {
+        type: Date
     }
 });
 

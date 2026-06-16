@@ -6,6 +6,7 @@ import {
     getCompletionRequestOptions,
     modelSupportsTemperature,
     modelUsesMaxCompletionTokens,
+    resolveSummaryModel,
     wasSummaryTruncated
 } from './ai-provider.js';
 
@@ -49,4 +50,21 @@ test('extractSummary handles string and array chat completion content', () => {
 test('wasSummaryTruncated detects token-limit finish reasons', () => {
     assert.equal(wasSummaryTruncated({ choices: [{ finish_reason: 'length' }] }), true);
     assert.equal(wasSummaryTruncated({ choices: [{ finish_reason: 'stop' }] }), false);
+});
+
+test('resolveSummaryModel prefers a fast default over reasoning models', () => {
+    assert.equal(resolveSummaryModel({
+        ai: {
+            provider: 'openai',
+            model: 'o4-mini'
+        }
+    }), 'gpt-4o-mini');
+
+    assert.equal(resolveSummaryModel({
+        ai: {
+            provider: 'openai',
+            model: 'o4-mini',
+            summary_model: 'gpt-4.1-nano'
+        }
+    }), 'gpt-4.1-nano');
 });

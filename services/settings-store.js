@@ -35,7 +35,8 @@ const defaultSettings = () => ({
         enabled: false,
         provider: 'openai',
         api_key: '',
-        model: ''
+        model: '',
+        summary_model: ''
     },
     autoresponder_log: []
 });
@@ -157,7 +158,8 @@ const mergeSettings = (value = {}) => {
             enabled: Boolean(rawAi.enabled),
             provider: rawAi.provider || 'openai',
             api_key: String(rawAi.api_key || ''),
-            model: String(rawAi.model || '')
+            model: String(rawAi.model || ''),
+            summary_model: String(rawAi.summary_model || '')
         },
         autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : []
     };

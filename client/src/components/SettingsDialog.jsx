@@ -37,7 +37,8 @@ const emptyAi = {
     enabled: false,
     provider: 'openai',
     api_key: '',
-    model: ''
+    model: '',
+    summary_model: ''
 };
 
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
@@ -392,6 +393,16 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         setToast({ open: true, message: 'AI model saved', severity: 'success' });
     };
 
+    const saveSummaryModel = async () => {
+        const result = await updateAiService.call(ai, '', { silent: true });
+        if (result.error) {
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        window.dispatchEvent(new Event('mailshot:settings-updated'));
+        setToast({ open: true, message: 'Summary model saved', severity: 'success' });
+    };
+
     return (
         <Dialog
             open={open}
@@ -593,6 +604,20 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                     ))}
                                 </select>
                             </label>
+                        )}
+                        {(modelsLoaded || ai.model) && (
+                            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                                <Input
+                                    label="Read summary model (optional)"
+                                    placeholder="Defaults to a fast model like gpt-4o-mini"
+                                    value={ai.summary_model || ''}
+                                    onChange={(event) => setAi({ ...ai, summary_model: event.target.value })}
+                                />
+                                <Button onClick={saveSummaryModel} disabled={updateAiService.isLoading}>
+                                    <Save className="h-4 w-4" />
+                                    Save summary model
+                                </Button>
+                            </div>
                         )}
                     </div>
                 )}
