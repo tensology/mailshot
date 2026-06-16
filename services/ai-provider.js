@@ -104,6 +104,29 @@ const swapTokenLimitField = (body = {}) => {
     return { ...rest, max_completion_tokens: max_tokens };
 };
 
+const modelSupportsTemperature = (model = '') => !modelUsesMaxCompletionTokens(model);
+
+const isTemperatureParameterError = (message = '') => String(message).toLowerCase().includes('temperature');
+
+const stripTemperature = (body = {}) => {
+    const { temperature, ...rest } = body;
+    return rest;
+};
+
+const adjustBodyForProviderError = (body = {}, message = '') => {
+    let next = body;
+
+    if (isTokenLimitParameterError(message)) {
+        next = swapTokenLimitField(next);
+    }
+
+    if (isTemperatureParameterError(message)) {
+        next = stripTemperature(next);
+    }
+
+    return next;
+};
+
 const requestSummary = async ({ provider, config, apiKey, body }) => {
     const result = await fetch(buildProviderUrl(provider, config.chatPath), {
         method: 'POST',
@@ -136,21 +159,30 @@ export const summarizeWithProvider = async ({ settings, prompt }) => {
         : {
             model,
             ...getTokenLimitField(provider, model),
-            temperature: 0.3,
+            ...(modelSupportsTemperature(model) ? { temperature: 0.3 } : {}),
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
             ]
         };
 
-    let { result, payload } = await requestSummary({ provider, config, apiKey, body });
+    let result;
+    let payload = {};
 
-    if (!result.ok) {
-        const message = payload?.error?.message || payload?.message || '';
-        if (isTokenLimitParameterError(message)) {
-            body = swapTokenLimitField(body);
-            ({ result, payload } = await requestSummary({ provider, config, apiKey, body }));
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        ({ result, payload } = await requestSummary({ provider, config, apiKey, body }));
+
+        if (result.ok) {
+            break;
         }
+
+        const message = payload?.error?.message || payload?.message || '';
+        const adjustedBody = adjustBodyForProviderError(body, message);
+        if (JSON.stringify(adjustedBody) === JSON.stringify(body)) {
+            break;
+        }
+
+        body = adjustedBody;
     }
 
     if (!result.ok) {
