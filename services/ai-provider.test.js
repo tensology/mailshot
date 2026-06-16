@@ -63,6 +63,20 @@ test('resolveSummaryModel prefers a fast default over reasoning models', () => {
     assert.equal(resolveSummaryModel({
         ai: {
             provider: 'openai',
+            model: 'gpt-4o'
+        }
+    }), 'gpt-4o-mini');
+
+    assert.equal(resolveSummaryModel({
+        ai: {
+            provider: 'openai',
+            model: 'gpt-4o-mini'
+        }
+    }), 'gpt-4o-mini');
+
+    assert.equal(resolveSummaryModel({
+        ai: {
+            provider: 'openai',
             model: 'o4-mini',
             summary_model: 'gpt-4.1-nano'
         }

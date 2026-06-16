@@ -63,6 +63,22 @@ export const FAST_SUMMARY_MODEL_DEFAULTS = {
     kilocode: 'gpt-4o-mini'
 };
 
+const CHEAP_SUMMARY_MODEL_PATTERNS = [
+    /mini/i,
+    /haiku/i,
+    /flash/i,
+    /nano/i
+];
+
+export const isCheapSummaryModel = (model = '') => {
+    const normalized = String(model || '').trim();
+    if (!normalized || modelUsesMaxCompletionTokens(normalized)) {
+        return false;
+    }
+
+    return CHEAP_SUMMARY_MODEL_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+
 export const resolveSummaryModel = (settings = {}) => {
     const ai = settings.ai || {};
     const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
@@ -77,7 +93,7 @@ export const resolveSummaryModel = (settings = {}) => {
     }
 
     const mainModel = String(ai.model || '').trim();
-    if (mainModel && !modelUsesMaxCompletionTokens(mainModel)) {
+    if (mainModel && isCheapSummaryModel(mainModel)) {
         return mainModel;
     }
 
