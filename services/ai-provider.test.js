@@ -54,60 +54,52 @@ test('wasSummaryTruncated detects token-limit finish reasons', () => {
     assert.equal(wasSummaryTruncated({ choices: [{ finish_reason: 'stop' }] }), false);
 });
 
-test('resolveSummaryModel prefers a fast default over reasoning models', () => {
-    assert.equal(resolveSummaryModel({
-        ai: {
-            provider: 'openai',
-            model: 'o4-mini',
-            summary_provider: 'openai'
-        }
-    }), 'gpt-4o-mini');
-
-    assert.equal(resolveSummaryModel({
-        ai: {
-            provider: 'openai',
-            model: 'gpt-4o',
-            summary_provider: 'openai'
-        }
-    }), 'gpt-4o-mini');
-
-    assert.equal(resolveSummaryModel({
-        ai: {
-            summary_provider: 'nvidia'
-        }
-    }), 'meta/llama-3.3-70b-instruct');
-
-    assert.equal(resolveSummaryModel({
-        ai: {
-            provider: 'openai',
-            model: 'o4-mini',
-            summary_provider: 'openai',
-            summary_model: 'gpt-4.1-nano'
-        }
-    }), 'gpt-4.1-nano');
-});
-
-test('resolveSummaryCredentials defaults to NVIDIA for summaries', () => {
+test('resolveSummaryCredentials uses the main provider settings', () => {
     assert.deepEqual(resolveSummaryCredentials({
         ai: {
-            summary_provider: 'nvidia',
-            summary_api_key: 'nvapi-test'
+            provider: 'nvidia',
+            api_key: 'nvapi-test'
         }
     }), {
         provider: 'nvidia',
         apiKey: 'nvapi-test'
     });
+
+    assert.deepEqual(resolveSummaryCredentials({
+        ai: {
+            provider: 'openai',
+            api_key: 'sk-test'
+        }
+    }), {
+        provider: 'openai',
+        apiKey: 'sk-test'
+    });
+});
+
+test('resolveSummaryModel prefers a fast default over expensive models', () => {
+    assert.equal(resolveSummaryModel({
+        ai: {
+            provider: 'openai',
+            model: 'o4-mini'
+        }
+    }), 'gpt-4o-mini');
+
+    assert.equal(resolveSummaryModel({
+        ai: {
+            provider: 'openai',
+            model: 'gpt-4o'
+        }
+    }), 'gpt-4o-mini');
+
+    assert.equal(resolveSummaryModel({
+        ai: {
+            provider: 'nvidia',
+            model: 'meta/llama-3.3-70b-instruct'
+        }
+    }), 'meta/llama-3.3-70b-instruct');
 });
 
 test('hasSummaryProviderConfigured checks summary credentials', () => {
-    assert.equal(hasSummaryProviderConfigured({
-        ai: {
-            enabled: true,
-            summary_provider: 'nvidia',
-            summary_api_key: 'nvapi-test'
-        }
-    }), true);
-
     assert.equal(hasSummaryProviderConfigured({
         ai: {
             enabled: true,

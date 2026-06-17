@@ -34,7 +34,7 @@ const defaultSettings = () => ({
     },
     ai: {
         enabled: false,
-        provider: 'openai',
+        provider: 'nvidia',
         api_key: '',
         model: '',
         summary_provider: 'nvidia',

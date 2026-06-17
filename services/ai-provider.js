@@ -130,15 +130,23 @@ export const parseNvidiaModels = (payload = {}) => {
 export const resolveSummaryCredentials = (settings = {}) => {
     const ai = settings.ai || {};
     const envProvider = String(process.env.MAILSHOT_SUMMARY_PROVIDER || '').trim();
-    const provider = providerDefaults[ai.summary_provider]
-        ? ai.summary_provider
-        : (providerDefaults[envProvider] ? envProvider : 'nvidia');
 
-    const summaryApiKey = String(ai.summary_api_key || '').trim();
-    const sharedApiKey = String(ai.api_key || '').trim();
-    const apiKey = summaryApiKey || (provider === ai.provider ? sharedApiKey : '');
+    const legacySummaryKey = String(ai.summary_api_key || '').trim();
+    if (legacySummaryKey && providerDefaults[ai.summary_provider]) {
+        return {
+            provider: ai.summary_provider,
+            apiKey: legacySummaryKey
+        };
+    }
 
-    return { provider, apiKey };
+    const provider = providerDefaults[ai.provider]
+        ? ai.provider
+        : (providerDefaults[envProvider] ? envProvider : 'openai');
+
+    return {
+        provider,
+        apiKey: String(ai.api_key || '').trim()
+    };
 };
 
 export const hasSummaryProviderConfigured = (settings = {}) => {
@@ -164,23 +172,21 @@ export const isCheapSummaryModel = (model = '') => {
 };
 
 export const resolveSummaryModel = (settings = {}) => {
+    const ai = settings.ai || {};
     const { provider } = resolveSummaryCredentials(settings);
     const envOverride = String(process.env.MAILSHOT_SUMMARY_MODEL || '').trim();
     if (envOverride) {
         return envOverride;
     }
 
-    const configured = String(settings.ai?.summary_model || '').trim();
-    if (configured) {
-        return configured;
+    const mainModel = String(ai.model || '').trim();
+    if (mainModel && ai.provider === provider) {
+        if (provider === 'nvidia' || isCheapSummaryModel(mainModel)) {
+            return mainModel;
+        }
     }
 
-    const mainModel = String(settings.ai?.model || '').trim();
-    if (mainModel && settings.ai?.provider === provider && isCheapSummaryModel(mainModel)) {
-        return mainModel;
-    }
-
-    return FAST_SUMMARY_MODEL_DEFAULTS[provider] || FAST_SUMMARY_MODEL_DEFAULTS.nvidia;
+    return FAST_SUMMARY_MODEL_DEFAULTS[provider] || FAST_SUMMARY_MODEL_DEFAULTS.openai;
 };
 
 export const modelUsesMaxCompletionTokens = (model = '') => {

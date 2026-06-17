@@ -118,15 +118,21 @@ const normalizeGeneralPayload = (body = {}) => {
     };
 };
 
-const normalizeAiPayload = (body = {}) => ({
-    enabled: Boolean(body.enabled ?? body.api_key ?? body.summary_api_key),
-    provider: providerDefaults[body.provider] ? body.provider : 'openai',
-    api_key: String(body.api_key || '').trim(),
-    model: String(body.model || '').trim(),
-    summary_provider: providerDefaults[body.summary_provider] ? body.summary_provider : 'nvidia',
-    summary_api_key: String(body.summary_api_key || '').trim(),
-    summary_model: String(body.summary_model || '').trim()
-});
+const normalizeAiPayload = (body = {}) => {
+    const provider = providerDefaults[body.provider] ? body.provider : 'openai';
+    const api_key = String(body.api_key || '').trim();
+    const model = String(body.model || '').trim();
+
+    return {
+        enabled: Boolean(body.enabled ?? api_key),
+        provider,
+        api_key,
+        model,
+        summary_provider: provider,
+        summary_api_key: '',
+        summary_model: ''
+    };
+};
 
 export const getAppSettings = async (request, response) => {
     const settings = await getSettings();
