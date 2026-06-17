@@ -33,11 +33,32 @@ const emptyGeneral = {
     autoresponder_subject: 'Re: {{subject}}'
 };
 
+const AI_PROVIDER_OPTIONS = {
+    nvidia: { label: 'NVIDIA' },
+    openai: { label: 'OpenAI' },
+    anthropic: { label: 'Anthropic' },
+    openrouter: { label: 'OpenRouter' },
+    kilocode: { label: 'Kilo Code' }
+};
+
 const emptyAi = {
     enabled: false,
     provider: 'nvidia',
     api_key: '',
     model: ''
+};
+
+const mergeProviderOptions = (providers = {}) => ({
+    ...AI_PROVIDER_OPTIONS,
+    ...providers
+});
+
+const normalizeAiProvider = (ai = {}, providers = AI_PROVIDER_OPTIONS) => {
+    const next = { ...emptyAi, ...ai };
+    if (!providers[next.provider]) {
+        next.provider = Object.keys(providers)[0] || 'nvidia';
+    }
+    return next;
 };
 
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
@@ -208,7 +229,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const [newEmail, setNewEmail] = useState('');
     const [showAddEmail, setShowAddEmail] = useState(false);
     const [ai, setAi] = useState(emptyAi);
-    const [providers, setProviders] = useState({});
+    const [providers, setProviders] = useState(AI_PROVIDER_OPTIONS);
     const [models, setModels] = useState([]);
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
@@ -230,8 +251,9 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             const nextGeneral = normalizeGeneral(result.data?.general || {});
             setGeneral(nextGeneral);
             setSelectedEmail(nextGeneral.selected_email || nextGeneral.signatures[0]?.email || DEFAULT_EMAIL);
-            setAi({ ...emptyAi, ...(result.data?.ai || {}) });
-            setProviders(result.data?.providers || {});
+            const mergedProviders = mergeProviderOptions(result.data?.providers);
+            setProviders(mergedProviders);
+            setAi(normalizeAiProvider(result.data?.ai, mergedProviders));
             setModels(result.data?.ai?.model ? [{ id: result.data.ai.model, name: result.data.ai.model }] : []);
             setModelsLoaded(Boolean(result.data?.ai?.model));
             setNewEmail('');
