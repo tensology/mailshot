@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import {
     extractSummary,
     getCompletionRequestOptions,
+    hasSummaryProviderConfigured,
     modelSupportsTemperature,
     modelUsesMaxCompletionTokens,
+    resolveSummaryCredentials,
     resolveSummaryModel,
     wasSummaryTruncated
 } from './ai-provider.js';
@@ -56,29 +58,61 @@ test('resolveSummaryModel prefers a fast default over reasoning models', () => {
     assert.equal(resolveSummaryModel({
         ai: {
             provider: 'openai',
-            model: 'o4-mini'
+            model: 'o4-mini',
+            summary_provider: 'openai'
         }
     }), 'gpt-4o-mini');
 
     assert.equal(resolveSummaryModel({
         ai: {
             provider: 'openai',
-            model: 'gpt-4o'
+            model: 'gpt-4o',
+            summary_provider: 'openai'
         }
     }), 'gpt-4o-mini');
 
     assert.equal(resolveSummaryModel({
         ai: {
-            provider: 'openai',
-            model: 'gpt-4o-mini'
+            summary_provider: 'nvidia'
         }
-    }), 'gpt-4o-mini');
+    }), 'meta/llama-3.3-70b-instruct');
 
     assert.equal(resolveSummaryModel({
         ai: {
             provider: 'openai',
             model: 'o4-mini',
+            summary_provider: 'openai',
             summary_model: 'gpt-4.1-nano'
         }
     }), 'gpt-4.1-nano');
+});
+
+test('resolveSummaryCredentials defaults to NVIDIA for summaries', () => {
+    assert.deepEqual(resolveSummaryCredentials({
+        ai: {
+            summary_provider: 'nvidia',
+            summary_api_key: 'nvapi-test'
+        }
+    }), {
+        provider: 'nvidia',
+        apiKey: 'nvapi-test'
+    });
+});
+
+test('hasSummaryProviderConfigured checks summary credentials', () => {
+    assert.equal(hasSummaryProviderConfigured({
+        ai: {
+            enabled: true,
+            summary_provider: 'nvidia',
+            summary_api_key: 'nvapi-test'
+        }
+    }), true);
+
+    assert.equal(hasSummaryProviderConfigured({
+        ai: {
+            enabled: true,
+            provider: 'nvidia',
+            api_key: 'nvapi-test'
+        }
+    }), true);
 });

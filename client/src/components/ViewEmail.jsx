@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Forward, Loader2, Reply, ReplyAll, Trash2, Volume2 } from 'lucide-react';
+import { ArrowLeft, Check, Forward, Loader2, Reply, ReplyAll, Trash2, Volume2 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -251,6 +251,8 @@ const ViewEmail = () => {
     };
 
     const readSummaryLoading = readSummaryPendingEmailId === primaryEmail._id;
+    const summaryReady = primaryEmail.read_summary_status === 'ready'
+        && Boolean(String(primaryEmail.read_summary || '').trim());
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-white">
@@ -271,13 +273,20 @@ const ViewEmail = () => {
                 </IconButton>
                 <div className="ml-auto flex items-center gap-1">
                     {readSummaryEnabled && (
-                        <IconButton
-                            label={readSummaryLoading ? 'Preparing read summary' : 'Read Summary'}
-                            onClick={startCurrentReadSummary}
-                            disabled={readSummaryLoading}
-                        >
-                            {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
-                        </IconButton>
+                        <div className="relative">
+                            <IconButton
+                                label={readSummaryLoading ? 'Preparing read summary' : summaryReady ? 'Read summary (ready)' : 'Read Summary'}
+                                onClick={startCurrentReadSummary}
+                                disabled={readSummaryLoading}
+                            >
+                                {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
+                            </IconButton>
+                            {summaryReady && !readSummaryLoading && (
+                                <span className="pointer-events-none absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white">
+                                    <Check className="h-3 w-3 text-green-600" aria-hidden="true" />
+                                </span>
+                            )}
+                        </div>
                     )}
                     <IconButton label="Reply" onClick={() => openPrimaryReplyDraft('reply')}>
                         <Reply className="h-5 w-5" />

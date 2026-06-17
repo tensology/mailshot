@@ -1,6 +1,6 @@
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
-import { summarizeEmailWithSettings } from './ai-provider.js';
+import { hasSummaryProviderConfigured, summarizeEmailWithSettings } from './ai-provider.js';
 import { getSettings } from './settings-store.js';
 import {
     getCachedEmails,
@@ -60,7 +60,7 @@ export const shouldPrefetchEmailSummary = (email = {}) => (
 
 export const canPrefetchEmailSummary = async () => {
     const settings = await getSettings();
-    return Boolean(settings.ai?.enabled && settings.ai?.api_key && (settings.ai?.model || settings.ai?.summary_model));
+    return hasSummaryProviderConfigured(settings);
 };
 
 const getEmailId = (email = {}) => String(email._id || email.messageId || '');
@@ -96,7 +96,7 @@ const processSummaryJob = async (email) => {
 
     try {
         const settings = await getSettings();
-        if (!settings.ai?.enabled || !settings.ai?.api_key) {
+        if (!hasSummaryProviderConfigured(settings)) {
             return;
         }
 

@@ -38,6 +38,8 @@ const emptyAi = {
     provider: 'openai',
     api_key: '',
     model: '',
+    summary_provider: 'nvidia',
+    summary_api_key: '',
     summary_model: ''
 };
 
@@ -212,6 +214,8 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const [providers, setProviders] = useState({});
     const [models, setModels] = useState([]);
     const [modelsLoaded, setModelsLoaded] = useState(false);
+    const [summaryModels, setSummaryModels] = useState([]);
+    const [summaryModelsLoaded, setSummaryModelsLoaded] = useState(false);
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
 
     const getSettingsService = useApi(API_URLS.getSettings);
@@ -235,6 +239,8 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setProviders(result.data?.providers || {});
             setModels(result.data?.ai?.model ? [{ id: result.data.ai.model, name: result.data.ai.model }] : []);
             setModelsLoaded(Boolean(result.data?.ai?.model));
+            setSummaryModels(result.data?.ai?.summary_model ? [{ id: result.data.ai.summary_model, name: result.data.ai.summary_model }] : []);
+            setSummaryModelsLoaded(Boolean(result.data?.ai?.summary_model));
             setNewEmail('');
             setShowAddEmail(false);
             setActiveTab('signature');
@@ -362,6 +368,29 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         setToast({ open: true, message: `${result.data?.models?.length || 0} models loaded`, severity: 'success' });
     };
 
+    const loadSummaryModels = async (payload = ai) => {
+        const summaryApiKey = payload.summary_api_key?.trim()
+            || (payload.summary_provider === payload.provider ? payload.api_key?.trim() : '');
+        if (!summaryApiKey) {
+            setToast({ open: true, message: 'Save a summary API key before loading models', severity: 'error' });
+            return;
+        }
+
+        const result = await fetchModelsService.call({
+            provider: payload.summary_provider || 'nvidia',
+            api_key: summaryApiKey
+        });
+        if (result.error) {
+            setSummaryModels([]);
+            setSummaryModelsLoaded(false);
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        setSummaryModels(result.data?.models || []);
+        setSummaryModelsLoaded(true);
+        setToast({ open: true, message: `${result.data?.models?.length || 0} summary models loaded`, severity: 'success' });
+    };
+
     const saveAiKey = async () => {
         const payload = {
             ...ai,
@@ -393,14 +422,35 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         setToast({ open: true, message: 'AI model saved', severity: 'success' });
     };
 
-    const saveSummaryModel = async () => {
-        const result = await updateAiService.call(ai, '', { silent: true });
+    const saveSummaryModel = async (summaryModel) => {
+        const payload = { ...ai, summary_model: summaryModel };
+        setAi(payload);
+        const result = await updateAiService.call(payload, '', { silent: true });
         if (result.error) {
             setToast({ open: true, message: result.error, severity: 'error' });
             return;
         }
         window.dispatchEvent(new Event('mailshot:settings-updated'));
         setToast({ open: true, message: 'Summary model saved', severity: 'success' });
+    };
+
+    const saveSummaryKey = async () => {
+        const payload = {
+            ...ai,
+            enabled: Boolean(ai.summary_api_key?.trim() || ai.api_key?.trim()),
+            summary_model: ''
+        };
+        const result = await updateAiService.call(payload);
+        if (result.error) {
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        const nextAi = { ...emptyAi, ...(result.data?.ai || payload) };
+        setAi(nextAi);
+        setSummaryModels([]);
+        setSummaryModelsLoaded(false);
+        await loadSummaryModels(nextAi);
+        window.dispatchEvent(new Event('mailshot:settings-updated'));
     };
 
     return (
@@ -554,7 +604,74 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                 )}
 
                 {activeTab === 'ai' && isSuperuser && (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
+                        <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                            <div>
+                                <h3 className="text-sm font-semibold text-slate-900">Read summary</h3>
+                                <p className="mt-1 text-xs leading-5 text-slate-600">
+                                    Background summaries use this provider. NVIDIA NIM is free and fast via
+                                    {' '}
+                                    <a href="https://build.nvidia.com/models" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">build.nvidia.com</a>.
+                                </p>
+                            </div>
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-medium text-slate-700">Summary provider</span>
+                                <select
+                                    value={ai.summary_provider || 'nvidia'}
+                                    onChange={(event) => {
+                                        setAi({
+                                            ...ai,
+                                            summary_provider: event.target.value,
+                                            summary_model: ''
+                                        });
+                                        setSummaryModels([]);
+                                        setSummaryModelsLoaded(false);
+                                    }}
+                                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                >
+                                    {providerOptions.map(([key, provider]) => (
+                                        <option key={key} value={key}>{provider.label}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                                <Input
+                                    label="Summary API key"
+                                    placeholder={ai.summary_provider === 'nvidia' ? 'nvapi-...' : 'API key for summary provider'}
+                                    value={ai.summary_api_key || ''}
+                                    onChange={(event) => {
+                                        setAi({ ...ai, summary_api_key: event.target.value, summary_model: '' });
+                                        setSummaryModels([]);
+                                        setSummaryModelsLoaded(false);
+                                    }}
+                                />
+                                <Button onClick={saveSummaryKey} disabled={!ai.summary_api_key?.trim() || updateAiService.isLoading || fetchModelsService.isLoading}>
+                                    <Save className="h-4 w-4" />
+                                    Save summary key
+                                </Button>
+                            </div>
+                            {(summaryModelsLoaded || ai.summary_model) && (
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-medium text-slate-700">Summary model</span>
+                                    <select
+                                        value={ai.summary_model || ''}
+                                        onChange={(event) => saveSummaryModel(event.target.value)}
+                                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    >
+                                        <option value="">Select a summary model</option>
+                                        {summaryModels.map((model) => (
+                                            <option key={model.id} value={model.id}>{model.name || model.id}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <h3 className="text-sm font-semibold text-slate-900">General AI provider</h3>
+                                <p className="mt-1 text-xs leading-5 text-slate-600">Optional. Read summary uses the provider above.</p>
+                            </div>
                         <label className="block">
                             <span className="mb-1.5 block text-sm font-medium text-slate-700">Provider</span>
                             <select
@@ -605,20 +722,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 </select>
                             </label>
                         )}
-                        {(modelsLoaded || ai.model) && (
-                            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                                <Input
-                                    label="Read summary model (optional)"
-                                    placeholder="Defaults to a fast model like gpt-4o-mini"
-                                    value={ai.summary_model || ''}
-                                    onChange={(event) => setAi({ ...ai, summary_model: event.target.value })}
-                                />
-                                <Button onClick={saveSummaryModel} disabled={updateAiService.isLoading}>
-                                    <Save className="h-4 w-4" />
-                                    Save summary model
-                                </Button>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 )}
             </div>

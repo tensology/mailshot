@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { summarizeEmailWithSettings } from './ai-provider.js';
 import { buildSummaryPrompt, getStoredEmailSummary } from './email-summary-service.js';
 import { getSettings } from './settings-store.js';
+import { hasSummaryProviderConfigured } from './ai-provider.js';
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -181,15 +182,15 @@ export const prefetchReadAloudAudio = (email, settings, summaryText = '') => {
 
 export const canReadAloud = async () => {
     const settings = await getSettings();
-    return Boolean(settings.ai?.enabled && settings.ai?.api_key && settings.ai?.model);
+    return hasSummaryProviderConfigured(settings);
 };
 
 export const startReadAloudJob = async (email) => {
     ensureStorageDir();
     const settings = await getSettings();
 
-    if (!settings.ai?.enabled || !settings.ai?.api_key || !settings.ai?.model) {
-        throw new Error('Save an AI provider key and model before using read aloud.');
+    if (!hasSummaryProviderConfigured(settings)) {
+        throw new Error('Save a summary provider API key before using read aloud.');
     }
 
     const cacheKey = getCacheKey(email, settings);

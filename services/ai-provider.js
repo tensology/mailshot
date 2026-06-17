@@ -26,6 +26,13 @@ export const providerDefaults = {
         modelsPath: '/models',
         auth: 'bearer',
         chatPath: '/chat/completions'
+    },
+    nvidia: {
+        label: 'NVIDIA',
+        base_url: 'https://integrate.api.nvidia.com/v1',
+        modelsPath: '/models',
+        auth: 'bearer',
+        chatPath: '/chat/completions'
     }
 };
 
@@ -60,7 +67,84 @@ export const FAST_SUMMARY_MODEL_DEFAULTS = {
     openai: 'gpt-4o-mini',
     anthropic: 'claude-3-5-haiku-20241022',
     openrouter: 'openai/gpt-4o-mini',
-    kilocode: 'gpt-4o-mini'
+    kilocode: 'gpt-4o-mini',
+    nvidia: 'meta/llama-3.3-70b-instruct'
+};
+
+const NVIDIA_MODEL_SKIP_PATTERNS = [
+    'embed',
+    'embedding',
+    'rerank',
+    'whisper',
+    'tts',
+    'moderation',
+    'guard',
+    'sdxl',
+    'flux',
+    'stable-diffusion'
+];
+
+export const parseNvidiaModels = (payload = {}) => {
+    const chatModels = (payload?.data || [])
+        .map((item) => item?.id || '')
+        .filter((modelId) => {
+            if (!modelId) {
+                return false;
+            }
+
+            const normalized = modelId.toLowerCase();
+            return !NVIDIA_MODEL_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern));
+        });
+
+    const sortKey = (modelId) => {
+        const normalized = modelId.toLowerCase();
+        if (normalized.includes('nemotron')) return 0;
+        if (normalized.includes('llama-3.3') || normalized.includes('llama3.3')) return 1;
+        if (normalized.includes('deepseek')) return 2;
+        if (normalized.includes('kimi')) return 3;
+        if (normalized.includes('glm')) return 4;
+        if (normalized.includes('llama')) return 5;
+        return 6;
+    };
+
+    return [...chatModels]
+        .sort((left, right) => {
+            const leftKey = sortKey(left);
+            const rightKey = sortKey(right);
+            if (leftKey !== rightKey) {
+                return leftKey - rightKey;
+            }
+
+            return left.localeCompare(right);
+        })
+        .map((modelId) => {
+            const tail = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+            const name = tail.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+            return {
+                id: modelId,
+                name: `${name} (free)`
+            };
+        });
+};
+
+export const resolveSummaryCredentials = (settings = {}) => {
+    const ai = settings.ai || {};
+    const envProvider = String(process.env.MAILSHOT_SUMMARY_PROVIDER || '').trim();
+    const provider = providerDefaults[ai.summary_provider]
+        ? ai.summary_provider
+        : (providerDefaults[envProvider] ? envProvider : 'nvidia');
+
+    const summaryApiKey = String(ai.summary_api_key || '').trim();
+    const sharedApiKey = String(ai.api_key || '').trim();
+    const apiKey = summaryApiKey || (provider === ai.provider ? sharedApiKey : '');
+
+    return { provider, apiKey };
+};
+
+export const hasSummaryProviderConfigured = (settings = {}) => {
+    const ai = settings.ai || {};
+    const { apiKey } = resolveSummaryCredentials(settings);
+    return Boolean(ai.enabled && apiKey);
 };
 
 const CHEAP_SUMMARY_MODEL_PATTERNS = [
@@ -80,24 +164,23 @@ export const isCheapSummaryModel = (model = '') => {
 };
 
 export const resolveSummaryModel = (settings = {}) => {
-    const ai = settings.ai || {};
-    const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
+    const { provider } = resolveSummaryCredentials(settings);
     const envOverride = String(process.env.MAILSHOT_SUMMARY_MODEL || '').trim();
     if (envOverride) {
         return envOverride;
     }
 
-    const configured = String(ai.summary_model || '').trim();
+    const configured = String(settings.ai?.summary_model || '').trim();
     if (configured) {
         return configured;
     }
 
-    const mainModel = String(ai.model || '').trim();
-    if (mainModel && isCheapSummaryModel(mainModel)) {
+    const mainModel = String(settings.ai?.model || '').trim();
+    if (mainModel && settings.ai?.provider === provider && isCheapSummaryModel(mainModel)) {
         return mainModel;
     }
 
-    return FAST_SUMMARY_MODEL_DEFAULTS[provider] || FAST_SUMMARY_MODEL_DEFAULTS.openai;
+    return FAST_SUMMARY_MODEL_DEFAULTS[provider] || FAST_SUMMARY_MODEL_DEFAULTS.nvidia;
 };
 
 export const modelUsesMaxCompletionTokens = (model = '') => {
@@ -297,9 +380,22 @@ export const summarizeWithProvider = async ({ settings, prompt, model: modelOver
 };
 
 export const summarizeEmailWithSettings = async ({ settings, prompt }) => {
+    const { provider, apiKey } = resolveSummaryCredentials(settings);
+    if (!apiKey) {
+        throw new Error('Save a summary provider API key before using read aloud.');
+    }
+
     const summaryModel = resolveSummaryModel(settings);
     return summarizeWithProvider({
-        settings,
+        settings: {
+            ...settings,
+            ai: {
+                ...settings.ai,
+                enabled: true,
+                provider,
+                api_key: apiKey
+            }
+        },
         prompt,
         model: summaryModel
     });

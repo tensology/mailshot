@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Setting from '../model/setting.js';
 import { isDbConnected } from '../database/db.js';
+import { providerDefaults } from './ai-provider.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'app-settings.json');
@@ -36,6 +37,8 @@ const defaultSettings = () => ({
         provider: 'openai',
         api_key: '',
         model: '',
+        summary_provider: 'nvidia',
+        summary_api_key: '',
         summary_model: ''
     },
     autoresponder_log: []
@@ -159,6 +162,8 @@ const mergeSettings = (value = {}) => {
             provider: rawAi.provider || 'openai',
             api_key: String(rawAi.api_key || ''),
             model: String(rawAi.model || ''),
+            summary_provider: providerDefaults[rawAi.summary_provider] ? rawAi.summary_provider : 'nvidia',
+            summary_api_key: String(rawAi.summary_api_key || ''),
             summary_model: String(rawAi.summary_model || '')
         },
         autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : []

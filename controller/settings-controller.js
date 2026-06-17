@@ -1,5 +1,12 @@
 import { SUPERUSER_EMAIL, isSuperUser, getSettings, updateSettingsSection } from '../services/settings-store.js';
-import { buildProviderHeaders, buildProviderUrl, getProviderConfig, providerDefaults } from '../services/ai-provider.js';
+import {
+    buildProviderHeaders,
+    buildProviderUrl,
+    getProviderConfig,
+    hasSummaryProviderConfigured,
+    parseNvidiaModels,
+    providerDefaults
+} from '../services/ai-provider.js';
 
 const sanitizeForUser = (settings, superUser) => ({
     general: settings.general,
@@ -7,7 +14,7 @@ const sanitizeForUser = (settings, superUser) => ({
     permissions: {
         is_superuser: superUser,
         ai_enabled: superUser && Boolean(settings.ai?.enabled),
-        read_aloud_enabled: superUser && Boolean(settings.ai?.enabled && settings.ai?.api_key && settings.ai?.model)
+        read_aloud_enabled: superUser && hasSummaryProviderConfigured(settings)
     },
     providers: providerDefaults
 });
@@ -112,10 +119,12 @@ const normalizeGeneralPayload = (body = {}) => {
 };
 
 const normalizeAiPayload = (body = {}) => ({
-    enabled: Boolean(body.enabled ?? body.api_key),
+    enabled: Boolean(body.enabled ?? body.api_key ?? body.summary_api_key),
     provider: providerDefaults[body.provider] ? body.provider : 'openai',
     api_key: String(body.api_key || '').trim(),
     model: String(body.model || '').trim(),
+    summary_provider: providerDefaults[body.summary_provider] ? body.summary_provider : 'nvidia',
+    summary_api_key: String(body.summary_api_key || '').trim(),
     summary_model: String(body.summary_model || '').trim()
 });
 
@@ -192,7 +201,7 @@ export const fetchAiModels = async (request, response) => {
 
         response.status(200).json({
             provider,
-            models: parseModels(payload)
+            models: provider === 'nvidia' ? parseNvidiaModels(payload) : parseModels(payload)
         });
     } catch (error) {
         response.status(500).json(error.message || 'Could not load models');
