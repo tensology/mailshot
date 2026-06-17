@@ -601,7 +601,7 @@ export const streamReadAloudAudio = async (request, response) => {
     }
 
     response.setHeader('Content-Type', 'audio/ogg');
-    response.setHeader('Cache-Control', 'private, max-age=7200');
+    response.setHeader('Cache-Control', 'private, max-age=604800');
     return response.sendFile(audioPath);
 };
 

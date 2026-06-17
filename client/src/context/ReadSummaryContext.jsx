@@ -86,10 +86,10 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose }) => {
     );
 };
 
-const ReadSummaryPreparing = () => (
+const ReadSummaryPreparing = ({ message = 'Preparing read summary' }) => (
     <div className="fixed bottom-4 left-4 z-[60] flex w-[min(20rem,calc(100vw-2rem))] items-center gap-2 rounded-2xl border border-blue-100 bg-white p-3 text-sm font-medium text-blue-700 shadow-2xl">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Preparing read summary
+        {message}
     </div>
 );
 
@@ -99,6 +99,7 @@ export const ReadSummaryProvider = ({ children }) => {
     const [playerJob, setPlayerJob] = useState(null);
     const [pendingEmailId, setPendingEmailId] = useState('');
     const [pendingJobId, setPendingJobId] = useState('');
+    const [preparingMessage, setPreparingMessage] = useState('Preparing read summary');
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
     const pendingJobIdRef = useRef('');
     const pollTimerRef = useRef(null);
@@ -138,6 +139,7 @@ export const ReadSummaryProvider = ({ children }) => {
     const handleError = useCallback((message) => {
         setPendingEmailId('');
         setPendingJobId('');
+        setPreparingMessage('Preparing read summary');
         pendingJobIdRef.current = '';
         setToast({ open: true, message: message || 'Could not prepare read summary', severity: 'error' });
     }, []);
@@ -146,6 +148,7 @@ export const ReadSummaryProvider = ({ children }) => {
         setPlayerJob(job);
         setPendingEmailId('');
         setPendingJobId('');
+        setPreparingMessage('Preparing read summary');
         pendingJobIdRef.current = '';
     }, []);
 
@@ -175,13 +178,12 @@ export const ReadSummaryProvider = ({ children }) => {
         }, POLL_MS);
     }, [applyReadyJob, handleError]);
 
-    const startReadSummary = useCallback(async (emailId) => {
+    const startReadSummary = useCallback(async (emailId, options = {}) => {
         if (!emailId) {
             return { error: 'No email selected' };
         }
 
         clearPollTimer();
-        setPendingEmailId(emailId);
         const result = await requestApi(API_URLS.startReadAloud, {}, emailId);
         if (!result.data) {
             const message = result.error || 'Could not prepare read summary';
@@ -200,6 +202,8 @@ export const ReadSummaryProvider = ({ children }) => {
             return { error: message };
         }
 
+        setPreparingMessage(options.audioReady ? 'Loading audio…' : 'Preparing read summary');
+        setPendingEmailId(emailId);
         pendingJobIdRef.current = result.data.job_id;
         setPendingJobId(result.data.job_id);
         pollTimerRef.current = window.setTimeout(() => {
@@ -233,7 +237,7 @@ export const ReadSummaryProvider = ({ children }) => {
                     onClose={closePlayer}
                 />
             )}
-            {!playerJob && (pendingJobId || pendingEmailId) && <ReadSummaryPreparing />}
+            {!playerJob && (pendingJobId || pendingEmailId) && <ReadSummaryPreparing message={preparingMessage} />}
             <Toast
                 open={toast.open}
                 message={toast.message}

@@ -634,7 +634,9 @@ const Emails = () => {
     };
 
     const handleReadSummary = async (email) => {
-        const result = await startReadSummary(email?._id);
+        const result = await startReadSummary(email?._id, {
+            audioReady: email?.read_aloud_status === 'ready'
+        });
         if (result.error) {
             showActionToast(result.error, 'error');
         }

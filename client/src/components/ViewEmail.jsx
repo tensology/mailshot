@@ -244,7 +244,9 @@ const ViewEmail = () => {
             return;
         }
 
-        const result = await startReadSummary(primaryEmail._id);
+        const result = await startReadSummary(primaryEmail._id, {
+            audioReady: primaryEmail.read_aloud_status === 'ready'
+        });
         if (result.error) {
             setSnackbar({ open: true, message: result.error, severity: 'error' });
         }

@@ -13,7 +13,7 @@ const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STORAGE_DIR = path.resolve(__dirname, '../storage/tts');
-const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AUDIO_EXTENSION = 'ogg';
 const MODEL_ID = process.env.KOKORO_MODEL_ID || 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const KOKORO_DTYPE = process.env.KOKORO_DTYPE || 'q8';
@@ -40,6 +40,43 @@ const getCacheKey = (email, settings) => hashValue(JSON.stringify({
     model: settings.ai?.model || '',
     voice: KOKORO_VOICE
 }));
+
+const getEmailIndexPath = (emailId) => path.join(STORAGE_DIR, `email-${hashValue(String(emailId || ''))}.json`);
+
+const rememberEmailCache = (emailId, cacheKey, summary = '') => {
+    if (!emailId || !cacheKey) {
+        return;
+    }
+
+    fs.writeFileSync(getEmailIndexPath(emailId), JSON.stringify({
+        cache_key: cacheKey,
+        summary,
+        updated_at: new Date().toISOString()
+    }));
+};
+
+const getCachedJobForEmailId = (emailId) => {
+    const indexPath = getEmailIndexPath(emailId);
+    if (!fs.existsSync(indexPath)) {
+        return null;
+    }
+
+    try {
+        const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+        const cached = getCachedJob(index.cache_key);
+        if (!cached) {
+            return null;
+        }
+
+        if (!cached.summary && index.summary) {
+            cached.summary = index.summary;
+        }
+
+        return cached;
+    } catch {
+        return null;
+    }
+};
 
 const getJobSnapshot = (job) => ({
     job_id: job.job_id,
@@ -135,6 +172,13 @@ const generateAudioForSummary = async (job, summary) => {
     }));
 };
 
+const finalizeReadyJob = (job, email, summary = '') => {
+    if (email?._id) {
+        rememberEmailCache(email._id, job.job_id, summary || job.summary || '');
+    }
+    return getJobSnapshot(job);
+};
+
 const processJob = async (job, email, settings, summaryText = '') => {
     const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
 
@@ -149,7 +193,7 @@ const processJob = async (job, email, settings, summaryText = '') => {
         job.summary = summary;
         await generateAudioForSummary(job, summary);
         job.status = 'ready';
-        return getJobSnapshot(job);
+        return finalizeReadyJob(job, email, summary);
     } catch (error) {
         job.status = 'error';
         job.error = error.message || 'Could not generate read aloud audio';
@@ -168,6 +212,9 @@ export const prefetchReadAloudAudioAwait = async (email, settings, summaryText =
     const cached = getCachedJob(cacheKey);
     if (cached) {
         jobs.set(cacheKey, cached);
+        if (email?._id) {
+            rememberEmailCache(email._id, cacheKey, cached.summary || summaryText);
+        }
         return getJobSnapshot(cached);
     }
 
@@ -191,6 +238,9 @@ export const prefetchReadAloudAudio = (email, settings, summaryText = '') => {
     const cached = getCachedJob(cacheKey);
     if (cached) {
         jobs.set(cacheKey, cached);
+        if (email?._id) {
+            rememberEmailCache(email._id, cacheKey, cached.summary || summaryText);
+        }
         return getJobSnapshot(cached);
     }
 
@@ -218,26 +268,38 @@ export const startReadAloudJob = async (email) => {
         throw new Error('Save a summary provider API key before using read aloud.');
     }
 
+    const storedSummary = getStoredEmailSummary(email);
     const cacheKey = getCacheKey(email, settings);
-    const cached = getCachedJob(cacheKey);
+    const cached = getCachedJob(cacheKey) || getCachedJobForEmailId(email._id);
     if (cached) {
-        jobs.set(cacheKey, cached);
+        jobs.set(cached.job_id, cached);
+        if (email?._id) {
+            rememberEmailCache(email._id, cached.job_id, cached.summary || storedSummary);
+        }
         return getJobSnapshot(cached);
     }
 
     const existing = jobs.get(cacheKey);
-    if (existing) {
+    if (existing?.status === 'ready') {
         return getJobSnapshot(existing);
     }
 
-    const storedSummary = getStoredEmailSummary(email);
+    if (existing && (existing.status === 'queued' || existing.status === 'processing')) {
+        return getJobSnapshot(existing);
+    }
+
     const job = createJob(cacheKey);
     if (storedSummary) {
         job.summary = storedSummary;
     }
 
     jobs.set(cacheKey, job);
-    processJob(job, email, settings, storedSummary).catch(() => {});
+
+    if (storedSummary) {
+        return processJob(job, email, settings, storedSummary);
+    }
+
+    processJob(job, email, settings, '').catch(() => {});
     return getJobSnapshot(job);
 };
 
@@ -272,6 +334,23 @@ export const cleanupReadAloudAudio = () => {
         const stat = fs.statSync(filePath);
         if (now - stat.mtimeMs > CACHE_TTL_MS) {
             fs.rmSync(filePath, { force: true });
+        }
+    }
+
+    for (const file of fs.readdirSync(STORAGE_DIR)) {
+        if (!file.startsWith('email-') || !file.endsWith('.json')) {
+            continue;
+        }
+
+        const indexPath = path.join(STORAGE_DIR, file);
+        try {
+            const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+            const audioPath = path.join(STORAGE_DIR, `${index.cache_key}.${AUDIO_EXTENSION}`);
+            if (!fs.existsSync(audioPath)) {
+                fs.rmSync(indexPath, { force: true });
+            }
+        } catch {
+            fs.rmSync(indexPath, { force: true });
         }
     }
 
