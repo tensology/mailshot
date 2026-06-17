@@ -6,6 +6,7 @@ import DataProvider from './context/DataProvider';
 import { ComposeProvider } from './context/ComposeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ReadSummaryProvider } from './context/ReadSummaryContext';
+import { UndoDeleteProvider } from './context/UndoDeleteContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const ErrorComponent = lazy(() => import('./components/common/ErrorComponent'));
@@ -42,7 +43,9 @@ function App() {
                 <DataProvider>
                     <ComposeProvider>
                         <ReadSummaryProvider>
-                            <RouterProvider router={router} />
+                            <UndoDeleteProvider>
+                                <RouterProvider router={router} />
+                            </UndoDeleteProvider>
                         </ReadSummaryProvider>
                     </ComposeProvider>
                 </DataProvider>

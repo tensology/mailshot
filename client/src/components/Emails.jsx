@@ -14,7 +14,9 @@ import {
     clearEmailListCache,
     consumeActionError,
     consumeActionNotice,
-    requestMailboxCountsRefresh
+    requestMailboxCountsRefresh,
+    restoreEmailsToListCache,
+    emitEmailsRestored
 } from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
@@ -27,6 +29,7 @@ import { useCompose } from '../context/ComposeContext';
 import { parseSenderName } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useAuth } from '../context/AuthContext';
+import { useUndoDelete } from '../context/UndoDeleteContext';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -113,6 +116,7 @@ const Emails = () => {
         startReadSummary
     } = useReadSummary();
     const { isSuperuser } = useAuth();
+    const { showUndoDelete } = useUndoDelete();
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
     const participantFilter = searchParams.get('participant') || '';
@@ -146,6 +150,7 @@ const Emails = () => {
     const syncMailboxService = useApi(API_URLS.syncMailbox);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
+    const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
     const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
@@ -303,6 +308,68 @@ const Emails = () => {
     const showActionToast = useCallback((message, severity = 'success') => {
         setSnackbar({ open: true, message, severity });
     }, []);
+
+    const offerBinUndo = useCallback(({
+        count,
+        ids,
+        restoredEmails = [],
+        previousEmails,
+        previousTotal,
+        previousPage,
+        cacheParams,
+        bulkPayload = null
+    }) => {
+        const message = count === 1 ? 'Message moved to Bin' : `${count} messages moved to Bin`;
+
+        showUndoDelete({
+            message,
+            restore: async () => {
+                const result = bulkPayload
+                    ? await restoreEmailsFromBin.call(bulkPayload)
+                    : await restoreEmailsFromBin.call(ids);
+
+                if (result.error) {
+                    showActionToast(result.error, 'error');
+                    throw new Error(result.error);
+                }
+
+                if (bulkPayload) {
+                    setPage(previousPage || 1);
+                    await fetchEmailList({ silent: true, pageOverride: previousPage || 1 });
+                } else {
+                    setEmails(previousEmails);
+                    setTotalEmails(previousTotal);
+                    setPage(previousPage);
+                    writeEmailListCache(cacheParams, previousEmails);
+                    restoreEmailsToListCache(restoredEmails);
+                }
+
+                requestMailboxCountsRefresh();
+                showActionToast(count === 1 ? 'Message restored' : `${count} messages restored`);
+            }
+        });
+    }, [fetchEmailList, restoreEmailsFromBin, showActionToast, showUndoDelete]);
+
+    useEffect(() => {
+        const onEmailsRestored = (event) => {
+            const restored = Array.isArray(event.detail?.emails) ? event.detail.emails : [];
+            if (!restored.length || activeTab !== 'inbox') {
+                return;
+            }
+
+            setEmails((current) => {
+                const restoredIds = new Set(restored.map((email) => email._id));
+                const kept = current.filter((email) => !restoredIds.has(email._id));
+                const merged = [...restored, ...kept].sort((left, right) => new Date(right.date) - new Date(left.date));
+                writeEmailListCache(listCacheParams, merged);
+                return merged;
+            });
+            setTotalEmails((count) => Math.max(count, restored.length));
+        };
+
+        window.addEventListener('mailshot:emails-restored', onEmailsRestored);
+        return () => window.removeEventListener('mailshot:emails-restored', onEmailsRestored);
+    }, [activeTab, listCacheParams]);
 
     const refreshMailbox = useCallback(async () => {
         clearEmailListCache();
@@ -810,11 +877,18 @@ const Emails = () => {
                 }
 
                 const affectedCount = Number(result.data?.count) || count;
-                const message = isPermanentDelete
-                    ? `${affectedCount} message${affectedCount === 1 ? '' : 's'} deleted permanently`
-                    : `${affectedCount} message${affectedCount === 1 ? '' : 's'} moved to Bin`;
                 requestMailboxCountsRefresh();
-                showActionToast(message);
+                if (isPermanentDelete) {
+                    showActionToast(`${affectedCount} message${affectedCount === 1 ? '' : 's'} deleted permanently`);
+                    return;
+                }
+
+                offerBinUndo({
+                    count: affectedCount,
+                    ids: [],
+                    bulkPayload: payload,
+                    previousPage: 1
+                });
             });
             return;
         }
@@ -824,6 +898,7 @@ const Emails = () => {
         const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
+        const previousPage = page;
         const removedRows = previousEmails.filter((email) => emailMatchesRemoval(email, idsToRemove));
         const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, idsToRemove));
         const firstRemovedIndex = previousEmails.findIndex((email) => emailMatchesRemoval(email, idsToRemove));
@@ -871,11 +946,21 @@ const Emails = () => {
             }
 
             const count = idsToRemove.length;
-            const message = isPermanentDelete
-                ? `${count} message${count === 1 ? '' : 's'} deleted permanently`
-                : `${count} message${count === 1 ? '' : 's'} moved to Bin`;
             requestMailboxCountsRefresh();
-            showActionToast(message);
+            if (isPermanentDelete) {
+                showActionToast(`${count} message${count === 1 ? '' : 's'} deleted permanently`);
+                return;
+            }
+
+            offerBinUndo({
+                count,
+                ids: idsToRemove,
+                restoredEmails: removedRows,
+                previousEmails,
+                previousTotal,
+                previousPage,
+                cacheParams
+            });
         });
     };
 

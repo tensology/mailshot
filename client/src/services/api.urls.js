@@ -100,6 +100,10 @@ export const API_URLS = {
         endpoint: 'bin',
         method: 'POST'
     },
+    restoreEmailsFromBin: {
+        endpoint: 'bin/restore',
+        method: 'POST'
+    },
     archiveEmails: {
         endpoint: 'archive',
         method: 'POST'

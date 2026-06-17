@@ -13,6 +13,7 @@ import {
     toggleReadEmail,
     deleteEmails,
     moveEmailsToBin,
+    restoreEmailsFromBin,
     markEmailsAsSpam,
     archiveEmails,
     sendEmail,
@@ -97,6 +98,7 @@ routes.post('/starred', toggleStarredEmail);
 routes.post('/read', toggleReadEmail);
 routes.delete('/delete', deleteEmails);
 routes.post('/bin', moveEmailsToBin);
+routes.post('/bin/restore', restoreEmailsFromBin);
 routes.post('/spam', markEmailsAsSpam);
 routes.post('/archive', archiveEmails);
 routes.post('/move-to-label', moveEmailsToLabel);

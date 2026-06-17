@@ -8,7 +8,8 @@ import {
     markEmailReadInCache,
     requestMailboxCountsRefresh,
     removeEmailsFromListCache,
-    setActionNotice
+    setActionNotice,
+    emitEmailsRestored
 } from '../utils/emailListCache';
 import {
     buildForwardBody,
@@ -27,6 +28,7 @@ import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { formatEmailBody } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
+import { useUndoDelete } from '../context/UndoDeleteContext';
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -36,6 +38,8 @@ const ViewEmail = () => {
     const toggleReadService = useApi(API_URLS.toggleReadMail);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
+    const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
+    const { showUndoDelete } = useUndoDelete();
     const {
         enabled: readSummaryEnabled,
         pendingEmailId: readSummaryPendingEmailId,
@@ -212,6 +216,7 @@ const ViewEmail = () => {
             ? primaryEmail.thread_ids
             : [primaryEmail._id];
         const isPermanentDelete = type === 'bin';
+        const restoredEmails = thread.length ? [...thread] : [{ ...primaryEmail }];
 
         setConfirmDeleteOpen(false);
 
@@ -227,7 +232,28 @@ const ViewEmail = () => {
 
         removeEmailsFromListCache(idsToDelete);
         requestMailboxCountsRefresh();
-        setActionNotice(isPermanentDelete ? 'Message deleted permanently' : 'Moved to Bin');
+
+        if (isPermanentDelete) {
+            setActionNotice('Message deleted permanently');
+            navigate(backUrl);
+            return;
+        }
+
+        showUndoDelete({
+            message: 'Message moved to Bin',
+            restore: async () => {
+                const restoreResult = await restoreEmailsFromBin.call(idsToDelete);
+                if (restoreResult.error) {
+                    setSnackbar({ open: true, message: restoreResult.error, severity: 'error' });
+                    throw new Error(restoreResult.error);
+                }
+
+                emitEmailsRestored(restoredEmails, idsToDelete);
+                requestMailboxCountsRefresh();
+                setSnackbar({ open: true, message: 'Message restored', severity: 'success' });
+            }
+        });
+
         navigate(backUrl);
     };
 

@@ -362,6 +362,77 @@ export const getReadAloudAudioPath = (filename) => {
     return filePath;
 };
 
+const deleteCacheFiles = (cacheKey, deleted = null) => {
+    if (!cacheKey) {
+        return;
+    }
+
+    const files = [
+        path.join(STORAGE_DIR, `${cacheKey}.${AUDIO_EXTENSION}`),
+        path.join(STORAGE_DIR, `${cacheKey}.json`),
+        path.join(STORAGE_DIR, `${cacheKey}.wav`)
+    ];
+
+    files.forEach((filePath) => {
+        if (!fs.existsSync(filePath)) {
+            return;
+        }
+
+        fs.rmSync(filePath, { force: true });
+        deleted?.add(filePath);
+    });
+
+    jobs.delete(cacheKey);
+};
+
+export const deleteReadAloudAssetsForEmail = (emailId) => {
+    const normalizedId = String(emailId || '').trim();
+    if (!normalizedId) {
+        return 0;
+    }
+
+    ensureStorageDir();
+    const deleted = new Set();
+    const indexPath = getEmailIndexPath(normalizedId);
+
+    if (fs.existsSync(indexPath)) {
+        try {
+            const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+            deleteCacheFiles(index.cache_key, deleted);
+        } catch {
+            // Ignore malformed index files.
+        }
+
+        fs.rmSync(indexPath, { force: true });
+        deleted.add(indexPath);
+    }
+
+    for (const file of fs.readdirSync(STORAGE_DIR)) {
+        if (!file.endsWith('.json') || file.startsWith('email-')) {
+            continue;
+        }
+
+        const metaPath = path.join(STORAGE_DIR, file);
+        try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            if (String(meta.email_id || '') !== normalizedId) {
+                continue;
+            }
+
+            deleteCacheFiles(file.replace(/\.json$/, ''), deleted);
+        } catch {
+            continue;
+        }
+    }
+
+    return deleted.size;
+};
+
+export const deleteReadAloudAssetsForEmails = (emailIds = []) => {
+    const uniqueIds = [...new Set(emailIds.map((id) => String(id || '').trim()).filter(Boolean))];
+    return uniqueIds.reduce((total, emailId) => total + deleteReadAloudAssetsForEmail(emailId), 0);
+};
+
 export const cleanupReadAloudAudio = () => {
     ensureStorageDir();
     const now = Date.now();

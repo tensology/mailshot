@@ -21,7 +21,8 @@ import { compactEmailsBySubject, findEmailsBySubject, mergeThreadEmails } from '
 import {
     getReadAloudAudioPath,
     getReadAloudJob,
-    startReadAloudJob
+    startReadAloudJob,
+    deleteReadAloudAssetsForEmails
 } from '../services/read-aloud-service.js';
 import {
     getBulkReadAloudStatus,
@@ -696,6 +697,7 @@ export const deleteEmails = async (request, response) => {
             await Email.deleteMany({ _id: { $in: dbIds }});
         }
 
+        deleteReadAloudAssetsForEmails(ids);
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails deleted successfully', count: ids.length });
     } catch (error) {
@@ -729,6 +731,44 @@ export const moveEmailsToBin = async (request, response) => {
 
         saveMailboxCacheToDisk();
         response.status(201).json({ message: 'emails moved to bin', count: ids.length });
+    } catch (error) {
+        response.status(500).json(error.message);
+    }
+};
+
+export const restoreEmailsFromBin = async (request, response) => {
+    try {
+        const ids = await resolveBulkEmailSelection(request.body, 'bin');
+        const dbIds = [];
+
+        for (const id of ids) {
+            const resolved = await findEmailRecord(id);
+            if (!resolved) {
+                continue;
+            }
+
+            if (resolved.source === 'cache') {
+                updateCachedEmail(id, {
+                    bin: false,
+                    spam: false,
+                    archived: false,
+                    in_inbox: true,
+                    type: 'inbox'
+                });
+            } else {
+                dbIds.push(id);
+            }
+        }
+
+        if (dbIds.length > 0 && isDbConnected()) {
+            await Email.updateMany(
+                { _id: { $in: dbIds }},
+                { $set: { bin: false, spam: false, archived: false, in_inbox: true, type: 'inbox' }}
+            );
+        }
+
+        saveMailboxCacheToDisk();
+        response.status(200).json({ message: 'emails restored from bin', count: ids.length });
     } catch (error) {
         response.status(500).json(error.message);
     }

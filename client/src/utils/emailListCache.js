@@ -85,6 +85,56 @@ export const markEmailReadInCache = (emailId) => {
     }
 };
 
+export const restoreEmailsToListCache = (emails = []) => {
+    const restored = Array.isArray(emails) ? emails.filter(Boolean) : [];
+    if (!restored.length) {
+        return;
+    }
+
+    const restoredIds = new Set(restored.map((email) => email._id));
+
+    try {
+        Object.keys(sessionStorage).forEach((key) => {
+            if (!key.startsWith(CACHE_PREFIX)) {
+                return;
+            }
+
+            const raw = sessionStorage.getItem(key);
+            if (!raw) {
+                return;
+            }
+
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed?.emails)) {
+                return;
+            }
+
+            const kept = parsed.emails.filter((email) => !restoredIds.has(email._id));
+            const merged = [...restored, ...kept].sort((left, right) => new Date(right.date) - new Date(left.date));
+
+            sessionStorage.setItem(key, JSON.stringify({
+                ...parsed,
+                emails: merged
+            }));
+        });
+    } catch {
+        // ignore cache update errors
+    }
+};
+
+export const emitEmailsRestored = (emails = [], ids = []) => {
+    try {
+        window.dispatchEvent(new CustomEvent('mailshot:emails-restored', {
+            detail: {
+                emails: Array.isArray(emails) ? emails : [],
+                ids: Array.isArray(ids) ? ids : []
+            }
+        }));
+    } catch {
+        // ignore
+    }
+};
+
 export const requestMailboxCountsRefresh = () => {
     try {
         window.dispatchEvent(new CustomEvent('mailshot:counts-refresh'));
