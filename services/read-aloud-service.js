@@ -149,15 +149,40 @@ const processJob = async (job, email, settings, summaryText = '') => {
         job.summary = summary;
         await generateAudioForSummary(job, summary);
         job.status = 'ready';
+        return getJobSnapshot(job);
     } catch (error) {
         job.status = 'error';
         job.error = error.message || 'Could not generate read aloud audio';
         fs.rmSync(wavPath, { force: true });
+        throw error;
     }
 };
 
+export const prefetchReadAloudAudioAwait = async (email, settings, summaryText = '') => {
+    if (!hasSummaryProviderConfigured(settings) || !summaryText) {
+        throw new Error('Summary text is required before generating read aloud audio.');
+    }
+
+    ensureStorageDir();
+    const cacheKey = getCacheKey(email, settings);
+    const cached = getCachedJob(cacheKey);
+    if (cached) {
+        jobs.set(cacheKey, cached);
+        return getJobSnapshot(cached);
+    }
+
+    const existing = jobs.get(cacheKey);
+    if (existing?.status === 'ready') {
+        return getJobSnapshot(existing);
+    }
+
+    const job = createJob(cacheKey);
+    jobs.set(cacheKey, job);
+    return processJob(job, email, settings, summaryText);
+};
+
 export const prefetchReadAloudAudio = (email, settings, summaryText = '') => {
-    if (!settings?.ai?.enabled || !summaryText) {
+    if (!hasSummaryProviderConfigured(settings) || !summaryText) {
         return null;
     }
 
@@ -176,7 +201,7 @@ export const prefetchReadAloudAudio = (email, settings, summaryText = '') => {
 
     const job = createJob(cacheKey);
     jobs.set(cacheKey, job);
-    processJob(job, email, settings, summaryText);
+    processJob(job, email, settings, summaryText).catch(() => {});
     return getJobSnapshot(job);
 };
 
@@ -212,7 +237,7 @@ export const startReadAloudJob = async (email) => {
     }
 
     jobs.set(cacheKey, job);
-    processJob(job, email, settings, storedSummary);
+    processJob(job, email, settings, storedSummary).catch(() => {});
     return getJobSnapshot(job);
 };
 

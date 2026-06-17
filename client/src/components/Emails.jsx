@@ -26,6 +26,7 @@ import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { useCompose } from '../context/ComposeContext';
 import { parseSenderName } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
+import { useAuth } from '../context/AuthContext';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -111,6 +112,7 @@ const Emails = () => {
         pendingEmailId: readSummaryPendingEmailId,
         startReadSummary
     } = useReadSummary();
+    const { isSuperuser } = useAuth();
     const labelFilter = searchParams.get('label') || '';
     const searchFilter = searchParams.get('search') || '';
     const participantFilter = searchParams.get('participant') || '';
@@ -146,6 +148,11 @@ const Emails = () => {
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
+    const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
+    const getSummarizeAllStatusService = useApi(API_URLS.getSummarizeAllStatus);
+
+    const [summarizeAllActive, setSummarizeAllActive] = useState(false);
+    const [summarizeProgress, setSummarizeProgress] = useState({ total: 0, processed: 0, failed: 0 });
 
     const syncRequestId = useRef(0);
     const listRequestId = useRef(0);
@@ -467,6 +474,55 @@ const Emails = () => {
     const toggleUnreadFilter = () => {
         updateListSearchParams({ unread: unreadFilter ? '' : 'true' });
     };
+
+    const handleSummarizeAll = async () => {
+        const result = await startSummarizeAllService.call({});
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+
+        const status = result.data || {};
+        setSummarizeProgress(status);
+        setSummarizeAllActive(Boolean(status.active || status.queued > 0));
+        setSnackbar({
+            open: true,
+            message: status.queued > 0
+                ? `Queued ${status.queued} emails for summary and speech`
+                : 'All inbox emails are already summarized',
+            severity: 'success'
+        });
+    };
+
+    useEffect(() => {
+        if (!summarizeAllActive || !readSummaryEnabled) {
+            return undefined;
+        }
+
+        const interval = window.setInterval(async () => {
+            const result = await getSummarizeAllStatusService.call({}, '', { silent: true });
+            if (result.error) {
+                return;
+            }
+
+            const status = result.data || {};
+            setSummarizeProgress(status);
+            fetchEmailList({ silent: true });
+
+            if (!status.active) {
+                setSummarizeAllActive(false);
+                setSnackbar({
+                    open: true,
+                    message: status.failed > 0
+                        ? `Summarize all finished with ${status.failed} failures`
+                        : 'Summarize all finished',
+                    severity: status.failed > 0 ? 'error' : 'success'
+                });
+            }
+        }, 4000);
+
+        return () => window.clearInterval(interval);
+    }, [summarizeAllActive, readSummaryEnabled, fetchEmailList, getSummarizeAllStatusService]);
 
     const showBlockingLoader = emails.length === 0 && (isFetching || isSyncing);
     const pageSelectionIds = emails.flatMap(getEmailSelectionIds);
@@ -914,6 +970,22 @@ const Emails = () => {
                     </div>
 
                     <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:justify-end">
+                        {readSummaryEnabled && isSuperuser && activeTab === 'inbox' && (
+                            <button
+                                type="button"
+                                onClick={handleSummarizeAll}
+                                disabled={summarizeAllActive || startSummarizeAllService.isLoading}
+                                className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 ${
+                                    summarizeAllActive
+                                        ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:text-emerald-700'
+                                }`}
+                            >
+                                {summarizeAllActive
+                                    ? `Summarizing ${summarizeProgress.processed}/${summarizeProgress.total}`
+                                    : 'Summarize all'}
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={toggleUnreadFilter}

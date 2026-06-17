@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Paperclip, Star, Volume2, Check } from 'lucide-react';
+import { Loader2, Paperclip, Star, Volume2 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -87,7 +87,7 @@ const Email = ({
     const dateParts = formatEmailDateParts(email.date);
     const hasAttachments = Array.isArray(email.attachments) && email.attachments.length > 0;
     const unread = !email.read;
-    const summaryReady = email.read_summary_status === 'ready' && Boolean(String(email.read_summary || '').trim());
+    const readAloudReady = email.read_aloud_status === 'ready';
     const threadIds = Array.isArray(email.thread_ids) && email.thread_ids.length > 0
         ? email.thread_ids
         : [email._id];
@@ -214,7 +214,11 @@ const Email = ({
                                 type="button"
                                 onClick={handleReadSummary}
                                 disabled={readSummaryLoading}
-                                className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-blue-100 bg-white px-2.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-wait disabled:opacity-75"
+                                className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition disabled:cursor-wait disabled:opacity-75 ${
+                                    readAloudReady
+                                        ? 'border-green-300 bg-green-50 text-green-700 hover:border-green-400 hover:bg-green-100'
+                                        : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100'
+                                }`}
                             >
                                 {readSummaryLoading ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -222,9 +226,6 @@ const Email = ({
                                     <Volume2 className="h-3.5 w-3.5" />
                                 )}
                                 <span>Read Summary</span>
-                                {summaryReady && (
-                                    <Check className="h-3 w-3 text-green-600" aria-label="Summary ready" />
-                                )}
                             </button>
                         )}
                     </div>

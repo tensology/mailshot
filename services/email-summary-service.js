@@ -13,6 +13,15 @@ const QUEUED_IDS = new Set();
 const PROCESSING_IDS = new Set();
 let pumpScheduled = false;
 
+let bulkProgress = {
+    active: false,
+    total: 0,
+    processed: 0,
+    failed: 0,
+    started_at: null,
+    finished_at: null
+};
+
 const stripHtml = (value = '') => String(value || '')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -50,13 +59,15 @@ export const buildSummaryPrompt = (email = {}) => {
     ].join('\n');
 };
 
-export const shouldPrefetchEmailSummary = (email = {}) => (
+export const needsReadAloudPipeline = (email = {}) => (
     email.type === 'inbox'
     && !email.bin
     && !email.spam
-    && email.read_summary_status !== 'ready'
-    && email.read_summary_status !== 'processing'
+    && email.read_aloud_status !== 'ready'
+    && email.read_aloud_status !== 'processing'
 );
+
+export const shouldPrefetchEmailSummary = needsReadAloudPipeline;
 
 export const canPrefetchEmailSummary = async () => {
     const settings = await getSettings();
@@ -65,13 +76,7 @@ export const canPrefetchEmailSummary = async () => {
 
 const getEmailId = (email = {}) => String(email._id || email.messageId || '');
 
-const persistSummary = async (email, summary, status, error = '') => {
-    const updates = {
-        read_summary: summary || '',
-        read_summary_status: status,
-        read_summary_at: status === 'ready' ? new Date() : email.read_summary_at
-    };
-
+const persistEmailReadAloudFields = async (email, updates = {}) => {
     if (isDbConnected() && email._id && !String(email._id).startsWith('cache-') && !String(email._id).startsWith('sent-')) {
         await Email.updateOne({ _id: email._id }, { $set: updates });
         return { ...email, ...updates };
@@ -86,13 +91,30 @@ const persistSummary = async (email, summary, status, error = '') => {
     return { ...email, ...updates };
 };
 
-const processSummaryJob = async (email) => {
+const markBulkItemFinished = (failed = false) => {
+    if (!bulkProgress.active) {
+        return;
+    }
+
+    bulkProgress.processed += 1;
+    if (failed) {
+        bulkProgress.failed += 1;
+    }
+
+    if (bulkProgress.processed >= bulkProgress.total) {
+        bulkProgress.active = false;
+        bulkProgress.finished_at = new Date().toISOString();
+    }
+};
+
+const processReadAloudPipeline = async (email) => {
     const emailId = getEmailId(email);
     if (!emailId) {
         return;
     }
 
     PROCESSING_IDS.add(emailId);
+    let failed = false;
 
     try {
         const settings = await getSettings();
@@ -100,25 +122,44 @@ const processSummaryJob = async (email) => {
             return;
         }
 
-        await persistSummary(email, email.read_summary || '', 'processing');
-
-        const summary = await summarizeEmailWithSettings({
-            settings,
-            prompt: buildSummaryPrompt(email)
+        let current = await persistEmailReadAloudFields(email, {
+            read_summary_status: 'processing',
+            read_aloud_status: 'processing'
         });
 
-        const saved = await persistSummary(email, summary, 'ready');
-        const prefetchAudio = String(process.env.MAILSHOT_PREFETCH_READ_AUDIO ?? 'true') !== 'false';
-        if (prefetchAudio) {
-            const { prefetchReadAloudAudio } = await import('./read-aloud-service.js');
-            prefetchReadAloudAudio(saved, settings, summary);
+        let summary = getStoredEmailSummary(current);
+        if (!summary) {
+            summary = await summarizeEmailWithSettings({
+                settings,
+                prompt: buildSummaryPrompt(current)
+            });
+            current = await persistEmailReadAloudFields(current, {
+                read_summary: summary,
+                read_summary_status: 'ready',
+                read_summary_at: new Date()
+            });
         }
+
+        const { prefetchReadAloudAudioAwait } = await import('./read-aloud-service.js');
+        await prefetchReadAloudAudioAwait(current, settings, summary);
+
+        await persistEmailReadAloudFields(current, {
+            read_summary: summary,
+            read_summary_status: 'ready',
+            read_aloud_status: 'ready',
+            read_summary_at: current.read_summary_at || new Date()
+        });
     } catch (error) {
-        await persistSummary(email, '', 'error');
-        console.error(`Email summary failed for ${emailId}:`, error.message || error);
+        failed = true;
+        await persistEmailReadAloudFields(email, {
+            read_summary_status: 'error',
+            read_aloud_status: 'error'
+        });
+        console.error(`Read aloud pipeline failed for ${emailId}:`, error.message || error);
     } finally {
         PROCESSING_IDS.delete(emailId);
         QUEUED_IDS.delete(emailId);
+        markBulkItemFinished(failed);
     }
 };
 
@@ -138,47 +179,103 @@ const schedulePump = () => {
                 continue;
             }
 
-            await processSummaryJob(email);
+            await processReadAloudPipeline(email);
         }
     });
 };
 
 export const enqueueEmailSummary = (email) => {
-    if (!email || !shouldPrefetchEmailSummary(email)) {
-        return;
+    if (!email || !needsReadAloudPipeline(email)) {
+        return false;
     }
 
     const emailId = getEmailId(email);
     if (!emailId || QUEUED_IDS.has(emailId) || PROCESSING_IDS.has(emailId)) {
-        return;
+        return false;
     }
 
     QUEUED_IDS.add(emailId);
     SUMMARY_QUEUE.push(email);
     schedulePump();
+    return true;
 };
 
-const loadBackfillCandidates = async (limit = 40) => {
+const loadReadAloudCandidates = async ({ limit = 0 } = {}) => {
     if (!(await canPrefetchEmailSummary())) {
         return [];
     }
 
     if (isDbConnected()) {
-        return Email.find({
+        let query = Email.find({
             type: 'inbox',
             bin: false,
             spam: false,
-            read_summary_status: { $nin: ['ready', 'processing'] }
+            read_aloud_status: { $nin: ['ready', 'processing'] }
         })
-            .sort({ date: -1 })
-            .limit(limit)
-            .lean();
+            .sort({ date: -1 });
+
+        if (limit > 0) {
+            query = query.limit(limit);
+        }
+
+        return query.lean();
     }
 
-    return getCachedEmails({ type: 'inbox' })
-        .filter((email) => shouldPrefetchEmailSummary(email))
-        .sort((left, right) => new Date(right.date) - new Date(left.date))
-        .slice(0, limit);
+    const candidates = getCachedEmails({ type: 'inbox' })
+        .filter((email) => needsReadAloudPipeline(email))
+        .sort((left, right) => new Date(right.date) - new Date(left.date));
+
+    return limit > 0 ? candidates.slice(0, limit) : candidates;
+};
+
+export const getBulkReadAloudStatus = () => ({
+    active: bulkProgress.active,
+    total: bulkProgress.total,
+    processed: bulkProgress.processed,
+    failed: bulkProgress.failed,
+    queued: SUMMARY_QUEUE.length + PROCESSING_IDS.size,
+    started_at: bulkProgress.started_at,
+    finished_at: bulkProgress.finished_at
+});
+
+export const startBulkReadAloudSummaries = async () => {
+    if (!(await canPrefetchEmailSummary())) {
+        throw new Error('Save a summary provider API key before summarizing mail.');
+    }
+
+    if (bulkProgress.active) {
+        return getBulkReadAloudStatus();
+    }
+
+    const candidates = await loadReadAloudCandidates();
+    let queued = 0;
+
+    bulkProgress = {
+        active: false,
+        total: 0,
+        processed: 0,
+        failed: 0,
+        started_at: new Date().toISOString(),
+        finished_at: null
+    };
+
+    for (const email of candidates) {
+        if (enqueueEmailSummary(email)) {
+            queued += 1;
+        }
+    }
+
+    bulkProgress.total = queued;
+    bulkProgress.active = queued > 0;
+
+    if (queued === 0) {
+        bulkProgress.finished_at = new Date().toISOString();
+    }
+
+    return {
+        ...getBulkReadAloudStatus(),
+        queued
+    };
 };
 
 export const startEmailSummaryWorker = async () => {
@@ -186,11 +283,16 @@ export const startEmailSummaryWorker = async () => {
         return;
     }
 
-    const candidates = await loadBackfillCandidates();
-    candidates.forEach((email) => enqueueEmailSummary(email));
+    const candidates = await loadReadAloudCandidates({ limit: 40 });
+    let queued = 0;
+    candidates.forEach((email) => {
+        if (enqueueEmailSummary(email)) {
+            queued += 1;
+        }
+    });
 
-    if (candidates.length > 0) {
-        console.log(`Queued ${candidates.length} email summaries for background generation`);
+    if (queued > 0) {
+        console.log(`Queued ${queued} email summaries for background generation`);
     }
 };
 
@@ -201,3 +303,5 @@ export const getStoredEmailSummary = (email = {}) => {
 
     return '';
 };
+
+export const isReadAloudReady = (email = {}) => email.read_aloud_status === 'ready';

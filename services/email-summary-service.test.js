@@ -1,23 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { shouldPrefetchEmailSummary } from './email-summary-service.js';
+import { isReadAloudReady, needsReadAloudPipeline } from './email-summary-service.js';
 
-test('only prefetches inbox emails without an existing summary', () => {
-    assert.equal(shouldPrefetchEmailSummary({
+test('only queues inbox emails that still need summary and speech', () => {
+    assert.equal(needsReadAloudPipeline({
         type: 'inbox',
         bin: false,
         spam: false
     }), true);
 
-    assert.equal(shouldPrefetchEmailSummary({
+    assert.equal(needsReadAloudPipeline({
         type: 'inbox',
-        read_summary_status: 'ready'
+        read_aloud_status: 'ready'
     }), false);
 
-    assert.equal(shouldPrefetchEmailSummary({
+    assert.equal(needsReadAloudPipeline({
+        type: 'inbox',
+        read_aloud_status: 'processing'
+    }), false);
+
+    assert.equal(needsReadAloudPipeline({
         type: 'sent',
         bin: false,
         spam: false
     }), false);
+});
+
+test('isReadAloudReady is true only when speech has been cached', () => {
+    assert.equal(isReadAloudReady({ read_aloud_status: 'ready' }), true);
+    assert.equal(isReadAloudReady({ read_summary_status: 'ready' }), false);
 });

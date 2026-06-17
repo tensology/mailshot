@@ -112,6 +112,16 @@ export const API_URLS = {
         endpoint: 'sync',
         method: 'POST'
     },
+    startSummarizeAll: {
+        endpoint: 'emails/summarize-all',
+        method: 'POST',
+        pathBuilder: () => 'emails/summarize-all'
+    },
+    getSummarizeAllStatus: {
+        endpoint: 'emails/summarize-all/status',
+        method: 'GET',
+        pathBuilder: () => 'emails/summarize-all/status'
+    },
     getLabels: {
         endpoint: 'labels',
         method: 'GET',

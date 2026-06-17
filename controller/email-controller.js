@@ -23,6 +23,11 @@ import {
     getReadAloudJob,
     startReadAloudJob
 } from '../services/read-aloud-service.js';
+import {
+    getBulkReadAloudStatus,
+    startBulkReadAloudSummaries
+} from '../services/email-summary-service.js';
+import { isSuperUser } from '../services/settings-store.js';
 import { getCachedLabels } from '../services/label-store.js';
 
 const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived']);
@@ -598,6 +603,27 @@ export const streamReadAloudAudio = async (request, response) => {
     response.setHeader('Content-Type', 'audio/ogg');
     response.setHeader('Cache-Control', 'private, max-age=7200');
     return response.sendFile(audioPath);
+};
+
+export const startSummarizeAllEmails = async (request, response) => {
+    if (!isSuperUser(request.auth?.username)) {
+        return response.status(403).json('Only the super user can summarize all mail');
+    }
+
+    try {
+        const status = await startBulkReadAloudSummaries();
+        return response.status(200).json(status);
+    } catch (error) {
+        return response.status(500).json(error.message || 'Could not start summarize all');
+    }
+};
+
+export const getSummarizeAllStatus = async (request, response) => {
+    if (!isSuperUser(request.auth?.username)) {
+        return response.status(403).json('Only the super user can view summarize all status');
+    }
+
+    return response.status(200).json(getBulkReadAloudStatus());
 };
 
 export const toggleStarredEmail = async (request, response) => {

@@ -93,6 +93,10 @@ const EmailSchema = mongoose.Schema({
     },
     read_summary_at: {
         type: Date
+    },
+    read_aloud_status: {
+        type: String,
+        default: ''
     }
 });
 

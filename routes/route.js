@@ -21,6 +21,8 @@ import {
     startEmailReadAloud,
     getEmailReadAloudJob,
     streamReadAloudAudio,
+    startSummarizeAllEmails,
+    getSummarizeAllStatus,
     isMailTypeRoute
 } from '../controller/email-controller.js';
 
@@ -78,6 +80,8 @@ routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);
 routes.post('/email/:id/read-aloud', startEmailReadAloud);
 routes.get('/read-aloud/audio/:filename', streamReadAloudAudio);
 routes.get('/read-aloud/:jobId', getEmailReadAloudJob);
+routes.post('/emails/summarize-all', startSummarizeAllEmails);
+routes.get('/emails/summarize-all/status', getSummarizeAllStatus);
 routes.get('/email/:id/labels', getEmailLabels);
 routes.post('/email/:id/labels', updateEmailLabels);
 routes.get('/email/:id/thread', getEmailThread);
