@@ -12,11 +12,19 @@ const POLL_MS = 2500;
 
 const ReadSummaryContext = createContext(null);
 
-const buildAudioUrl = (job) => (
-    job?.audio_url
-        ? `${API_URL}${job.audio_url}?auth_token=${encodeURIComponent(getAuthToken())}`
-        : ''
-);
+const buildAudioUrl = (job) => {
+    if (!job?.audio_url) {
+        return '';
+    }
+
+    const base = String(API_URL || '').replace(/\/$/, '');
+    const pathPart = String(job.audio_url).startsWith('/') ? job.audio_url : `/${job.audio_url}`;
+    const token = getAuthToken();
+    const separator = pathPart.includes('?') ? '&' : '?';
+    return `${base}${pathPart}${separator}auth_token=${encodeURIComponent(token)}`;
+};
+
+const isJobPayload = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const requestApi = async (urlObject, payload = {}, type = '') => {
     try {
@@ -43,7 +51,7 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose }) => {
     };
 
     return (
-        <div className="fixed bottom-4 left-4 z-[60] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl">
+        <div className="fixed bottom-4 left-4 z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl">
             <div className="mb-2 flex items-start gap-2">
                 <Volume2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                 <div className="min-w-0 flex-1">
@@ -62,14 +70,17 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose }) => {
             </div>
             <audio
                 id="read-summary-audio"
-                src={audioUrl}
+                src={audioUrl || undefined}
                 controls
-                autoPlay
+                autoPlay={Boolean(audioUrl)}
                 className="w-full"
                 onLoadedMetadata={(event) => {
                     event.currentTarget.playbackRate = rate;
                 }}
             />
+            {!audioUrl && (
+                <p className="mt-2 text-xs text-amber-700">Audio file is not available yet.</p>
+            )}
             <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
                 <span>Speed</span>
                 <select
@@ -86,10 +97,15 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose }) => {
     );
 };
 
-const ReadSummaryPreparing = ({ message = 'Preparing read summary' }) => (
-    <div className="fixed bottom-4 left-4 z-[60] flex w-[min(20rem,calc(100vw-2rem))] items-center gap-2 rounded-2xl border border-blue-100 bg-white p-3 text-sm font-medium text-blue-700 shadow-2xl">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {message}
+const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = '' }) => (
+    <div className="fixed bottom-4 left-4 z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-blue-100 bg-white p-3 shadow-2xl">
+        <div className="flex items-start gap-2 text-sm font-medium text-blue-700">
+            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+            <div className="min-w-0">
+                <p>{message}</p>
+                {summary && <p className="mt-2 line-clamp-4 text-xs font-normal leading-5 text-slate-600">{summary}</p>}
+            </div>
+        </div>
     </div>
 );
 
@@ -100,6 +116,7 @@ export const ReadSummaryProvider = ({ children }) => {
     const [pendingEmailId, setPendingEmailId] = useState('');
     const [pendingJobId, setPendingJobId] = useState('');
     const [preparingMessage, setPreparingMessage] = useState('Preparing read summary');
+    const [preparingSummary, setPreparingSummary] = useState('');
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
     const pendingJobIdRef = useRef('');
     const pollTimerRef = useRef(null);
@@ -140,6 +157,7 @@ export const ReadSummaryProvider = ({ children }) => {
         setPendingEmailId('');
         setPendingJobId('');
         setPreparingMessage('Preparing read summary');
+        setPreparingSummary('');
         pendingJobIdRef.current = '';
         setToast({ open: true, message: message || 'Could not prepare read summary', severity: 'error' });
     }, []);
@@ -149,6 +167,7 @@ export const ReadSummaryProvider = ({ children }) => {
         setPendingEmailId('');
         setPendingJobId('');
         setPreparingMessage('Preparing read summary');
+        setPreparingSummary('');
         pendingJobIdRef.current = '';
     }, []);
 
@@ -168,6 +187,10 @@ export const ReadSummaryProvider = ({ children }) => {
             return;
         }
 
+        if (result.data?.summary) {
+            setPreparingSummary(result.data.summary);
+        }
+
         if (result.data?.status === 'error') {
             handleError(result.data.error || 'Could not generate read summary audio');
             return;
@@ -184,8 +207,12 @@ export const ReadSummaryProvider = ({ children }) => {
         }
 
         clearPollTimer();
+        setPreparingMessage(options.audioReady ? 'Loading audio…' : 'Preparing read summary');
+        setPreparingSummary(options.summaryPreview || '');
+        setPendingEmailId(emailId);
+
         const result = await requestApi(API_URLS.startReadAloud, {}, emailId);
-        if (!result.data) {
+        if (!isJobPayload(result.data)) {
             const message = result.error || 'Could not prepare read summary';
             handleError(message);
             return { error: message };
@@ -202,8 +229,15 @@ export const ReadSummaryProvider = ({ children }) => {
             return { error: message };
         }
 
-        setPreparingMessage(options.audioReady ? 'Loading audio…' : 'Preparing read summary');
-        setPendingEmailId(emailId);
+        if (result.data.summary) {
+            setPreparingSummary(result.data.summary);
+        }
+
+        if (!result.data.job_id) {
+            handleError('Read summary did not return a job id');
+            return { error: 'Read summary did not return a job id' };
+        }
+
         pendingJobIdRef.current = result.data.job_id;
         setPendingJobId(result.data.job_id);
         pollTimerRef.current = window.setTimeout(() => {
@@ -229,7 +263,7 @@ export const ReadSummaryProvider = ({ children }) => {
     return (
         <ReadSummaryContext.Provider value={value}>
             {children}
-            {playerJob?.status === 'ready' && audioUrl && (
+            {playerJob?.status === 'ready' && (
                 <ReadSummaryPlayer
                     job={playerJob}
                     audioUrl={audioUrl}
@@ -237,7 +271,9 @@ export const ReadSummaryProvider = ({ children }) => {
                     onClose={closePlayer}
                 />
             )}
-            {!playerJob && (pendingJobId || pendingEmailId) && <ReadSummaryPreparing message={preparingMessage} />}
+            {!playerJob && (pendingJobId || pendingEmailId) && (
+                <ReadSummaryPreparing message={preparingMessage} summary={preparingSummary} />
+            )}
             <Toast
                 open={toast.open}
                 message={toast.message}

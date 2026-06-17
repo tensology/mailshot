@@ -56,26 +56,52 @@ const rememberEmailCache = (emailId, cacheKey, summary = '') => {
 };
 
 const getCachedJobForEmailId = (emailId) => {
-    const indexPath = getEmailIndexPath(emailId);
-    if (!fs.existsSync(indexPath)) {
+    const normalizedId = String(emailId || '');
+    if (!normalizedId) {
         return null;
     }
 
-    try {
-        const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
-        const cached = getCachedJob(index.cache_key);
-        if (!cached) {
-            return null;
+    ensureStorageDir();
+    const indexPath = getEmailIndexPath(normalizedId);
+    if (fs.existsSync(indexPath)) {
+        try {
+            const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+            const cached = getCachedJob(index.cache_key);
+            if (cached) {
+                if (!cached.summary && index.summary) {
+                    cached.summary = index.summary;
+                }
+                return cached;
+            }
+        } catch {
+            // Fall through to meta scan.
         }
-
-        if (!cached.summary && index.summary) {
-            cached.summary = index.summary;
-        }
-
-        return cached;
-    } catch {
-        return null;
     }
+
+    for (const file of fs.readdirSync(STORAGE_DIR)) {
+        if (!file.endsWith('.json') || file.startsWith('email-')) {
+            continue;
+        }
+
+        const metaPath = path.join(STORAGE_DIR, file);
+        try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            if (String(meta.email_id || '') !== normalizedId) {
+                continue;
+            }
+
+            const cacheKey = file.replace(/\.json$/, '');
+            const cached = getCachedJob(cacheKey);
+            if (cached) {
+                rememberEmailCache(normalizedId, cacheKey, cached.summary || meta.summary || '');
+                return cached;
+            }
+        } catch {
+            continue;
+        }
+    }
+
+    return null;
 };
 
 const getJobSnapshot = (job) => ({
@@ -130,6 +156,8 @@ const getKokoroModel = async () => {
     return kokoroModelPromise;
 };
 
+const JOB_STALE_MS = 10 * 60 * 1000;
+
 const createJob = (cacheKey) => {
     const filename = `${cacheKey}.${AUDIO_EXTENSION}`;
     return {
@@ -139,11 +167,18 @@ const createJob = (cacheKey) => {
         filePath: path.join(STORAGE_DIR, filename),
         metaPath: path.join(STORAGE_DIR, `${cacheKey}.json`),
         summary: '',
-        error: ''
+        error: '',
+        started_at: Date.now()
     };
 };
 
-const generateAudioForSummary = async (job, summary) => {
+const isJobStale = (job) => (
+    Boolean(job?.started_at)
+    && Date.now() - job.started_at > JOB_STALE_MS
+    && job.status !== 'ready'
+);
+
+const generateAudioForSummary = async (job, summary, email = null) => {
     const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
     const tts = await getKokoroModel();
     const audio = await tts.generate(summary, {
@@ -168,6 +203,7 @@ const generateAudioForSummary = async (job, summary) => {
     fs.rmSync(wavPath, { force: true });
     fs.writeFileSync(job.metaPath, JSON.stringify({
         summary,
+        email_id: String(email?._id || ''),
         created_at: new Date().toISOString()
     }));
 };
@@ -191,7 +227,7 @@ const processJob = async (job, email, settings, summaryText = '') => {
         });
 
         job.summary = summary;
-        await generateAudioForSummary(job, summary);
+        await generateAudioForSummary(job, summary, email);
         job.status = 'ready';
         return finalizeReadyJob(job, email, summary);
     } catch (error) {
@@ -268,13 +304,14 @@ export const startReadAloudJob = async (email) => {
         throw new Error('Save a summary provider API key before using read aloud.');
     }
 
+    const emailId = String(email?._id || '');
     const storedSummary = getStoredEmailSummary(email);
     const cacheKey = getCacheKey(email, settings);
-    const cached = getCachedJob(cacheKey) || getCachedJobForEmailId(email._id);
+    const cached = getCachedJob(cacheKey) || getCachedJobForEmailId(emailId);
     if (cached) {
         jobs.set(cached.job_id, cached);
-        if (email?._id) {
-            rememberEmailCache(email._id, cached.job_id, cached.summary || storedSummary);
+        if (emailId) {
+            rememberEmailCache(emailId, cached.job_id, cached.summary || storedSummary);
         }
         return getJobSnapshot(cached);
     }
@@ -284,8 +321,12 @@ export const startReadAloudJob = async (email) => {
         return getJobSnapshot(existing);
     }
 
-    if (existing && (existing.status === 'queued' || existing.status === 'processing')) {
+    if (existing && (existing.status === 'queued' || existing.status === 'processing') && !isJobStale(existing)) {
         return getJobSnapshot(existing);
+    }
+
+    if (existing && isJobStale(existing)) {
+        jobs.delete(cacheKey);
     }
 
     const job = createJob(cacheKey);
@@ -294,12 +335,7 @@ export const startReadAloudJob = async (email) => {
     }
 
     jobs.set(cacheKey, job);
-
-    if (storedSummary) {
-        return processJob(job, email, settings, storedSummary);
-    }
-
-    processJob(job, email, settings, '').catch(() => {});
+    processJob(job, email, settings, storedSummary || '').catch(() => {});
     return getJobSnapshot(job);
 };
 

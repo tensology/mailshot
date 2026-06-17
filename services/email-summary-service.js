@@ -297,8 +297,13 @@ export const startEmailSummaryWorker = async () => {
 };
 
 export const getStoredEmailSummary = (email = {}) => {
-    if (email.read_summary_status === 'ready' && String(email.read_summary || '').trim()) {
-        return String(email.read_summary).trim();
+    const summary = String(email.read_summary || '').trim();
+    if (!summary) {
+        return '';
+    }
+
+    if (email.read_summary_status === 'ready' || email.read_aloud_status === 'ready') {
+        return summary;
     }
 
     return '';
