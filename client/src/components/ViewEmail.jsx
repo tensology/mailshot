@@ -203,6 +203,12 @@ const ViewEmail = () => {
         }
     };
 
+    const getCurrentEmailSelectionIds = () => (
+        Array.isArray(primaryEmail.thread_ids) && primaryEmail.thread_ids.length > 0
+            ? primaryEmail.thread_ids
+            : [primaryEmail._id]
+    );
+
     const moveToLabel = (labelSlug, ids, error) => {
         if (error) {
             setSnackbar({ open: true, message: error, severity: 'error' });
@@ -213,16 +219,16 @@ const ViewEmail = () => {
             current.includes(labelSlug) ? current : [...current, labelSlug]
         ));
 
-        if (type === 'inbox') {
-            removeEmailsFromListCache([primaryEmail._id]);
-            navigate('/emails/inbox');
+        if (type === 'inbox' || type === 'bin') {
+            removeEmailsFromListCache(getCurrentEmailSelectionIds());
+            navigate(backUrl);
         }
     };
 
     const confirmMoveToLabel = (labelSlug) => {
         const message = `Moved to ${getLabelDisplayName(labelSlug, buildLabelNameMap(labels))}`;
 
-        if (type === 'inbox') {
+        if (type === 'inbox' || type === 'bin') {
             setActionNotice(message);
             return;
         }
@@ -309,7 +315,7 @@ const ViewEmail = () => {
                 </IconButton>
                 {labels.length > 0 && primaryEmail && (
                     <MoveToLabelMenu
-                        emailIds={[primaryEmail._id]}
+                        emailIds={getCurrentEmailSelectionIds()}
                         labels={labels}
                         onMoved={moveToLabel}
                         onMoveConfirmed={confirmMoveToLabel}
