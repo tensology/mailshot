@@ -48,9 +48,11 @@ export const buildSummaryPrompt = (email = {}) => {
     const body = truncate(stripHtml(email.body || email.body_html || ''));
 
     return [
-        'Summarize this email for audio playback in 2 to 4 short sentences.',
+        'Create a spoken email brief for audio playback.',
+        'Aim for 6 to 10 concise sentences, roughly 60 to 90 seconds when read aloud.',
         'Start with "This email is about..." or equivalent natural phrasing.',
-        'Mention the sender, the core point, and any action/date/deadline if present.',
+        'Mention the sender, the core point, important details, links or attachments, and any action/date/deadline if present.',
+        'Do not invent details, and end with a natural closing sentence instead of trailing off.',
         '',
         `From: ${from}`,
         `To: ${to}`,

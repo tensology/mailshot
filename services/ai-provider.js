@@ -60,7 +60,7 @@ export const buildProviderHeaders = (provider, apiKey) => {
     return headers;
 };
 
-const STANDARD_COMPLETION_TOKEN_LIMIT = 220;
+const STANDARD_COMPLETION_TOKEN_LIMIT = 700;
 const REASONING_COMPLETION_TOKEN_LIMIT = 1000;
 
 export const FAST_SUMMARY_MODEL_DEFAULTS = {
