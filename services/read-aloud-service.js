@@ -21,6 +21,7 @@ const KOKORO_DEVICE = process.env.KOKORO_DEVICE || 'cpu';
 const KOKORO_DEFAULT_VOICE = process.env.KOKORO_VOICE || 'af_heart';
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg';
 const OGG_BITRATE = process.env.KOKORO_OGG_BITRATE || '48k';
+const SUMMARY_CACHE_VERSION = 2;
 
 const jobs = new Map();
 let kokoroModelPromise = null;
@@ -37,6 +38,7 @@ const getKokoroVoice = (settings = {}) => (
 );
 
 const getCacheKey = (email, settings) => hashValue(JSON.stringify({
+    version: SUMMARY_CACHE_VERSION,
     id: String(email._id || ''),
     subject: email.subject || '',
     body: email.body || email.body_html || '',
