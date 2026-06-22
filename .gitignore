@@ -1,0 +1,16 @@
+# Secrets — never commit, never modify during deploy
+.env
+/.env
+**/.env
+!**/.env.example
+auth.config.json
+/auth.config.json
+
+/node_modules
+/package-lock.json
+/client/node_modules
+/client/package-lock.json
+/client/.env
+/client/.env.development.local
+/storage
+/data

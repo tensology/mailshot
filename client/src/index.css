@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    pointer-events: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  .mailshot-marquee-viewport {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .mailshot-marquee-track {
+    display: inline-flex;
+    width: max-content;
+    white-space: nowrap;
+    animation: mailshot-marquee var(--mailshot-marquee-duration, 14s) linear infinite;
+    will-change: transform;
+  }
+
+  .mailshot-marquee-copy {
+    display: inline-block;
+    padding-right: 4rem;
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mailshot-marquee-track {
+      animation: none;
+    }
+  }
+}
+
+@keyframes mailshot-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(var(--mailshot-marquee-distance, 640px) * -1));
+  }
+}
