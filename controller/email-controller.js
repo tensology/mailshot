@@ -29,7 +29,12 @@ import {
     startBulkReadAloudSummaries
 } from '../services/email-summary-service.js';
 import { isSuperUser } from '../services/settings-store.js';
-import { getCachedLabels } from '../services/label-store.js';
+import { getMailboxIndexAvailability } from '../services/mailbox-read-state.js';
+import {
+    getMailboxRepository,
+    isMailboxStoreReady,
+    __setMailboxStoreForTests as setMailboxStoreForTests
+} from '../services/postgres-mailbox-store.js';
 
 const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived']);
 const COUNT_MAIL_TYPES = ['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived'];
@@ -154,6 +159,12 @@ export const resolveBulkEmailSelection = async (body = {}, defaultType = 'inbox'
     };
     const filter = buildEmailFilter(selection.scope.type, query);
 
+    if (isMailboxStoreReady()) {
+        const repository = getMailboxRepository();
+        const emails = await repository.list(filter);
+        return emails.map((email) => String(email._id));
+    }
+
     if (isDbConnected()) {
         const dbEmails = await Email.find(buildDbFilter(filter)).sort({ date: -1 });
         return filterDbEmailsInMemory(dbEmails, filter).map((email) => String(email._id));
@@ -223,6 +234,17 @@ const recalibrateMailTaxonomy = async () => {
 
 export const saveSendEmails = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const email = await repository.upsert({
+                ...request.body,
+                read: true,
+                labels: request.body.labels || [],
+                attachments: request.body.attachments || []
+            });
+            return response.status(200).json(serializeEmail(email));
+        }
+
         const email = await new Email({
             ...request.body,
             read: true,
@@ -278,6 +300,12 @@ export const saveDraftEmail = async (request, response) => {
         }
 
         const payload = normalizeDraftPayload(request.body);
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const saved = await repository.upsert(payload);
+            return response.status(200).json(serializeEmail(saved));
+        }
+
         const draftId = payload._id;
         const existing = draftId ? await findEmailRecord(draftId) : null;
         const { _id: ignoredDraftId, ...draftUpdates } = payload;
@@ -314,6 +342,27 @@ export const getEmails = async (request, response) => {
         let emails = [];
         const filter = buildEmailFilter(request.params.type, request.query);
 
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            emails = await repository.list(filter);
+
+            const shouldCompact = request.params.type !== 'drafts';
+            const listEmails = shouldCompact ? compactEmailsBySubject(emails) : emails;
+            const page = Math.max(1, Number(request.query.page) || 1);
+            const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
+            const total = listEmails.length;
+            const offset = (page - 1) * limit;
+            const paginated = listEmails.slice(offset, offset + limit);
+
+            return response.status(200).json({
+                emails: paginated.map(serializeEmail),
+                total,
+                page,
+                limit,
+                total_pages: Math.max(1, Math.ceil(total / limit))
+            });
+        }
+
         const dbConnected = isDbConnected();
         let dbQueryFailed = false;
         if (dbConnected) {
@@ -327,8 +376,9 @@ export const getEmails = async (request, response) => {
             }
         }
 
-        if (!dbConnected || dbQueryFailed) {
-            emails = getCachedEmails(filter);
+        const mailboxIndex = getMailboxIndexAvailability({ dbConnected, dbQueryFailed });
+        if (!mailboxIndex.available) {
+            return response.status(503).json(mailboxIndex.message);
         }
 
         const shouldCompact = request.params.type !== 'drafts';
@@ -356,8 +406,31 @@ export const getMailboxCounts = async (_, response) => {
     try {
         await recalibrateMailTaxonomy();
 
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const systemUnread = {};
+
+            await Promise.all(COUNT_MAIL_TYPES.map(async (type) => {
+                systemUnread[type] = await repository.count({ ...buildEmailFilter(type), read: false });
+            }));
+
+            return response.status(200).json({
+                inbox_unread: systemUnread.inbox || 0,
+                system_unread: systemUnread,
+                label_unread: {}
+            });
+        }
+
         const systemUnread = {};
         const labelUnread = {};
+        const mailboxIndex = getMailboxIndexAvailability({
+            dbConnected: isMailboxStoreReady() || isDbConnected(),
+            dbQueryFailed: false
+        });
+
+        if (!mailboxIndex.available) {
+            return response.status(503).json(mailboxIndex.message);
+        }
 
         if (isDbConnected()) {
             await Promise.all(COUNT_MAIL_TYPES.map(async (type) => {
@@ -378,28 +451,7 @@ export const getMailboxCounts = async (_, response) => {
                 label_unread: labelUnread
             });
         }
-
-        COUNT_MAIL_TYPES.forEach((type) => {
-            systemUnread[type] = getCachedEmails({
-                ...buildEmailFilter(type),
-                read: false
-            }).length;
-        });
-
-        getCachedLabels().forEach((label) => {
-            labelUnread[label.slug] = getCachedEmails({
-                label: label.slug,
-                read: false,
-                bin: false,
-                spam: false
-            }).length;
-        });
-
-        return response.status(200).json({
-            inbox_unread: systemUnread.inbox || 0,
-            system_unread: systemUnread,
-            label_unread: labelUnread
-        });
+        return response.status(503).json(mailboxIndex.message);
     } catch (error) {
         return response.status(500).json(error.message);
     }
@@ -414,14 +466,23 @@ export const searchEmails = async (request, response) => {
 
         const page = Math.max(1, Number(request.query.page) || 1);
         const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
+        const mailboxIndex = getMailboxIndexAvailability({
+            dbConnected: isMailboxStoreReady() || isDbConnected(),
+            dbQueryFailed: false
+        });
+
+        if (!mailboxIndex.available) {
+            return response.status(503).json(mailboxIndex.message);
+        }
 
         let emails = [];
-        if (isDbConnected()) {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            emails = await repository.search(query);
+        } else if (isDbConnected()) {
             emails = await Email.find({
                 $text: { $search: query }
             }).sort({ date: -1 });
-        } else {
-            emails = getCachedEmails({ search: query });
         }
 
         const listEmails = compactEmailsBySubject(emails);
@@ -437,18 +498,7 @@ export const searchEmails = async (request, response) => {
             total_pages: Math.max(1, Math.ceil(total / limit))
         });
     } catch (error) {
-        const emails = compactEmailsBySubject(getCachedEmails({ search: String(request.query.q || '').trim() }));
-        const page = Math.max(1, Number(request.query.page) || 1);
-        const limit = Math.min(100, Math.max(1, Number(request.query.limit) || 50));
-        const total = emails.length;
-        const offset = (page - 1) * limit;
-        response.status(200).json({
-            emails: emails.slice(offset, offset + limit).map(serializeEmail),
-            total,
-            page,
-            limit,
-            total_pages: Math.max(1, Math.ceil(total / limit))
-        });
+        response.status(500).json(error.message);
     }
 };
 
@@ -496,8 +546,63 @@ const findDbThread = async (anchorEmail) => {
     return mergeThreadEmails(anchorEmail, idThread, subjectThread);
 };
 
+const findMailboxStoreThread = async (repository, anchorEmail) => {
+    const allEmails = await repository.list({});
+    const relatedIds = new Set(
+        [anchorEmail.messageId, anchorEmail.in_reply_to, ...(anchorEmail.references || [])].filter(Boolean)
+    );
+
+    let expanded = true;
+    while (expanded) {
+        expanded = false;
+        for (const item of allEmails) {
+            if (!item.messageId || relatedIds.has(item.messageId)) {
+                continue;
+            }
+
+            const references = item.references || [];
+            const matchesThread = relatedIds.has(item.in_reply_to)
+                || references.some((ref) => relatedIds.has(ref));
+
+            if (matchesThread) {
+                relatedIds.add(item.messageId);
+                references.forEach((ref) => relatedIds.add(ref));
+                expanded = true;
+            }
+        }
+    }
+
+    const idThread = allEmails
+        .filter((item) => item.messageId && relatedIds.has(item.messageId))
+        .sort((left, right) => new Date(left.date) - new Date(right.date));
+
+    const subjectThread = findEmailsBySubject(allEmails, anchorEmail);
+    return mergeThreadEmails(anchorEmail, idThread, subjectThread);
+};
+
 export const getEmailThread = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const email = await repository.findById(request.params.id);
+            if (!email) {
+                return response.status(404).json('Email not found');
+            }
+
+            let thread = await findMailboxStoreThread(repository, email);
+            if (!thread.length) {
+                thread = [email];
+            }
+
+            const ids = [...new Set(thread.map((item) => String(item._id)).filter(Boolean))];
+            if (ids.length) {
+                await repository.updateMany(ids, { read: true });
+                thread = thread.map((item) => ({ ...item, read: true }));
+            }
+
+            return response.status(200).json(thread.map(serializeEmail));
+        }
+
         const resolved = await findEmailRecord(request.params.id);
         if (!resolved) {
             return response.status(404).json('Email not found');
@@ -525,6 +630,18 @@ export const getEmailThread = async (request, response) => {
 
 export const getEmailById = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const email = await repository.findById(request.params.id);
+            if (!email) {
+                return response.status(404).json('Email not found');
+            }
+
+            await repository.updateMany([request.params.id], { read: true });
+            email.read = true;
+            return response.status(200).json(serializeEmail(email));
+        }
+
         const resolved = await findEmailRecord(request.params.id);
         if (!resolved) {
             return response.status(404).json('Email not found');
@@ -575,6 +692,17 @@ export const downloadAttachment = async (request, response) => {
 
 export const startEmailReadAloud = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const email = await repository.findById(request.params.id);
+            if (!email) {
+                return response.status(404).json('Email not found');
+            }
+
+            const job = await startReadAloudJob(email);
+            return response.status(200).json(job);
+        }
+
         const resolved = await findEmailRecord(request.params.id);
         if (!resolved) {
             return response.status(404).json('Email not found');
@@ -630,6 +758,12 @@ export const getSummarizeAllStatus = async (request, response) => {
 export const toggleStarredEmail = async (request, response) => {
     try {
         const { id, value } = request.body;
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            await repository.updateMany([id], { starred: value });
+            return response.status(201).json('Value is updated');
+        }
+
         const resolved = await findEmailRecord(id);
 
         if (!resolved) {
@@ -651,6 +785,12 @@ export const toggleStarredEmail = async (request, response) => {
 export const toggleReadEmail = async (request, response) => {
     try {
         const { id, value } = request.body;
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            await repository.updateMany([id], { read: value });
+            return response.status(200).json('Read state updated');
+        }
+
         const resolved = await findEmailRecord(id);
 
         if (!resolved) {
@@ -672,6 +812,14 @@ export const toggleReadEmail = async (request, response) => {
 
 export const deleteEmails = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+            const deleted = await repository.deleteMany(ids);
+            deleteReadAloudAssetsForEmails(ids);
+            return response.status(200).json({ message: 'emails deleted successfully', count: deleted });
+        }
+
         const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
@@ -707,6 +855,13 @@ export const deleteEmails = async (request, response) => {
 
 export const moveEmailsToBin = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+            await repository.updateMany(ids, { bin: true, spam: false, starred: false, type: '', archived: false });
+            return response.status(201).json({ message: 'emails moved to bin', count: ids.length });
+        }
+
         const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
@@ -738,6 +893,19 @@ export const moveEmailsToBin = async (request, response) => {
 
 export const restoreEmailsFromBin = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const ids = await resolveBulkEmailSelection(request.body, 'bin');
+            await repository.updateMany(ids, {
+                bin: false,
+                spam: false,
+                archived: false,
+                in_inbox: true,
+                type: 'inbox'
+            });
+            return response.status(200).json({ message: 'emails restored from bin', count: ids.length });
+        }
+
         const ids = await resolveBulkEmailSelection(request.body, 'bin');
         const dbIds = [];
 
@@ -776,6 +944,19 @@ export const restoreEmailsFromBin = async (request, response) => {
 
 export const markEmailsAsSpam = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+            await repository.updateMany(ids, {
+                spam: true,
+                in_inbox: false,
+                archived: false,
+                bin: false,
+                starred: false
+            });
+            return response.status(200).json({ message: 'emails marked as spam', count: ids.length });
+        }
+
         const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
@@ -818,6 +999,19 @@ export const markEmailsAsSpam = async (request, response) => {
 
 export const archiveEmails = async (request, response) => {
     try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+            await repository.updateMany(ids, {
+                archived: true,
+                in_inbox: false,
+                spam: false,
+                bin: false,
+                starred: false
+            });
+            return response.status(200).json({ message: 'emails archived', count: ids.length });
+        }
+
         const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
@@ -901,6 +1095,12 @@ export const sendEmail = async (request, response) => {
             attachments: uploadedAttachments
         };
 
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const email = await repository.upsert(savedMail);
+            return response.status(200).json(serializeEmail(email));
+        }
+
         if (isDbConnected()) {
             const email = new Email(savedMail);
             await email.save();
@@ -931,3 +1131,5 @@ export const syncMailbox = async (_, response) => {
 };
 
 export const isMailTypeRoute = (value = '') => MAIL_TYPES.has(value);
+
+export const __setMailboxStoreForTests = setMailboxStoreForTests;

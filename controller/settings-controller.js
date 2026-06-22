@@ -11,6 +11,7 @@ import {
 const sanitizeForUser = (settings, superUser) => ({
     general: settings.general,
     ai: superUser ? settings.ai : null,
+    tts: superUser ? settings.tts : null,
     permissions: {
         is_superuser: superUser,
         ai_enabled: superUser && Boolean(settings.ai?.enabled),
@@ -139,6 +140,10 @@ const normalizeAiPayload = (body = {}) => {
     };
 };
 
+const normalizeTtsPayload = (body = {}) => ({
+    voice: String(body.voice || 'af_heart').trim() || 'af_heart'
+});
+
 export const getAppSettings = async (request, response) => {
     const settings = await getSettings();
     response.status(200).json(sanitizeForUser(settings, isSuperUser(request.auth?.username)));
@@ -157,6 +162,14 @@ export const updateAiSettings = async (request, response) => {
         return;
     }
     const settings = await updateSettingsSection('ai', normalizeAiPayload(request.body));
+    response.status(200).json(sanitizeForUser(settings, true));
+};
+
+export const updateTtsSettings = async (request, response) => {
+    if (!requireSuperUser(request, response)) {
+        return;
+    }
+    const settings = await updateSettingsSection('tts', normalizeTtsPayload(request.body));
     response.status(200).json(sanitizeForUser(settings, true));
 };
 

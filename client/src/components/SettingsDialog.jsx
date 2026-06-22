@@ -49,6 +49,24 @@ const emptyAi = {
     model: ''
 };
 
+const emptyTts = {
+    voice: 'af_heart'
+};
+
+const KOKORO_VOICES = [
+    { id: 'af_heart', label: 'Heart (American Female)' },
+    { id: 'af_bella', label: 'Bella (American Female)' },
+    { id: 'af_nicole', label: 'Nicole (American Female)' },
+    { id: 'af_sarah', label: 'Sarah (American Female)' },
+    { id: 'af_sky', label: 'Sky (American Female)' },
+    { id: 'am_adam', label: 'Adam (American Male)' },
+    { id: 'am_michael', label: 'Michael (American Male)' },
+    { id: 'bf_emma', label: 'Emma (British Female)' },
+    { id: 'bf_isabella', label: 'Isabella (British Female)' },
+    { id: 'bm_george', label: 'George (British Male)' },
+    { id: 'bm_lewis', label: 'Lewis (British Male)' }
+];
+
 const mergeProviderOptions = (providers = {}) => ({
     ...AI_PROVIDER_OPTIONS,
     ...providers
@@ -235,6 +253,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const [newEmail, setNewEmail] = useState('');
     const [showAddEmail, setShowAddEmail] = useState(false);
     const [ai, setAi] = useState(emptyAi);
+    const [tts, setTts] = useState(emptyTts);
     const [providers, setProviders] = useState(AI_PROVIDER_OPTIONS);
     const [models, setModels] = useState([]);
     const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -243,6 +262,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const getSettingsService = useApi(API_URLS.getSettings);
     const updateGeneralService = useApi(API_URLS.updateGeneralSettings);
     const updateAiService = useApi(API_URLS.updateAiSettings);
+    const updateTtsService = useApi(API_URLS.updateTtsSettings);
     const fetchModelsService = useApi(API_URLS.fetchAiModels);
 
     useEffect(() => {
@@ -260,6 +280,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             const mergedProviders = mergeProviderOptions(result.data?.providers);
             setProviders(mergedProviders);
             setAi(normalizeAiProvider(result.data?.ai, mergedProviders));
+            setTts({ ...emptyTts, ...(result.data?.tts || {}) });
             setModels(result.data?.ai?.model ? [{ id: result.data.ai.model, name: result.data.ai.model }] : []);
             setModelsLoaded(Boolean(result.data?.ai?.model));
             setNewEmail('');
@@ -427,6 +448,17 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         setToast({ open: true, message: 'AI model saved', severity: 'success' });
     };
 
+    const saveTts = async () => {
+        const result = await updateTtsService.call(tts);
+        if (result.error) {
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        setTts({ ...emptyTts, ...(result.data?.tts || tts) });
+        window.dispatchEvent(new Event('mailshot:settings-updated'));
+        setToast({ open: true, message: 'TTS voice saved', severity: 'success' });
+    };
+
     return (
         <Dialog
             open={open}
@@ -452,13 +484,22 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         Auto Responder
                     </button>
                     {isSuperuser && (
-                        <button
-                            type="button"
-                            className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'ai' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
-                            onClick={() => setActiveTab('ai')}
-                        >
-                            AI
-                        </button>
+                        <>
+                            <button
+                                type="button"
+                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'ai' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                                onClick={() => setActiveTab('ai')}
+                            >
+                                AI
+                            </button>
+                            <button
+                                type="button"
+                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'tts' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                                onClick={() => setActiveTab('tts')}
+                            >
+                                TTS
+                            </button>
+                        </>
                     )}
                 </div>
 
@@ -640,6 +681,27 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 </select>
                             </label>
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'tts' && isSuperuser && (
+                    <div className="space-y-4">
+                        <label className="block">
+                            <span className="mb-1.5 block text-sm font-medium text-slate-700">Voice</span>
+                            <select
+                                value={tts.voice}
+                                onChange={(event) => setTts({ ...tts, voice: event.target.value })}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            >
+                                {KOKORO_VOICES.map((voice) => (
+                                    <option key={voice.id} value={voice.id}>{voice.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <Button onClick={saveTts} disabled={updateTtsService.isLoading}>
+                            <Save className="h-4 w-4" />
+                            Save voice
+                        </Button>
                     </div>
                 )}
             </div>

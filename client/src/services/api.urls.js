@@ -26,6 +26,11 @@ export const API_URLS = {
         method: 'PUT',
         pathBuilder: () => 'settings/ai'
     },
+    updateTtsSettings: {
+        endpoint: 'settings/tts',
+        method: 'PUT',
+        pathBuilder: () => 'settings/tts'
+    },
     fetchAiModels: {
         endpoint: 'settings/ai/models',
         method: 'POST',

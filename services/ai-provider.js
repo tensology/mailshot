@@ -181,9 +181,7 @@ export const resolveSummaryModel = (settings = {}) => {
 
     const mainModel = String(ai.model || '').trim();
     if (mainModel && ai.provider === provider) {
-        if (provider === 'nvidia' || isCheapSummaryModel(mainModel)) {
-            return mainModel;
-        }
+        return mainModel;
     }
 
     return FAST_SUMMARY_MODEL_DEFAULTS[provider] || FAST_SUMMARY_MODEL_DEFAULTS.openai;

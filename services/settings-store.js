@@ -44,6 +44,9 @@ const defaultSettings = () => ({
         summary_api_key: '',
         summary_model: ''
     },
+    tts: {
+        voice: process.env.KOKORO_VOICE || 'af_heart'
+    },
     autoresponder_log: []
 });
 
@@ -192,6 +195,11 @@ const mergeSettings = (value = {}) => {
             summary_provider: providerDefaults[rawAi.summary_provider] ? rawAi.summary_provider : 'nvidia',
             summary_api_key: String(rawAi.summary_api_key || ''),
             summary_model: String(rawAi.summary_model || '')
+        },
+        tts: {
+            ...defaultSettings().tts,
+            ...(value.tts || {}),
+            voice: String(value.tts?.voice || defaultSettings().tts.voice || 'af_heart').trim() || 'af_heart'
         },
         autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : []
     };

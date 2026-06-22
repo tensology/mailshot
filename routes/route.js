@@ -58,6 +58,7 @@ import {
     getAppSettings,
     updateGeneralSettings,
     updateAiSettings,
+    updateTtsSettings,
     fetchAiModels
 } from '../controller/settings-controller.js';
 
@@ -107,6 +108,7 @@ routes.post('/sync', syncMailbox);
 routes.get('/settings', getAppSettings);
 routes.put('/settings/general', updateGeneralSettings);
 routes.put('/settings/ai', updateAiSettings);
+routes.put('/settings/tts', updateTtsSettings);
 routes.post('/settings/ai/models', fetchAiModels);
 
 routes.get('/labels', getLabels);
