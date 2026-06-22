@@ -76,20 +76,20 @@ test('resolveSummaryCredentials uses the main provider settings', () => {
     });
 });
 
-test('resolveSummaryModel prefers a fast default over expensive models', () => {
+test('resolveSummaryModel uses the selected provider model when configured', () => {
     assert.equal(resolveSummaryModel({
         ai: {
             provider: 'openai',
             model: 'o4-mini'
         }
-    }), 'gpt-4o-mini');
+    }), 'o4-mini');
 
     assert.equal(resolveSummaryModel({
         ai: {
             provider: 'openai',
             model: 'gpt-4o'
         }
-    }), 'gpt-4o-mini');
+    }), 'gpt-4o');
 
     assert.equal(resolveSummaryModel({
         ai: {

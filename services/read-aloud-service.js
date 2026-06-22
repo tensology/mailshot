@@ -18,7 +18,7 @@ const AUDIO_EXTENSION = 'ogg';
 const MODEL_ID = process.env.KOKORO_MODEL_ID || 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const KOKORO_DTYPE = process.env.KOKORO_DTYPE || 'q8';
 const KOKORO_DEVICE = process.env.KOKORO_DEVICE || 'cpu';
-const KOKORO_VOICE = process.env.KOKORO_VOICE || 'af_heart';
+const KOKORO_DEFAULT_VOICE = process.env.KOKORO_VOICE || 'af_heart';
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg';
 const OGG_BITRATE = process.env.KOKORO_OGG_BITRATE || '48k';
 
@@ -32,13 +32,17 @@ const ensureStorageDir = () => {
 
 const hashValue = (value = '') => crypto.createHash('sha1').update(String(value)).digest('hex').slice(0, 32);
 
+const getKokoroVoice = (settings = {}) => (
+    String(settings.tts?.voice || KOKORO_DEFAULT_VOICE || 'af_heart').trim() || 'af_heart'
+);
+
 const getCacheKey = (email, settings) => hashValue(JSON.stringify({
     id: String(email._id || ''),
     subject: email.subject || '',
     body: email.body || email.body_html || '',
     provider: settings.ai?.provider || '',
     model: settings.ai?.model || '',
-    voice: KOKORO_VOICE
+    voice: getKokoroVoice(settings)
 }));
 
 const getEmailIndexPath = (emailId) => path.join(STORAGE_DIR, `email-${hashValue(String(emailId || ''))}.json`);
@@ -178,11 +182,11 @@ const isJobStale = (job) => (
     && job.status !== 'ready'
 );
 
-const generateAudioForSummary = async (job, summary, email = null) => {
+const generateAudioForSummary = async (job, summary, email = null, settings = {}) => {
     const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
     const tts = await getKokoroModel();
     const audio = await tts.generate(summary, {
-        voice: KOKORO_VOICE,
+        voice: getKokoroVoice(settings),
         speed: 1
     });
 
@@ -227,7 +231,7 @@ const processJob = async (job, email, settings, summaryText = '') => {
         });
 
         job.summary = summary;
-        await generateAudioForSummary(job, summary, email);
+        await generateAudioForSummary(job, summary, email, settings);
         job.status = 'ready';
         return finalizeReadyJob(job, email, summary);
     } catch (error) {

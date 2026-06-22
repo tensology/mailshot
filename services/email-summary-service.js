@@ -7,6 +7,7 @@ import {
     saveMailboxCacheToDisk,
     updateCachedEmail
 } from './mail-sync.js';
+import { getMailboxRepository, isMailboxStoreReady } from './postgres-mailbox-store.js';
 
 const SUMMARY_QUEUE = [];
 const QUEUED_IDS = new Set();
@@ -77,6 +78,12 @@ export const canPrefetchEmailSummary = async () => {
 const getEmailId = (email = {}) => String(email._id || email.messageId || '');
 
 const persistEmailReadAloudFields = async (email, updates = {}) => {
+    if (isMailboxStoreReady() && email._id) {
+        const repository = getMailboxRepository();
+        await repository.updateMany([email._id], updates);
+        return { ...email, ...updates };
+    }
+
     if (isDbConnected() && email._id && !String(email._id).startsWith('cache-') && !String(email._id).startsWith('sent-')) {
         await Email.updateOne({ _id: email._id }, { $set: updates });
         return { ...email, ...updates };
@@ -203,6 +210,18 @@ export const enqueueEmailSummary = (email) => {
 const loadReadAloudCandidates = async ({ limit = 0 } = {}) => {
     if (!(await canPrefetchEmailSummary())) {
         return [];
+    }
+
+    if (isMailboxStoreReady()) {
+        const repository = getMailboxRepository();
+        const candidates = (await repository.list({
+            type: 'inbox',
+            bin: false,
+            spam: false
+        }))
+            .filter((email) => needsReadAloudPipeline(email));
+
+        return limit > 0 ? candidates.slice(0, limit) : candidates;
     }
 
     if (isDbConnected()) {
