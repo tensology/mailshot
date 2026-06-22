@@ -122,11 +122,16 @@ const normalizeAiPayload = (body = {}) => {
     const provider = providerDefaults[body.provider] ? body.provider : 'openai';
     const api_key = String(body.api_key || '').trim();
     const model = String(body.model || '').trim();
+    const api_keys = {
+        ...(body.api_keys || {}),
+        [provider]: api_key
+    };
 
     return {
         enabled: Boolean(body.enabled ?? api_key),
         provider,
         api_key,
+        api_keys,
         model,
         summary_provider: provider,
         summary_api_key: '',
@@ -192,7 +197,13 @@ export const fetchAiModels = async (request, response) => {
 
     const current = await getSettings();
     const provider = providerDefaults[request.body?.provider] ? request.body.provider : current.ai.provider;
-    const apiKey = String(request.body?.api_key || current.ai.api_key || '').trim();
+    const apiKey = String(
+        request.body?.api_key
+        || request.body?.api_keys?.[provider]
+        || current.ai.api_keys?.[provider]
+        || current.ai.api_key
+        || ''
+    ).trim();
 
     if (!apiKey) {
         return response.status(400).json('API key is required before loading models');

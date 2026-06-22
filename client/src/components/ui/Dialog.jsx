@@ -9,7 +9,9 @@ const Dialog = ({
     onClose,
     title,
     children,
-    footer
+    footer,
+    closeOnOverlayClick = true,
+    maxWidthClassName = 'max-w-lg'
 }) => {
     const bodyRef = useRef(null);
 
@@ -53,10 +55,10 @@ const Dialog = ({
                 type="button"
                 aria-label="Close dialog"
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]"
-                onClick={onClose}
+                onClick={closeOnOverlayClick ? onClose : undefined}
             />
             <div
-                className="relative z-10 flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className={`relative z-10 flex w-full ${maxWidthClassName} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
                 style={{ maxHeight: 'calc(100dvh - 2rem)' }}
             >
                 <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">

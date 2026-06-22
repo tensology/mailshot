@@ -3,6 +3,8 @@ import path from 'path';
 import Setting from '../model/setting.js';
 import { isDbConnected } from '../database/db.js';
 import { providerDefaults } from './ai-provider.js';
+import { isMailboxStoreReady, getMailboxPool } from './postgres-mailbox-store.js';
+import { createPostgresSettingsStore } from './postgres-metadata-store.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'app-settings.json');
@@ -36,6 +38,7 @@ const defaultSettings = () => ({
         enabled: false,
         provider: 'nvidia',
         api_key: '',
+        api_keys: {},
         model: '',
         summary_provider: 'nvidia',
         summary_api_key: '',
@@ -45,6 +48,24 @@ const defaultSettings = () => ({
 });
 
 let settingsCache = defaultSettings();
+let postgresSettingsStore = null;
+
+const getCachedSettings = () => settingsCache;
+
+const getPostgresSettingsStore = () => {
+    if (!isMailboxStoreReady()) {
+        return null;
+    }
+
+    if (!postgresSettingsStore) {
+        postgresSettingsStore = createPostgresSettingsStore({
+            pool: getMailboxPool(),
+            getCachedSettings
+        });
+    }
+
+    return postgresSettingsStore;
+};
 
 const normalizeEmail = (value = '') => {
     const raw = String(value || '').trim().toLowerCase();
@@ -152,6 +173,11 @@ const mergeSettings = (value = {}) => {
         ...defaultSettings().ai,
         ...(value.ai || {})
     };
+    const provider = providerDefaults[rawAi.provider] ? rawAi.provider : 'openai';
+    const apiKeys = {
+        ...(rawAi.api_keys || {}),
+        ...(rawAi.api_key ? { [provider]: rawAi.api_key } : {})
+    };
 
     return {
         ...defaultSettings(),
@@ -159,8 +185,9 @@ const mergeSettings = (value = {}) => {
         general,
         ai: {
             enabled: Boolean(rawAi.enabled),
-            provider: rawAi.provider || 'openai',
-            api_key: String(rawAi.api_key || ''),
+            provider,
+            api_key: String(apiKeys[provider] || ''),
+            api_keys: apiKeys,
             model: String(rawAi.model || ''),
             summary_provider: providerDefaults[rawAi.summary_provider] ? rawAi.summary_provider : 'nvidia',
             summary_api_key: String(rawAi.summary_api_key || ''),
@@ -201,6 +228,12 @@ export const saveSettingsToDisk = () => {
 };
 
 export const getSettings = async () => {
+    const postgresStore = getPostgresSettingsStore();
+    if (postgresStore) {
+        settingsCache = mergeSettings(await postgresStore.get());
+        return settingsCache;
+    }
+
     if (isDbConnected()) {
         const doc = await Setting.findOne({ key: SETTINGS_KEY });
         if (doc?.value) {
@@ -214,6 +247,13 @@ export const getSettings = async () => {
 
 export const saveSettings = async (nextSettings = {}) => {
     settingsCache = mergeSettings(nextSettings);
+    const postgresStore = getPostgresSettingsStore();
+    if (postgresStore) {
+        settingsCache = mergeSettings(await postgresStore.save(settingsCache));
+        saveSettingsToDisk();
+        return settingsCache;
+    }
+
     if (isDbConnected()) {
         await Setting.findOneAndUpdate(
             { key: SETTINGS_KEY },
