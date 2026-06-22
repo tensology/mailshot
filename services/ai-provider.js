@@ -145,7 +145,7 @@ export const resolveSummaryCredentials = (settings = {}) => {
 
     return {
         provider,
-        apiKey: String(ai.api_key || '').trim()
+        apiKey: String(ai.api_keys?.[provider] || ai.api_key || '').trim()
     };
 };
 
@@ -370,7 +370,7 @@ export const summarizeWithProvider = async ({ settings, prompt, model: modelOver
     const ai = settings.ai || {};
     const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
     const config = getProviderConfig(provider);
-    const apiKey = String(ai.api_key || '').trim();
+    const apiKey = String(ai.api_keys?.[provider] || ai.api_key || '').trim();
     const model = String(modelOverride || ai.model || '').trim();
 
     if (!apiKey || !model || !ai.enabled) {

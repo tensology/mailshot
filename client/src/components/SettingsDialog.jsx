@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bold, Check, Image, Italic, List, Plus, Save, Trash2, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
-import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
+import Dialog from './ui/Dialog';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Input from './ui/Input';
@@ -45,6 +45,7 @@ const emptyAi = {
     enabled: false,
     provider: 'nvidia',
     api_key: '',
+    api_keys: {},
     model: ''
 };
 
@@ -58,6 +59,11 @@ const normalizeAiProvider = (ai = {}, providers = AI_PROVIDER_OPTIONS) => {
     if (!providers[next.provider]) {
         next.provider = Object.keys(providers)[0] || 'nvidia';
     }
+    next.api_keys = {
+        ...(ai.api_keys || {}),
+        ...(ai.api_key ? { [next.provider]: ai.api_key } : {})
+    };
+    next.api_key = next.api_keys[next.provider] || '';
     return next;
 };
 
@@ -111,7 +117,7 @@ const isValidImageUrl = (value = '') => {
     }
 };
 
-const RichTextEditor = ({ label, value, onChange, allowImages = false }) => {
+const RichTextEditor = ({ label, value, onChange, allowImages = false, placeholder = 'Write your signature here…' }) => {
     const editorRef = useRef(null);
     const [imageUrl, setImageUrl] = useState('');
     const [showImageInput, setShowImageInput] = useState(false);
@@ -216,7 +222,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false }) => {
                 onInput={syncEditor}
                 role="textbox"
                 aria-multiline="true"
-                data-placeholder="Write your signature here…"
+                data-placeholder={placeholder}
             />
         </div>
     );
@@ -264,6 +270,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     }, [open]);
 
     const providerOptions = useMemo(() => Object.entries(providers), [providers]);
+    const currentProviderKey = ai.api_keys?.[ai.provider] || '';
     const currentSignature = general.signatures.find((entry) => entry.email === selectedEmail) || general.signatures[0] || emptySignature();
     const currentAutoresponder = general.autoresponders.find((entry) => entry.email === selectedEmail) || general.autoresponders[0] || emptyAutoresponder();
     const emailOptions = useMemo(() => {
@@ -291,7 +298,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             signature_html: selectedSignature.signature_html || '',
             autoresponder_enabled: Boolean(selectedAutoresponder.enabled),
             autoresponder_html: selectedAutoresponder.html || '',
-            autoresponder_subject: selectedAutoresponder.subject || 'Re: {{subject}}'
+            autoresponder_subject: 'Re: {{subject}}'
         };
     };
 
@@ -384,9 +391,15 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     };
 
     const saveAiKey = async () => {
+        const providerKey = String(currentProviderKey || '').trim();
         const payload = {
             ...ai,
-            enabled: Boolean(ai.api_key?.trim()),
+            api_key: providerKey,
+            api_keys: {
+                ...(ai.api_keys || {}),
+                [ai.provider]: providerKey
+            },
+            enabled: Boolean(providerKey),
             model: ''
         };
         const result = await updateAiService.call(payload);
@@ -394,7 +407,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setToast({ open: true, message: result.error, severity: 'error' });
             return;
         }
-        const nextAi = { ...emptyAi, ...(result.data?.ai || payload) };
+        const nextAi = normalizeAiProvider(result.data?.ai || payload, providers);
         setAi(nextAi);
         setModels([]);
         setModelsLoaded(false);
@@ -403,7 +416,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     };
 
     const saveModel = async (model) => {
-        const payload = { ...ai, model };
+        const payload = { ...ai, api_key: currentProviderKey, model };
         setAi(payload);
         const result = await updateAiService.call(payload, '', { silent: true });
         if (result.error) {
@@ -419,13 +432,10 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             open={open}
             onClose={onClose}
             title="Settings"
-            footer={(
-                <DialogActions>
-                    <DialogButton variant="secondary" onClick={onClose}>Close</DialogButton>
-                </DialogActions>
-            )}
+            closeOnOverlayClick={false}
+            maxWidthClassName="max-w-3xl"
         >
-            <div className="min-h-[24rem] w-[min(42rem,calc(100vw-3rem))] max-w-full sm:min-h-[32rem]">
+            <div className="w-[min(46rem,calc(100vw-3rem))] max-w-full">
                 <div className="sticky top-0 z-10 mb-4 flex gap-2 border-b border-slate-100 bg-white">
                     <button
                         type="button"
@@ -547,15 +557,11 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             />
                             Enable auto responder for this email
                         </label>
-                        <Input
-                            label="Auto responder subject"
-                            value={currentAutoresponder.subject}
-                            onChange={(event) => updateAutoresponder({ subject: event.target.value })}
-                        />
                         <RichTextEditor
                             label="Auto responder message"
                             value={currentAutoresponder.html}
                             onChange={(value) => updateAutoresponder({ html: value })}
+                            placeholder="Write your auto responder message here…"
                         />
                         <Button onClick={() => saveGeneral('Auto responder saved')} disabled={updateGeneralService.isLoading}>
                             <Save className="h-4 w-4" />
@@ -566,20 +572,16 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
                 {activeTab === 'ai' && isSuperuser && (
                     <div className="space-y-4">
-                        <p className="text-xs leading-5 text-slate-600">
-                            Powers read summaries and background speech. NVIDIA is free and fast — get a key at
-                            {' '}
-                            <a href="https://build.nvidia.com/models" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">build.nvidia.com</a>.
-                            Expensive models like gpt-4o automatically use a cheaper model for summaries.
-                        </p>
                         <label className="block">
                             <span className="mb-1.5 block text-sm font-medium text-slate-700">Provider</span>
                             <select
                                 value={ai.provider}
                                 onChange={(event) => {
+                                    const provider = event.target.value;
                                     setAi({
                                         ...ai,
-                                        provider: event.target.value,
+                                        provider,
+                                        api_key: ai.api_keys?.[provider] || '',
                                         model: ''
                                     });
                                     setModels([]);
@@ -592,18 +594,33 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 ))}
                             </select>
                         </label>
+                        {ai.provider === 'nvidia' && (
+                            <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">
+                                NVIDIA is free and fast for read summaries and background speech. Get a key at
+                                {' '}
+                                <a href="https://build.nvidia.com/models" target="_blank" rel="noopener noreferrer" className="font-semibold underline">build.nvidia.com</a>.
+                            </p>
+                        )}
                         <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
                             <Input
                                 label="API key"
                                 placeholder={ai.provider === 'nvidia' ? 'nvapi-...' : 'API key'}
-                                value={ai.api_key}
+                                value={currentProviderKey}
                                 onChange={(event) => {
-                                    setAi({ ...ai, api_key: event.target.value, model: '' });
+                                    setAi({
+                                        ...ai,
+                                        api_key: event.target.value,
+                                        api_keys: {
+                                            ...(ai.api_keys || {}),
+                                            [ai.provider]: event.target.value
+                                        },
+                                        model: ''
+                                    });
                                     setModels([]);
                                     setModelsLoaded(false);
                                 }}
                             />
-                            <Button onClick={saveAiKey} disabled={!ai.api_key?.trim() || updateAiService.isLoading || fetchModelsService.isLoading}>
+                            <Button onClick={saveAiKey} disabled={!currentProviderKey?.trim() || updateAiService.isLoading || fetchModelsService.isLoading}>
                                 <Save className="h-4 w-4" />
                                 Save key
                             </Button>
