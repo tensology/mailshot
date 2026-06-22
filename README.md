@@ -1,111 +1,171 @@
-# Gmail-Clone
+# Mailshot
 
-![Screenshot 2023-12-30 194612](https://github.com/sheelganvir/Gmail-Clone/assets/128175450/84369c5d-97c0-438c-ac6d-83df98268aa5)
+<p align="center">
+  <img src="docs/assets/mailshot-development-ai.png" alt="Mailshot category view with read summary controls" width="1100" />
+</p>
 
+<p align="center">
+  A focused mailbox app for Tensology: fast mail triage, categories, undoable deletion, AI summaries, and Kokoro read-aloud audio.
+</p>
 
-## Overview
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-18%2B-green?style=flat-square&logo=node.js" alt="Node.js 18+" />
+  <img src="https://img.shields.io/badge/React-18-blue?style=flat-square&logo=react" alt="React 18" />
+  <img src="https://img.shields.io/badge/Postgres-supported-blue?style=flat-square&logo=postgresql" alt="Postgres supported" />
+  <img src="https://img.shields.io/badge/Kokoro-TTS-black?style=flat-square" alt="Kokoro TTS" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" /></a>
+</p>
 
-Gmail-Clone is a complete working MERN stack project developed with the assistance of the Material UI framework. This project replicates the core features of Gmail, providing users with a seamless and responsive email experience.
+<p align="center">
+  <a href="#features"><strong>Features</strong></a> ·
+  <a href="#how-it-works"><strong>How It Works</strong></a> ·
+  <a href="#settings"><strong>Settings</strong></a> ·
+  <a href="#installation"><strong>Install</strong></a> ·
+  <a href="#production-deploy"><strong>Deploy</strong></a>
+</p>
 
-## Technologies Used
-
-- **MongoDB:** Efficient and scalable data storage for handling user emails and related information.
-- **Express.js:** Building robust APIs for communication between the frontend and backend.
-- **React.js:** Creating a dynamic and interactive user interface for composing, sending, receiving, and managing emails.
-- **Node.js:** Powering the backend and facilitating server-side logic.
-- **Material UI:** Designing a modern and intuitive user interface for a consistent user experience.
+---
 
 ## Features
 
-- **Real-Time Updates:** Integrated WebSocket technology for instant notifications of new emails and mailbox changes.
-- **User Authentication:** Ensured secure access to individual mailboxes with user authentication and authorization features.
-- **Responsive Design:** Implemented responsive design principles for a seamless user experience across various devices and screen sizes.
+| | Feature | Description |
+|---|---|---|
+| Mail | **Mailbox triage** | Inbox, starred, sent, drafts, bin, spam, all mail, archived mail, and custom category views |
+| Tags | **Categories and labels** | Move messages into categories, browse a label from the sidebar, and keep future mail organized with label rules |
+| Bulk | **Page and full-scope selection** | Select one message, a page of messages, or every matching message across a mailbox/search |
+| Undo | **Safe deletion flow** | Move mail to Bin with an undo snackbar, then permanently delete from Bin when needed |
+| AI | **Read Summary** | Generate a short LLM summary for an email and play it back from the list or message view |
+| Voice | **Kokoro TTS** | Convert summaries into audio with selectable Kokoro voices in Settings |
+| Settings | **Per-address signatures** | Manage signatures and auto responders per sender address without leaving the mailbox |
+| Providers | **Configurable AI provider** | Use NVIDIA, OpenAI, Anthropic, OpenRouter, or Kilo Code with provider-specific API keys and model selection |
 
-## Getting Started
+---
 
-To run this project locally, follow these steps:
+## How It Works
 
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/sheelganvir/gmail-clone.git
-   cd gmail-clone
-2. **Install Dependencies:**
-   ```bash
-   npm install
-3. **Set Up MongoDB:**
-   Create a MongoDB database and configure the connection string in the `.env` file.
-4. **Configure environment:**
-   Copy `.env.example` to `.env` and `client/.env.example` to `client/.env.development.local`.
-   For local debug, set `REACT_APP_API_URL=http://localhost:8000` in `client/.env.development.local`.
-   Mail IMAP/SMTP credentials in `.env` point at your mail server (e.g. `mailshot.tensology.com`).
+```text
+IMAP mailbox  ->  Mailshot sync  ->  Postgres/cache mailbox store
+                                      |
+                                      v
+React mailbox UI  <-  Express API  <-  labels, read state, summaries, settings
+                                      |
+                                      v
+Selected AI provider/model  ->  summary text  ->  Kokoro TTS  ->  audio player
+```
 
-5. **Run the Application (debug mode):**
-   ```bash
-   npm install && cd client && npm install && cd ..
-   npm run debug
-   cd client && npm start
-   ```
-   Backend API: http://localhost:8000  
-   React dev UI: http://localhost:3000
+1. Mailshot syncs mail from the configured mailbox.
+2. The React UI presents a compact, keyboard-friendly mailbox with labels, search, and bulk actions.
+3. Category and deletion changes go through the API so mailbox counts and cached list views stay aligned.
+4. Read Summary uses the provider, API key, and model saved in Settings.
+5. Kokoro turns the summary into cached audio using the selected TTS voice.
 
-6. **Production build:**
-   ```bash
-   cd client && npm run build && cd ..
-   npm start
-   ```
-   Open http://localhost:8000 (or deploy to your server).
+---
 
-## Production deploy
+## Settings
 
-**Never run `git reset --hard` on the server.** It can destroy local secrets.
+| Tab | What it controls |
+|---|---|
+| **Signature** | Per-address signature HTML with image support |
+| **Auto Responder** | Per-address autoresponder enablement and message body |
+| **AI** | Provider, provider-specific API key, and selected model for summaries |
+| **TTS** | Kokoro voice used when summary audio is generated |
 
-`.env` and `auth.config.json` are **gitignored** and **server-local only**. Deploys must not read, write, or restore them. Set credentials once on the server and leave them alone.
+API keys and mailbox credentials are local deployment secrets. Do not commit `.env` or `auth.config.json`.
+
+---
+
+## Technology Stack
+
+| Component | Role |
+|---|---|
+| React + Vite | Mailbox interface |
+| Express | API server and auth-gated routes |
+| Postgres | Primary mailbox and metadata store when configured |
+| Mongo/cache fallback | Legacy/local fallback paths |
+| IMAP/SMTP | Mail ingest and sending |
+| Provider APIs | AI summaries through NVIDIA, OpenAI, Anthropic, OpenRouter, or Kilo Code |
+| Kokoro | Local text-to-speech generation for read summaries |
+
+---
+
+## Installation
+
+```bash
+git clone git@github.com:tensology/mailshot.git
+cd mailshot
+npm install
+cd client && npm install && cd ..
+```
+
+Create local config:
+
+```bash
+cp .env.example .env
+cp auth.config.example.json auth.config.json
+cp client/.env.example client/.env.development.local
+```
+
+For local debug, point the client at the API:
+
+```bash
+REACT_APP_API_URL=http://localhost:8000
+```
+
+Start the backend:
+
+```bash
+npm run debug
+```
+
+Start the frontend:
+
+```bash
+cd client
+npm run dev
+```
+
+---
+
+## Production Build
+
+```bash
+cd client
+npm run build
+cd ..
+npm start
+```
+
+---
+
+## Production Deploy
+
+The deploy script is designed for the Tensology server install.
 
 ```bash
 ssh root@tensology.com 'bash /root/repos/mailshot-app/scripts/deploy-server.sh'
 ```
 
-The deploy script pulls code, rebuilds the client, restarts the service, and **aborts if `.env` or `auth.config.json` changed**.
+The deploy flow:
 
-## How to Contribute 🚀
+1. Pulls `main`.
+2. Leaves `.env` and `auth.config.json` untouched.
+3. Installs server and client dependencies.
+4. Builds the Vite client.
+5. Restarts `mailshot-ui`.
+6. Verifies the service is active.
 
-1. Fork this repository.
-2. Clone the forked repository.
-   ```bash
-   git clone https://github.com/sheelganvir/gmail-clone
-3. Navigate to the project directory.
-   ```bash
-   cd gmail-clone
-4. Create a new folder with your project name inside gmail-clone and add your project files (e.g., index.html, style.css, script.js) inside that folder.
-5. Add a README file in your project folder that consists of descriptions/screenshots about your project.
-6. Create a new branch.
-   ```bash
-   git checkout -b <your_branch_name>
-7. Add and commit your changes.
-   ```bash
-   git add .
-   git commit -m "<your_commit_message>"
-8. Push your local branch to the remote repository.
-   ```bash
-   git push -u origin <your_branch_name>
-9. Create a Pull Request!
-   Congratulations! You've made your contribution to the Gmail-Clone project.
-   
-## Project Maintainer
+Never use `git reset --hard` on the production server. Server-local secrets must stay local.
 
-<table>
-<tr>
-<td align="center"><a href="https://github.com/sheelganvir"><img src="https://avatars.githubusercontent.com/u/128175450?v=4" width=150px height=150px /></a></br> <h4 style="color:red;">Sheel Ganvir</h4>
-<a href="https://www.linkedin.com/in/sheel-ganvir/"><img src="https://media.licdn.com/dms/image/D4D03AQGWHsXNJiJ3cQ/profile-displayphoto-shrink_400_400/0/1672478857882?e=1709164800&v=beta&t=5dufWD4HoEGggDTL3KC2WyWS7UBRXJFLn2ZG3hFzLLY" width="32px" height="32px"></a></td>
-</tr>
-</table>
-Feel free to reach out to the maintainer for any questions or concerns.
+---
+
+## Repository Notes
+
+The GitHub repository is intended for distribution and cloning. The production server remote may still exist separately in local development checkouts.
+
+If you are publishing public releases, keep large local runtime artifacts out of history. In particular, avoid committing `node_modules`, cache packs, mailbox exports, `.env`, `auth.config.json`, or generated storage files.
+
+---
 
 ## License
-This project is licensed under the MIT License.
 
-## Happy Coding! ✨
-
-   
-
-
+MIT. See [LICENSE](LICENSE).
