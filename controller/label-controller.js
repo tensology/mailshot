@@ -13,12 +13,35 @@ import {
 } from '../services/label-store.js';
 import { createLabelRules, extractEmailAddress, getLabelRules } from '../services/label-rule-store.js';
 import { slugify } from '../utils/slug.js';
+import { isMailboxStoreReady, getMailboxPool, getMailboxRepository } from '../services/postgres-mailbox-store.js';
+import { createPostgresLabelStore } from '../services/postgres-metadata-store.js';
 
 const RESERVED_LABEL_SLUGS = new Set(['archived', 'archive', 'spam']);
 const visibleLabels = (labels = []) => labels.filter((label) => !RESERVED_LABEL_SLUGS.has(label.slug));
+let postgresLabelStore = null;
+
+const getPostgresLabelStore = () => {
+    if (!isMailboxStoreReady()) {
+        return null;
+    }
+
+    if (!postgresLabelStore) {
+        postgresLabelStore = createPostgresLabelStore({
+            pool: getMailboxPool(),
+            getCachedLabels
+        });
+    }
+
+    return postgresLabelStore;
+};
 
 export const getLabels = async (_, response) => {
     try {
+        const postgresStore = getPostgresLabelStore();
+        if (postgresStore) {
+            return response.status(200).json(visibleLabels(await postgresStore.list()));
+        }
+
         if (!isDbConnected()) {
             return response.status(200).json(visibleLabels(getCachedLabels()));
         }
@@ -40,6 +63,17 @@ export const createLabel = async (request, response) => {
         const slug = slugify(request.body.slug || name);
         if (RESERVED_LABEL_SLUGS.has(slug)) {
             return response.status(400).json('That name is reserved for a system mailbox');
+        }
+
+        const postgresStore = getPostgresLabelStore();
+        if (postgresStore) {
+            const label = await postgresStore.create({
+                _id: `label-${slug}`,
+                name,
+                color: request.body.color || '#5f6368',
+                slug
+            });
+            return response.status(201).json(label);
         }
 
         if (!isDbConnected()) {
@@ -70,6 +104,15 @@ export const updateLabel = async (request, response) => {
         if (request.body.color) updates.color = request.body.color;
         if (request.body.slug) updates.slug = slugify(request.body.slug);
 
+        const postgresStore = getPostgresLabelStore();
+        if (postgresStore) {
+            const label = await postgresStore.update(request.params.id, updates);
+            if (!label) {
+                return response.status(404).json('Label not found');
+            }
+            return response.status(200).json(label);
+        }
+
         if (!isDbConnected()) {
             const label = updateCachedLabel(request.params.id, updates);
             if (!label) {
@@ -87,6 +130,23 @@ export const updateLabel = async (request, response) => {
 
 export const deleteLabel = async (request, response) => {
     try {
+        const postgresStore = getPostgresLabelStore();
+        if (postgresStore) {
+            const removed = await postgresStore.delete(request.params.id);
+            if (!removed) {
+                return response.status(404).json('Label not found');
+            }
+
+            const repository = getMailboxRepository();
+            const labeled = await repository.list({ label: removed.slug });
+            for (const email of labeled) {
+                await repository.updateMany([email._id], {
+                    labels: (email.labels || []).filter((slug) => slug !== removed.slug)
+                });
+            }
+            return response.status(200).json('Label deleted');
+        }
+
         if (!isDbConnected()) {
             const removed = deleteCachedLabel(request.params.id);
             if (!removed) {
@@ -121,6 +181,16 @@ export const updateEmailLabels = async (request, response) => {
     try {
         const labels = Array.isArray(request.body.labels) ? request.body.labels : [];
         const emailId = request.params.id;
+
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const email = await repository.findById(emailId);
+            if (!email) {
+                return response.status(404).json('Email not found');
+            }
+            await repository.updateMany([emailId], { labels });
+            return response.status(200).json({ ...email, labels });
+        }
 
         const resolved = await findEmailRecord(emailId);
         if (!resolved) {
@@ -163,7 +233,18 @@ export const moveEmailsToLabel = async (request, response) => {
         let label = getLabelBySlug(labelSlug);
 
         if (!label) {
-            if (!isDbConnected()) {
+            const postgresStore = getPostgresLabelStore();
+            if (postgresStore) {
+                label = await postgresStore.findBySlug(labelSlug);
+                if (!label) {
+                    label = await postgresStore.create({
+                        _id: `label-${labelSlug}`,
+                        name: labelInput,
+                        slug: labelSlug,
+                        color: '#5f6368'
+                    });
+                }
+            } else if (!isDbConnected()) {
                 label = ensureCachedLabel(labelInput);
             } else {
                 label = await Label.findOne({ slug: labelSlug });
@@ -185,16 +266,22 @@ export const moveEmailsToLabel = async (request, response) => {
         const movedSenders = new Set();
 
         for (const emailId of ids) {
-            const resolved = await findEmailRecord(emailId);
-            if (!resolved) {
+            const resolved = isMailboxStoreReady()
+                ? (() => {
+                    const repository = getMailboxRepository();
+                    return repository.findById(emailId).then((email) => (email ? { email, source: 'pg' } : null));
+                })()
+                : findEmailRecord(emailId);
+            const current = await resolved;
+            if (!current) {
                 continue;
             }
-            const sender = extractEmailAddress(resolved.email.from);
+            const sender = extractEmailAddress(current.email.from);
             if (sender) {
                 movedSenders.add(sender);
             }
 
-            const currentLabels = Array.isArray(resolved.email.labels) ? resolved.email.labels : [];
+            const currentLabels = Array.isArray(current.email.labels) ? current.email.labels : [];
             const nextLabels = currentLabels.includes(label.slug)
                 ? currentLabels
                 : [...currentLabels, label.slug];
@@ -204,14 +291,26 @@ export const moveEmailsToLabel = async (request, response) => {
                 in_inbox: false
             };
 
-            if (resolved.source === 'cache') {
+            if (current.email.bin) {
+                updates.bin = false;
+                updates.spam = false;
+                updates.archived = false;
+                updates.type = '';
+            }
+
+            if (current.source === 'cache') {
                 if (updateCachedEmail(emailId, updates)) {
                     updatedCount += 1;
                 }
                 continue;
             }
 
-            await Email.findByIdAndUpdate(emailId, { $set: updates });
+            if (isMailboxStoreReady()) {
+                const repository = getMailboxRepository();
+                await repository.updateMany([emailId], updates);
+            } else {
+                await Email.findByIdAndUpdate(emailId, { $set: updates });
+            }
             updatedCount += 1;
         }
 

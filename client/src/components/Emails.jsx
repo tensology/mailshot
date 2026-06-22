@@ -809,7 +809,7 @@ const Emails = () => {
 
         const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
         const previousEmails = emails;
-        const shouldRemoveFromView = activeTab === 'inbox' || labelFilter;
+        const shouldRemoveFromView = activeTab === 'inbox' || activeTab === 'bin' || labelFilter;
 
         if (!shouldRemoveFromView) {
             clearBulkSelection();
@@ -1004,7 +1004,7 @@ const Emails = () => {
                                 <OctagonAlert className="h-4 w-4" />
                             </IconButton>
                         )}
-                        {hasSelection && type !== 'bin' && availableLabels.length > 0 && (
+                        {hasSelection && type !== 'spam' && availableLabels.length > 0 && (
                             <MoveToLabelMenu
                                 emailIds={selectedEmails}
                                 selectionPayload={allMatchingSelected ? { scope: buildBulkScope() } : null}
