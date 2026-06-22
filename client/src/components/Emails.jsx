@@ -30,6 +30,7 @@ import { parseSenderName } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useAuth } from '../context/AuthContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
+import { getDeleteSelectionIds, hasActiveMailSelection } from '../utils/mailActions';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -593,7 +594,7 @@ const Emails = () => {
 
     const showBlockingLoader = emails.length === 0 && (isFetching || isSyncing);
     const pageSelectionIds = emails.flatMap(getEmailSelectionIds);
-    const hasSelection = selectedEmails.length > 0;
+    const hasSelection = hasActiveMailSelection({ selectedEmails, allMatchingSelected });
     const allSelected = allMatchingSelected || (pageSelectionIds.length > 0 && pageSelectionIds.every((id) => selectedEmails.includes(id)));
     const someSelected = !allMatchingSelected && pageSelectionIds.some((id) => selectedEmails.includes(id)) && !allSelected;
     const selectionCount = allMatchingSelected ? totalEmails : selectedEmails.length;
@@ -727,7 +728,7 @@ const Emails = () => {
     };
 
     const archiveSelectedEmails = async () => {
-        if (!selectedEmails.length) {
+        if (!hasSelection) {
             return;
         }
         const result = await archiveEmailsService.call(getBulkPayload());
@@ -744,7 +745,7 @@ const Emails = () => {
     };
 
     const requestDeleteSelectedEmails = () => {
-        if (!selectedEmails.length) {
+        if (!hasSelection) {
             return;
         }
         setDeleteTargetIds(allMatchingSelected ? [] : [...selectedEmails]);
@@ -752,7 +753,7 @@ const Emails = () => {
     };
 
     const markSelectedAsSpam = async () => {
-        if (!selectedEmails.length) {
+        if (!hasSelection) {
             return;
         }
 
@@ -845,9 +846,9 @@ const Emails = () => {
     };
 
     const deleteSelectedEmails = () => {
-        const idsForDelete = deleteTargetIds.length ? deleteTargetIds : selectedEmails;
+        const idsForDelete = getDeleteSelectionIds({ deleteTargetIds, selectedEmails, allMatchingSelected });
 
-        if (!idsForDelete.length) {
+        if (!idsForDelete.length && !allMatchingSelected) {
             return;
         }
 

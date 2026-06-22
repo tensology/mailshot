@@ -29,6 +29,7 @@ import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { formatEmailBody } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
+import { isDeleteKeyboardShortcut } from '../utils/mailActions';
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -111,6 +112,24 @@ const ViewEmail = () => {
             setEmailLabels(primaryEmail.labels);
         }
     }, [primaryEmail]);
+
+    useEffect(() => {
+        if (!primaryEmail || confirmDeleteOpen) {
+            return undefined;
+        }
+
+        const onKeyDown = (event) => {
+            if (!isDeleteKeyboardShortcut(event)) {
+                return;
+            }
+
+            event.preventDefault();
+            setConfirmDeleteOpen(true);
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [confirmDeleteOpen, primaryEmail]);
 
     if (getThreadService.isLoading) {
         return (
