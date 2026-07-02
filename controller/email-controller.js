@@ -16,6 +16,7 @@ import {
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
 import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
+import { createZipArchive } from '../services/zip-archive.js';
 import { deleteCachedLabelBySlug } from '../services/label-store.js';
 import { compactEmailsBySubject, findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
 import {
@@ -665,12 +666,18 @@ export const getEmailById = async (request, response) => {
 
 export const downloadAttachment = async (request, response) => {
     try {
-        const resolved = await findEmailRecord(request.params.id);
-        if (!resolved) {
-            return response.status(404).json('Email not found');
+        let email = null;
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            email = await repository.findById(request.params.id);
+        } else {
+            const resolved = await findEmailRecord(request.params.id);
+            email = resolved?.email || null;
         }
 
-        const { email } = resolved;
+        if (!email) {
+            return response.status(404).json('Email not found');
+        }
 
         const attachment = (email.attachments || []).find((item) => item.attachment_id === request.params.attachmentId);
         if (!attachment) {
@@ -682,9 +689,46 @@ export const downloadAttachment = async (request, response) => {
             return response.status(404).json('Attachment file missing');
         }
 
+        const disposition = request.query?.disposition === 'inline' ? 'inline' : 'attachment';
         response.setHeader('Content-Type', attachment.content_type || 'application/octet-stream');
-        response.setHeader('Content-Disposition', `attachment; filename="${attachment.filename}"`);
+        response.setHeader('Content-Disposition', `${disposition}; filename="${attachment.filename}"`);
         response.send(fileBuffer);
+    } catch (error) {
+        response.status(500).json(error.message);
+    }
+};
+
+export const downloadAllAttachments = async (request, response) => {
+    try {
+        let email = null;
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            email = await repository.findById(request.params.id);
+        } else {
+            const resolved = await findEmailRecord(request.params.id);
+            email = resolved?.email || null;
+        }
+
+        if (!email) {
+            return response.status(404).json('Email not found');
+        }
+
+        const files = (email.attachments || [])
+            .map((attachment) => ({
+                filename: attachment.filename || 'attachment',
+                data: readAttachmentFile(attachment.storage_path)
+            }))
+            .filter((file) => file.data);
+
+        if (!files.length) {
+            return response.status(404).json('No attachments found');
+        }
+
+        const zip = createZipArchive(files);
+        const safeSubject = String(email.subject || 'attachments').replace(/[^\w .()[\]-]/g, '_').slice(0, 80) || 'attachments';
+        response.setHeader('Content-Type', 'application/zip');
+        response.setHeader('Content-Disposition', `attachment; filename="${safeSubject}.zip"`);
+        response.send(zip);
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -1046,6 +1090,58 @@ export const archiveEmails = async (request, response) => {
 
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails archived', count: ids.length });
+    } catch (error) {
+        response.status(500).json(error.message);
+    }
+};
+
+export const restoreArchivedEmails = async (request, response) => {
+    try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const ids = await resolveBulkEmailSelection(request.body, 'archived');
+            await repository.updateMany(ids, {
+                archived: false,
+                in_inbox: true,
+                spam: false,
+                bin: false
+            });
+            return response.status(200).json({ message: 'emails unarchived', count: ids.length });
+        }
+
+        const ids = await resolveBulkEmailSelection(request.body, 'archived');
+        const dbIds = [];
+
+        for (const id of ids) {
+            const resolved = await findEmailRecord(id);
+            if (!resolved) {
+                continue;
+            }
+            if (resolved.source === 'cache') {
+                updateCachedEmail(id, {
+                    archived: false,
+                    in_inbox: true,
+                    spam: false,
+                    bin: false,
+                    labels: removeReservedLabels(resolved.email.labels)
+                });
+            } else {
+                dbIds.push(id);
+            }
+        }
+
+        if (dbIds.length > 0 && isDbConnected()) {
+            await Email.updateMany(
+                { _id: { $in: dbIds }},
+                {
+                    $set: { archived: false, in_inbox: true, spam: false, bin: false },
+                    $pull: { labels: { $in: ['archived', 'archive', 'spam'] } }
+                }
+            );
+        }
+
+        saveMailboxCacheToDisk();
+        response.status(200).json({ message: 'emails unarchived', count: ids.length });
     } catch (error) {
         response.status(500).json(error.message);
     }

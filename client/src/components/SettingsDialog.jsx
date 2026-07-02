@@ -7,8 +7,9 @@ import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Input from './ui/Input';
 import Toast from './ui/Toast';
+import { MAIL_FROM } from '../config/env';
 
-const DEFAULT_EMAIL = 'paul@tensology.com';
+const DEFAULT_EMAIL = String(MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
 
 const emptySignature = (email = DEFAULT_EMAIL) => ({
     email,
@@ -163,7 +164,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
         }
 
         editorRef.current?.focus();
-        const imageHtml = `<img src="${url.replace(/"/g, '&quot;')}" alt="" style="max-width:240px;height:auto;display:block;margin-top:8px;" />`;
+        const imageHtml = `<img src="${url.replace(/"/g, '&quot;')}" alt="" style="height:auto;display:block;margin-top:8px;" />`;
         document.execCommand('insertHTML', false, imageHtml);
         syncEditor();
         setImageUrl('');
@@ -236,7 +237,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
             <div
                 ref={editorRef}
                 contentEditable
-                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:max-h-32 [&_img]:max-w-full [&_img]:rounded-md"
+                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:rounded-md"
                 onInput={syncEditor}
                 role="textbox"
                 aria-multiline="true"

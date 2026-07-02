@@ -12,6 +12,7 @@ import { findSettingsForEmail, getSettings, markAutoresponderSent } from './sett
 import { findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
 import { findLabelRuleForEmail } from './label-rule-store.js';
 import { enqueueEmailSummary } from './email-summary-service.js';
+import { getMailboxRepository, isMailboxStoreReady } from './postgres-mailbox-store.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -414,10 +415,14 @@ export const buildEmailFilter = (type, query = {}) => {
 
 const SYNC_RECENT_UID_WINDOW = Number(process.env.MAILBOX_SYNC_UID_WINDOW || 200);
 
-const buildFetchUidSet = (mailboxStatus = {}) => {
-    const uidNext = Number(mailboxStatus.uidNext || 1);
-    const startUid = Math.max(1, uidNext - SYNC_RECENT_UID_WINDOW);
-    return `${startUid}:*`;
+export const buildFetchSequenceSet = (mailboxStatus = {}) => {
+    const messageCount = Number(mailboxStatus.messages || 0);
+    if (!Number.isFinite(messageCount) || messageCount <= 0) {
+        return null;
+    }
+
+    const start = Math.max(1, messageCount - SYNC_RECENT_UID_WINDOW + 1);
+    return `${start}:*`;
 };
 
 const formatSyncError = (error) => {
@@ -441,6 +446,29 @@ const createImapClient = (config) => new ImapFlow({
     },
     logger: false
 });
+
+export const attachImapErrorHandler = (client, reporter = (message, error) => console.error(message, error?.response || '')) => {
+    if (!client?.on) {
+        return () => {};
+    }
+
+    const onError = (error) => {
+        reporter(`Mailbox sync failed: ${formatSyncError(error)}`, error);
+    };
+
+    client.on('error', onError);
+
+    return () => {
+        if (client.off) {
+            client.off('error', onError);
+            return;
+        }
+
+        if (client.removeListener) {
+            client.removeListener('error', onError);
+        }
+    };
+};
 
 const RETRYABLE_IMAP_CONNECTION_CODES = new Set([
     'ECONNREFUSED',
@@ -489,9 +517,33 @@ export const shouldRetryImapOnLocalhost = (error, host, fallbackHost) => {
     return RETRYABLE_IMAP_CONNECTION_MESSAGES.some((pattern) => pattern.test(message));
 };
 
+export const persistInboundMessage = async ({
+    repository,
+    client,
+    uid,
+    payload,
+    deleteAfterImport = true
+}) => {
+    await repository.upsert(payload);
+
+    if (deleteAfterImport && client?.messageDelete && uid) {
+        await client.messageDelete(uid, { uid: true });
+    }
+};
+
+export const deleteImportedMessages = async (client, uids = []) => {
+    if (!client?.messageDelete || !Array.isArray(uids) || uids.length === 0) {
+        return false;
+    }
+
+    await client.messageDelete(uids, { uid: true });
+    return true;
+};
+
 const connectImapClient = async (config) => {
     const fallbackHost = process.env.MAIL_IMAP_FALLBACK_HOST || '127.0.0.1';
     const client = createImapClient(config);
+    attachImapErrorHandler(client);
 
     try {
         await client.connect();
@@ -506,6 +558,7 @@ const connectImapClient = async (config) => {
         }
 
         const fallbackClient = createImapClient({ ...config, host: fallbackHost });
+        attachImapErrorHandler(fallbackClient);
         await fallbackClient.connect();
         return fallbackClient;
     }
@@ -525,92 +578,98 @@ const syncOnce = async () => {
         client = await connectImapClient(config);
         const mailbox = 'INBOX';
         const lock = await client.getMailboxLock(mailbox);
+        const importedUidsToDelete = [];
+        let emptyMailbox = false;
         try {
             const mailboxStatus = await client.status(mailbox, { uidNext: true, messages: true, unseen: true });
-            const fetchSet = buildFetchUidSet(mailboxStatus);
+            const fetchSet = buildFetchSequenceSet(mailboxStatus);
+            if (!fetchSet) {
+                emptyMailbox = true;
+            } else {
+                for await (const msg of client.fetch(fetchSet, { uid: true, source: true, envelope: true, internalDate: true, flags: true })) {
+                    try {
+                        const parsed = await simpleParser(msg.source);
+                        const fromValue = createAddressString(parsed.from);
+                        const toValue = createAddressString(parsed.to);
+                        const subject = parsed.subject || msg.envelope?.subject || '';
+                        const messageId = parsed.messageId || `${msg.uid}-${mailbox}`;
+                        const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
+                        const attachments = parseMailAttachments(parsed.attachments || []);
 
-            for await (const msg of client.fetch(fetchSet, { uid: true, source: true, envelope: true, internalDate: true, flags: true })) {
-                try {
-                    const parsed = await simpleParser(msg.source);
-                    const fromValue = createAddressString(parsed.from);
-                    const toValue = createAddressString(parsed.to);
-                    const subject = parsed.subject || msg.envelope?.subject || '';
-                    const messageId = parsed.messageId || `${msg.uid}-${mailbox}`;
-                    const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
-                    const attachments = parseMailAttachments(parsed.attachments || []);
+                        const ccValue = createAddressString(parsed.cc);
 
-                    const ccValue = createAddressString(parsed.cc);
-
-                    if (isMessageSuppressed(messageId)) {
-                        skipped++;
-                        continue;
-                    }
-
-                    const payload = {
-                        to: toValue,
-                        cc: ccValue,
-                        from: fromValue,
-                        subject: decodeHtmlEntities(subject),
-                        body: parsed.text || stripHtml(parsed.html || ''),
-                        body_html: typeof parsed.html === 'string' ? parsed.html : '',
-                        date: msg.internalDate || parsed.date || new Date(),
-                        image: '',
-                        name: parseNameFromAddress(fromValue),
-                        read: Boolean(msg.flags?.has('\\Seen')),
-                        type: emailType,
-                        messageId,
-                        in_reply_to: parsed.inReplyTo || '',
-                        references: Array.isArray(parsed.references) ? parsed.references : [],
-                        attachments
-                    };
-
-                    if (isDbConnected()) {
-                        const existing = await Email.findOne({ messageId: payload.messageId });
-                        if (existing) {
-                            if (existing.bin) {
-                                skipped++;
-                                continue;
-                            }
-                            await Email.updateOne(
-                                { _id: existing._id },
-                                {
-                                    $set: {
-                                        body: payload.body,
-                                        body_html: payload.body_html,
-                                        subject: payload.subject,
-                                        read: Boolean(existing.read || payload.read)
-                                    }
-                                }
-                            );
+                        if (isMessageSuppressed(messageId)) {
                             skipped++;
                             continue;
                         }
 
-                        const labelState = await applyLabelRule(payload);
-                        const emailDoc = await Email.create({
-                            ...payload,
-                            starred: false,
-                            bin: false,
-                            archived: false,
-                            spam: false,
-                            in_inbox: labelState.in_inbox,
-                            labels: labelState.labels
-                        });
-                        if (!emailDoc) {
-                            skipped++;
-                        } else {
+                        const payload = {
+                            to: toValue,
+                            cc: ccValue,
+                            from: fromValue,
+                            subject: decodeHtmlEntities(subject),
+                            body: parsed.text || stripHtml(parsed.html || ''),
+                            body_html: typeof parsed.html === 'string' ? parsed.html : '',
+                            date: msg.internalDate || parsed.date || new Date(),
+                            image: '',
+                            name: parseNameFromAddress(fromValue),
+                            read: Boolean(msg.flags?.has('\\Seen')),
+                            type: emailType,
+                            messageId,
+                            in_reply_to: parsed.inReplyTo || '',
+                            references: Array.isArray(parsed.references) ? parsed.references : [],
+                            attachments
+                        };
+
+                        if (isMailboxStoreReady()) {
+                            const repository = getMailboxRepository();
+                            const labelState = await applyLabelRule(payload);
+                            const importedEmail = {
+                                ...payload,
+                                starred: false,
+                                bin: false,
+                                archived: false,
+                                spam: false,
+                                in_inbox: labelState.in_inbox,
+                                labels: labelState.labels
+                            };
+                            await persistInboundMessage({
+                                repository,
+                                client,
+                                uid: msg.uid,
+                                payload: importedEmail,
+                                deleteAfterImport: false
+                            });
+                            if (String(process.env.MAILBOX_DELETE_AFTER_IMPORT || 'true') === 'true' && msg.uid) {
+                                importedUidsToDelete.push(msg.uid);
+                            }
                             synced++;
                             await sendAutoResponderIfNeeded(payload);
-                            enqueueEmailSummary(emailDoc.toObject ? emailDoc.toObject() : emailDoc);
-                        }
-                    } else {
-                        const existing = mailboxCache.find((item) => item.messageId === messageId);
-                        if (existing) {
-                            persistCachedEmail(payload);
-                            skipped++;
-                        } else {
+                            enqueueEmailSummary(importedEmail);
+                        } else if (isDbConnected()) {
+                            const existing = await Email.findOne({ messageId: payload.messageId });
+                            if (existing) {
+                                if (existing.bin) {
+                                    skipped++;
+                                    continue;
+                                }
+                                await Email.updateOne(
+                                    { _id: existing._id },
+                                    {
+                                        $set: {
+                                            body: payload.body,
+                                            body_html: payload.body_html,
+                                            subject: payload.subject,
+                                            read: Boolean(existing.read || payload.read)
+                                        }
+                                    }
+                                );
+                                skipped++;
+                                continue;
+                            }
+
                             const labelState = await applyLabelRule(payload);
-                            const cachedEmail = persistCachedEmail({
+                            const emailDoc = await Email.create({
                                 ...payload,
                                 starred: false,
                                 bin: false,
@@ -619,16 +678,43 @@ const syncOnce = async () => {
                                 in_inbox: labelState.in_inbox,
                                 labels: labelState.labels
                             });
-                            synced++;
-                            await sendAutoResponderIfNeeded(payload);
-                            enqueueEmailSummary(cachedEmail);
+                            if (!emailDoc) {
+                                skipped++;
+                            } else {
+                                synced++;
+                                await sendAutoResponderIfNeeded(payload);
+                                enqueueEmailSummary(emailDoc.toObject ? emailDoc.toObject() : emailDoc);
+                            }
+                        } else {
+                            const existing = mailboxCache.find((item) => item.messageId === messageId);
+                            if (existing) {
+                                persistCachedEmail(payload);
+                                skipped++;
+                            } else {
+                                const labelState = await applyLabelRule(payload);
+                                const cachedEmail = persistCachedEmail({
+                                    ...payload,
+                                    starred: false,
+                                    bin: false,
+                                    archived: false,
+                                    spam: false,
+                                    in_inbox: labelState.in_inbox,
+                                    labels: labelState.labels
+                                });
+                                synced++;
+                                await sendAutoResponderIfNeeded(payload);
+                                enqueueEmailSummary(cachedEmail);
+                            }
                         }
+                    } catch (error) {
+                        skipped++;
+                        const errorMessage = error?.message || 'Error parsing/saving IMAP message';
+                        console.error('Error parsing/saving IMAP message:', errorMessage);
                     }
-                } catch (error) {
-                    skipped++;
-                    const errorMessage = error?.message || 'Error parsing/saving IMAP message';
-                    console.error('Error parsing/saving IMAP message:', errorMessage);
                 }
+            }
+            if (!emptyMailbox) {
+                await deleteImportedMessages(client, importedUidsToDelete);
             }
         } finally {
             lock.release();

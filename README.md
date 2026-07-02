@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  A focused mailbox app for Tensology: fast mail triage, categories, undoable deletion, AI summaries, and Kokoro read-aloud audio.
+  A self-hosted Gmail-style mailbox starter for people who want mail on their own server instead of relying on Google Workspace for the Gmail interface.
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="#how-it-works"><strong>How It Works</strong></a> ·
   <a href="#settings"><strong>Settings</strong></a> ·
   <a href="#installation"><strong>Install</strong></a> ·
-  <a href="#production-deploy"><strong>Deploy</strong></a>
+  <a href="#running-locally"><strong>Run Locally</strong></a>
 </p>
 
 ---
@@ -38,6 +38,8 @@
 | Voice | **Kokoro TTS** | Convert summaries into audio with selectable Kokoro voices in Settings |
 | Settings | **Per-address signatures** | Manage signatures and auto responders per sender address without leaving the mailbox |
 | Providers | **Configurable AI provider** | Use NVIDIA, OpenAI, Anthropic, OpenRouter, or Kilo Code with provider-specific API keys and model selection |
+
+Mailshot is not a hosted email provider. It is an application layer for an IMAP/SMTP mailbox you control.
 
 ---
 
@@ -70,7 +72,7 @@ Selected AI provider/model  ->  summary text  ->  Kokoro TTS  ->  audio player
 | **AI** | Provider, provider-specific API key, and selected model for summaries |
 | **TTS** | Kokoro voice used when summary audio is generated |
 
-API keys and mailbox credentials are local deployment secrets. Do not commit `.env` or `auth.config.json`.
+API keys and mailbox credentials belong in local config files only. Do not commit `.env` or `auth.config.json`.
 
 ---
 
@@ -111,6 +113,20 @@ For local debug, point the client at the API:
 REACT_APP_API_URL=http://localhost:8000
 ```
 
+Fill in your own mailbox details in `.env`:
+
+| Setting | Meaning |
+|---|---|
+| `MAIL_IMAP_HOST` | Incoming mail server |
+| `MAILBOX_USER` | Mailbox username or email address |
+| `MAILBOX_PASSWORD` | Mailbox password or app password |
+| `MAIL_SMTP_HOST` | Outgoing mail server |
+| `MAIL_FROM` | Default sender address |
+
+---
+
+## Running Locally
+
 Start the backend:
 
 ```bash
@@ -137,32 +153,11 @@ npm start
 
 ---
 
-## Production Deploy
-
-The deploy script is designed for the Tensology server install.
-
-```bash
-ssh root@tensology.com 'bash /root/repos/mailshot-app/scripts/deploy-server.sh'
-```
-
-The deploy flow:
-
-1. Pulls `main`.
-2. Leaves `.env` and `auth.config.json` untouched.
-3. Installs server and client dependencies.
-4. Builds the Vite client.
-5. Restarts `mailshot-ui`.
-6. Verifies the service is active.
-
-Never use `git reset --hard` on the production server. Server-local secrets must stay local.
-
----
-
 ## Repository Notes
 
-The GitHub repository is intended for distribution and cloning. The production server remote may still exist separately in local development checkouts.
+This repository is intended as a starting point for a self-hosted mailbox UI.
 
-If you are publishing public releases, keep large local runtime artifacts out of history. In particular, avoid committing `node_modules`, cache packs, mailbox exports, `.env`, `auth.config.json`, or generated storage files.
+Keep local runtime artifacts out of history. In particular, avoid committing `node_modules`, cache packs, mailbox exports, `.env`, `auth.config.json`, or generated storage files.
 
 ---
 

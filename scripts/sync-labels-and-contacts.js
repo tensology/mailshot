@@ -41,9 +41,7 @@ const getMailboxIdentityAddresses = () => {
     const candidates = [
         process.env.MAILBOX_USER,
         process.env.MAIL_USERNAME,
-        process.env.MAIL_FROM,
-        'paul@tensology.com',
-        'paul@mailshot.tensology.com'
+        process.env.MAIL_FROM
     ];
 
     return [...new Set(candidates.filter(Boolean).map((value) => normalizeAddress(value)))];

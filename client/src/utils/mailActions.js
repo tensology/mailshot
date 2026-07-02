@@ -16,6 +16,15 @@ export const getDeleteSelectionIds = ({
     return allMatchingSelected ? [] : selectedEmails;
 };
 
+export const getArchiveToggleAction = (activeTab = '') => {
+    const archived = activeTab === 'archived';
+    return {
+        archived,
+        label: archived ? 'Unarchive' : 'Archive',
+        pastTense: archived ? 'unarchived' : 'archived'
+    };
+};
+
 export const isDeleteKeyboardShortcut = (event) => {
     if (!event || (event.key !== 'Delete' && event.key !== 'Backspace')) {
         return false;

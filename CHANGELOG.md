@@ -6,8 +6,8 @@
 
 ### Public repository baseline
 
-Mailshot now has a clean public-facing project overview, screenshot asset, and a first changelog entry for the GitHub repository.
+Mailshot now has a public-facing project overview, screenshot asset, and a first changelog entry for the GitHub repository.
 
 This baseline documents the current mailbox experience: category views, bulk selection, undoable deletion, per-address signatures and auto responders, provider-backed AI summaries, and Kokoro read-aloud playback with selectable TTS voices.
 
-The production app has also moved through the Postgres mailbox work, provider-specific AI keys, summary generation fixes, and settings modal polish that make the current README accurate for people cloning the project.
+The repository is positioned as a self-hosted Gmail-style starter for people who want to run a mailbox UI against their own IMAP/SMTP account.

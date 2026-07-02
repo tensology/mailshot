@@ -14,3 +14,4 @@ auth.config.json
 /client/.env.development.local
 /storage
 /data
+/REFERENCE

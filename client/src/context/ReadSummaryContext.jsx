@@ -1,16 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Volume2, X } from 'lucide-react';
+import { GripHorizontal, Loader2, Volume2, X } from 'lucide-react';
 import API from '../services/api';
 import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
 import { getAuthToken, useAuth } from './AuthContext';
 import IconButton from '../components/ui/IconButton';
 import Toast from '../components/ui/Toast';
+import {
+    clampReadSummaryPosition,
+    getDefaultReadSummaryPosition
+} from '../utils/readSummaryPanel';
 
 const playbackRates = [0.75, 1, 1.25, 1.5, 2];
 const POLL_MS = 2500;
 
 const ReadSummaryContext = createContext(null);
+const PANEL_STORAGE_KEY = 'mailshot:read-summary-panel-position';
 
 const buildAudioUrl = (job) => {
     if (!job?.audio_url) {
@@ -38,7 +43,56 @@ const requestApi = async (urlObject, payload = {}, type = '') => {
     }
 };
 
-const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose }) => {
+const readStoredPanelPosition = () => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(PANEL_STORAGE_KEY) || 'null');
+        return Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y) ? parsed : null;
+    } catch {
+        return null;
+    }
+};
+
+const storePanelPosition = (position) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(PANEL_STORAGE_KEY, JSON.stringify(position));
+    } catch {
+        // Ignore storage failures; dragging should still work for this session.
+    }
+};
+
+const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 'default' }) => (
+    <div
+        ref={panelRef}
+        className={`fixed z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border bg-white p-3 shadow-2xl ${
+            tone === 'preparing' ? 'border-blue-100' : 'border-slate-200'
+        }`}
+        style={{
+            left: `${position.x}px`,
+            top: `${position.y}px`
+        }}
+    >
+        <button
+            type="button"
+            onPointerDown={onPointerDown}
+            className="mb-2 flex h-5 w-full touch-none cursor-grab items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-50 hover:text-slate-500 active:cursor-grabbing"
+            aria-label="Move read summary panel"
+            title="Move"
+        >
+            <GripHorizontal className="h-4 w-4" />
+        </button>
+        {children}
+    </div>
+);
+
+const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose, panelRef, position, onDragStart }) => {
     const [rate, setRate] = useState(1);
 
     const updateRate = (event) => {
@@ -51,7 +105,7 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose }) => {
     };
 
     return (
-        <div className="fixed bottom-4 left-4 z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl">
+        <ReadSummaryShell panelRef={panelRef} position={position} onPointerDown={onDragStart}>
             <div className="mb-2 flex items-start gap-2">
                 <Volume2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                 <div className="min-w-0 flex-1">
@@ -93,12 +147,12 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose }) => {
                     ))}
                 </select>
             </label>
-        </div>
+        </ReadSummaryShell>
     );
 };
 
-const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = '' }) => (
-    <div className="fixed bottom-4 left-4 z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-blue-100 bg-white p-3 shadow-2xl">
+const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = '', panelRef, position, onDragStart }) => (
+    <ReadSummaryShell panelRef={panelRef} position={position} onPointerDown={onDragStart} tone="preparing">
         <div className="flex items-start gap-2 text-sm font-medium text-blue-700">
             <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
             <div className="min-w-0">
@@ -106,7 +160,7 @@ const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = ''
                 {summary && <p className="mt-2 line-clamp-4 text-xs font-normal leading-5 text-slate-600">{summary}</p>}
             </div>
         </div>
-    </div>
+    </ReadSummaryShell>
 );
 
 export const ReadSummaryProvider = ({ children }) => {
@@ -118,8 +172,94 @@ export const ReadSummaryProvider = ({ children }) => {
     const [preparingMessage, setPreparingMessage] = useState('Preparing read summary');
     const [preparingSummary, setPreparingSummary] = useState('');
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+    const panelRef = useRef(null);
+    const dragRef = useRef(null);
     const pendingJobIdRef = useRef('');
     const pollTimerRef = useRef(null);
+    const [panelPosition, setPanelPosition] = useState(() => (
+        readStoredPanelPosition() || getDefaultReadSummaryPosition({
+            viewportWidth: typeof window === 'undefined' ? 0 : window.innerWidth,
+            viewportHeight: typeof window === 'undefined' ? 0 : window.innerHeight
+        })
+    ));
+
+    const getPanelBounds = useCallback(() => {
+        const rect = panelRef.current?.getBoundingClientRect();
+        return {
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+            panelWidth: rect?.width || 384,
+            panelHeight: rect?.height || 160
+        };
+    }, []);
+
+    const updatePanelPosition = useCallback((nextPosition, persist = false) => {
+        const clamped = clampReadSummaryPosition({
+            ...nextPosition,
+            ...getPanelBounds()
+        });
+        setPanelPosition(clamped);
+        if (persist) {
+            storePanelPosition(clamped);
+        }
+        return clamped;
+    }, [getPanelBounds]);
+
+    const startPanelDrag = useCallback((event) => {
+        if (event.button !== undefined && event.button !== 0) {
+            return;
+        }
+
+        event.preventDefault();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        dragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            origin: panelPosition
+        };
+    }, [panelPosition]);
+
+    useEffect(() => {
+        const onPointerMove = (event) => {
+            const drag = dragRef.current;
+            if (!drag) {
+                return;
+            }
+
+            updatePanelPosition({
+                x: drag.origin.x + event.clientX - drag.startX,
+                y: drag.origin.y + event.clientY - drag.startY
+            });
+        };
+
+        const onPointerUp = (event) => {
+            if (!dragRef.current) {
+                return;
+            }
+            const drag = dragRef.current;
+            dragRef.current = null;
+            updatePanelPosition({
+                x: drag.origin.x + event.clientX - drag.startX,
+                y: drag.origin.y + event.clientY - drag.startY
+            }, true);
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+        return () => {
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener('pointercancel', onPointerUp);
+        };
+    }, [updatePanelPosition]);
+
+    useEffect(() => {
+        const onResize = () => updatePanelPosition(panelPosition, true);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, [panelPosition, updatePanelPosition]);
 
     const clearPollTimer = useCallback(() => {
         if (pollTimerRef.current) {
@@ -269,10 +409,19 @@ export const ReadSummaryProvider = ({ children }) => {
                     audioUrl={audioUrl}
                     isPreparing={Boolean(pendingJobId || pendingEmailId)}
                     onClose={closePlayer}
+                    panelRef={panelRef}
+                    position={panelPosition}
+                    onDragStart={startPanelDrag}
                 />
             )}
             {!playerJob && (pendingJobId || pendingEmailId) && (
-                <ReadSummaryPreparing message={preparingMessage} summary={preparingSummary} />
+                <ReadSummaryPreparing
+                    message={preparingMessage}
+                    summary={preparingSummary}
+                    panelRef={panelRef}
+                    position={panelPosition}
+                    onDragStart={startPanelDrag}
+                />
             )}
             <Toast
                 open={toast.open}

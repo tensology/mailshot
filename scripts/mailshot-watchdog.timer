@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Mailshot watchdog every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=mailshot-watchdog.service
+
+[Install]
+WantedBy=timers.target

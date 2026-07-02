@@ -9,6 +9,7 @@ import {
     getEmailThread,
     searchEmails,
     downloadAttachment,
+    downloadAllAttachments,
     toggleStarredEmail,
     toggleReadEmail,
     deleteEmails,
@@ -16,6 +17,7 @@ import {
     restoreEmailsFromBin,
     markEmailsAsSpam,
     archiveEmails,
+    restoreArchivedEmails,
     sendEmail,
     syncMailbox,
     getMailboxCounts,
@@ -78,6 +80,7 @@ routes.post('/save', saveSendEmails);
 routes.post('/send', upload.array('attachments', 10), sendEmail);
 routes.post('/save-draft', saveDraftEmail);
 routes.get('/emails/search', searchEmails);
+routes.get('/email/:id/attachments.zip', downloadAllAttachments);
 routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);
 routes.post('/email/:id/read-aloud', startEmailReadAloud);
 routes.get('/read-aloud/audio/:filename', streamReadAloudAudio);
@@ -102,6 +105,7 @@ routes.post('/bin', moveEmailsToBin);
 routes.post('/bin/restore', restoreEmailsFromBin);
 routes.post('/spam', markEmailsAsSpam);
 routes.post('/archive', archiveEmails);
+routes.post('/archive/restore', restoreArchivedEmails);
 routes.post('/move-to-label', moveEmailsToLabel);
 routes.post('/sync', syncMailbox);
 

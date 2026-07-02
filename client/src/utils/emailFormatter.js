@@ -84,6 +84,34 @@ export const parseSenderEmail = (fromValue = '') => {
     return value;
 };
 
+export const parseAddressList = (value = '') => (
+    String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((raw) => {
+            const email = parseSenderEmail(raw);
+            const name = parseSenderName(raw);
+            return {
+                raw,
+                email,
+                name,
+                label: name || email || 'Unknown'
+            };
+        })
+);
+
+export const formatAddressListLabel = (value = '', limit = 2) => {
+    const addresses = parseAddressList(value);
+    if (!addresses.length) {
+        return 'Unknown';
+    }
+
+    const visible = addresses.slice(0, limit).map((item) => item.label);
+    const hidden = addresses.length - visible.length;
+    return `${visible.join(', ')}${hidden > 0 ? ` +${hidden}` : ''}`;
+};
+
 export const formatListPreview = ({ subject, body, body_html }, limit = 140) => {
     const normalizedSubject = stripHtml(subject) || '(no subject)';
     const normalizedBody = stripHtml(body_html || body);

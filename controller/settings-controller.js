@@ -32,7 +32,7 @@ const normalizeHtml = (value = '') => String(value || '').trim();
 const normalizeEmail = (value = '') => {
     const raw = String(value || '').trim().toLowerCase();
     const email = (/<([^>]+)>/.exec(raw)?.[1] || raw).trim();
-    return email === 'port@tensology.com' ? SUPERUSER_EMAIL : email;
+    return email;
 };
 
 const normalizeSignatures = (body = {}) => {

@@ -58,11 +58,11 @@ test('resolveSummaryCredentials uses the main provider settings', () => {
     assert.deepEqual(resolveSummaryCredentials({
         ai: {
             provider: 'nvidia',
-            api_key: 'nvapi-test'
+            api_key: 'test-provider-key'
         }
     }), {
         provider: 'nvidia',
-        apiKey: 'nvapi-test'
+        apiKey: 'test-provider-key'
     });
 
     assert.deepEqual(resolveSummaryCredentials({
@@ -104,7 +104,7 @@ test('hasSummaryProviderConfigured checks summary credentials', () => {
         ai: {
             enabled: true,
             provider: 'nvidia',
-            api_key: 'nvapi-test'
+            api_key: 'test-provider-key'
         }
     }), true);
 });

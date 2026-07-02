@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Paperclip, Star, Volume2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Loader2, Paperclip, Star, Volume2 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
-import { formatBodyPreview, formatEmailDateParts, parseSenderName } from '../utils/emailFormatter';
+import {
+    formatAddressListLabel,
+    formatBodyPreview,
+    formatEmailDateParts,
+    parseAddressList,
+} from '../utils/emailFormatter';
 import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
 
@@ -69,6 +74,10 @@ const Email = ({
     onKeyboardDelete,
     onKeyboardNavigate,
     onOpenDraft,
+    onComposeTo,
+    onArchiveToggle,
+    archiveActionLabel = 'Archive',
+    isArchiveView = false,
     deleteDialogOpen
 }) => {
     const toggleStarredEmailService = useApi(API_URLS.toggleStarredMails);
@@ -77,11 +86,15 @@ const Email = ({
     const [searchParams] = useSearchParams();
 
     const isDraft = type === 'drafts' || email.type === 'drafts';
-    const senderName = isDraft
-        ? (email.to ? parseSenderName(email.to) : '(no recipient)')
+    const senderSource = isDraft
+        ? email.to
         : email.type === 'sent'
-            ? parseSenderName(email.to)
-            : parseSenderName(email.from);
+            ? email.to
+            : email.from;
+    const senderContacts = parseAddressList(senderSource);
+    const senderName = formatAddressListLabel(senderSource);
+    const visibleSenderContacts = senderContacts.slice(0, 2);
+    const hiddenSenderCount = Math.max(0, senderContacts.length - visibleSenderContacts.length);
     const subject = email?.subject || '(no subject)';
     const snippet = formatBodyPreview(email, 260);
     const dateParts = formatEmailDateParts(email.date);
@@ -149,6 +162,19 @@ const Email = ({
         onReadSummary?.(email);
     };
 
+    const handleComposeTo = (event, contact) => {
+        event.stopPropagation();
+        onComposeTo?.(contact.raw || contact.email || contact.label);
+    };
+
+    const handleArchiveToggle = (event) => {
+        event.stopPropagation();
+        onArchiveToggle?.(email);
+    };
+
+    const ArchiveIcon = isArchiveView ? ArchiveRestore : Archive;
+    const showArchiveButton = Boolean(onArchiveToggle);
+
     return (
         <div
             role="button"
@@ -184,14 +210,30 @@ const Email = ({
                 <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
             </button>
 
-            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_4.75rem] items-center gap-3 px-3 py-2.5 sm:px-4">
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:px-4">
                 <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5">
                         <span
-                            className={`shrink-0 whitespace-nowrap ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
+                            className={`flex shrink-0 items-center gap-1 overflow-hidden whitespace-nowrap ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
                             style={{ width: `${senderColumnWidthCh || 14}ch` }}
+                            title={senderSource || senderName}
                         >
-                            {senderName}
+                            {visibleSenderContacts.length ? visibleSenderContacts.map((contact, contactIndex) => (
+                                <span key={`${contact.email}-${contactIndex}`} className="inline-flex min-w-0 items-center">
+                                    {contactIndex > 0 && <span className="mr-1 text-slate-400">,</span>}
+                                    <button
+                                        type="button"
+                                        onClick={(event) => handleComposeTo(event, contact)}
+                                        className="min-w-0 truncate rounded text-left hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                        title={`Compose to ${contact.raw || contact.email}`}
+                                    >
+                                        {contact.label}
+                                    </button>
+                                </span>
+                            )) : senderName}
+                            {hiddenSenderCount > 0 && (
+                                <span className="shrink-0 text-xs font-medium text-slate-500">+{hiddenSenderCount}</span>
+                            )}
                         </span>
                         <span className={`shrink-0 whitespace-nowrap ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
                             {isDraft && <span className="font-semibold text-red-600">Draft </span>}
@@ -209,25 +251,6 @@ const Email = ({
                                 <MarqueePreview>{snippet}</MarqueePreview>
                             </>
                         )}
-                        {readSummaryEnabled && (
-                            <button
-                                type="button"
-                                onClick={handleReadSummary}
-                                disabled={readSummaryLoading}
-                                className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition disabled:cursor-wait disabled:opacity-75 ${
-                                    readAloudReady
-                                        ? 'border-green-300 bg-green-50 text-green-700 hover:border-green-400 hover:bg-green-100'
-                                        : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100'
-                                }`}
-                            >
-                                {readSummaryLoading ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Volume2 className="h-3.5 w-3.5" />
-                                )}
-                                <span>Read Summary</span>
-                            </button>
-                        )}
                     </div>
 
                     {(email.labels || []).length > 0 && (
@@ -243,9 +266,41 @@ const Email = ({
                         </div>
                     )}
                 </div>
-                <div className="mt-0.5 shrink-0 text-right text-xs leading-4 text-slate-500">
-                    <div className="whitespace-nowrap">{dateParts.date}</div>
-                    <div className="whitespace-nowrap text-slate-400">{dateParts.time}</div>
+                <div className="mt-0.5 flex shrink-0 items-center justify-end gap-1.5 text-right text-xs leading-4 text-slate-500">
+                    {readSummaryEnabled && (
+                        <button
+                            type="button"
+                            onClick={handleReadSummary}
+                            disabled={readSummaryLoading}
+                            className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition disabled:cursor-wait disabled:opacity-75 ${
+                                readAloudReady
+                                    ? 'border-green-300 bg-green-50 text-green-700 hover:border-green-400 hover:bg-green-100'
+                                    : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100'
+                            }`}
+                        >
+                            {readSummaryLoading ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                                <Volume2 className="h-3.5 w-3.5" />
+                            )}
+                            <span className="hidden xl:inline">Read Summary</span>
+                        </button>
+                    )}
+                    <div>
+                        <div className="whitespace-nowrap">{dateParts.date}</div>
+                        <div className="whitespace-nowrap text-slate-400">{dateParts.time}</div>
+                    </div>
+                    {showArchiveButton && (
+                        <button
+                            type="button"
+                            onClick={handleArchiveToggle}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-blue-600 hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                            aria-label={archiveActionLabel}
+                            title={archiveActionLabel}
+                        >
+                            <ArchiveIcon className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

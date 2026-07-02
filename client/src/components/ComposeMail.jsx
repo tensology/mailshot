@@ -1,15 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
+import { Eye, FileText, Image, Maximize2, Minimize2, Minus, Paperclip, Send, Trash2, X } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { MAIL_FROM, MAILBOX_USER } from '../config/env';
 import { useCompose } from '../context/ComposeContext';
 import { useLayout } from '../context/LayoutContext';
+import {
+    applySignatureHtml,
+    htmlToPlainText,
+    normalizeSignatureOptions
+} from '../utils/signatureComposer';
+import {
+    appendComposeAttachments,
+    describeComposeAttachments,
+    removeComposeAttachmentAt
+} from '../utils/composeAttachments';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
-import Textarea from './ui/Textarea';
 import Toast from './ui/Toast';
 
 const getWindowClass = (composeState, isMobile) => {
@@ -28,63 +38,104 @@ const getWindowClass = (composeState, isMobile) => {
         : 'h-[560px] w-[560px]';
 };
 
-const htmlToPlainText = (html = '') => {
-    const container = document.createElement('div');
-    container.innerHTML = html;
-    return (container.innerText || container.textContent || '').trim();
-};
+const sanitizeComposeHtml = (html = '') => DOMPurify.sanitize(String(html || ''), {
+    ADD_ATTR: ['style', 'target', 'rel'],
+    ALLOWED_TAGS: [
+        'a', 'b', 'br', 'div', 'em', 'i', 'img', 'li', 'ol', 'p', 'span', 'strong', 'u', 'ul'
+    ]
+});
 
-const normalizeSignatureOptions = (general = {}) => {
-    const entries = Array.isArray(general.signatures) ? general.signatures : [];
-    const fallbackEmail = general.selected_email || general.email || MAIL_FROM || 'paul@tensology.com';
-    const source = entries.length
-        ? entries
-        : [{ email: fallbackEmail, signature_html: general.signature_html || '' }];
+const plainTextToHtml = (text = '') => String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim() ? `<div>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : '<div><br></div>')
+    .join('');
 
-    return source
-        .map((entry) => ({
-            email: String(entry.email || '').trim().toLowerCase(),
-            signature: htmlToPlainText(entry.signature_html || '')
-        }))
-        .filter((entry) => entry.email && entry.signature);
-};
+const resolveDraftHtml = (draft = {}) => (
+    draft.body_html || draft.html || (draft.body ? plainTextToHtml(draft.body) : '')
+);
 
-const removeTrailingSignature = (body = '', signature = '') => {
-    if (!signature) {
-        return body;
-    }
+const ComposeBodyEditor = forwardRef(({ value, onChange, placeholder = 'Write your message', className = '' }, ref) => {
+    const editorRef = useRef(null);
 
-    const normalizedBody = String(body || '').replace(/\s+$/g, '');
-    const normalizedSignature = String(signature || '').trim();
-    if (!normalizedSignature || !normalizedBody.endsWith(normalizedSignature)) {
-        return body;
-    }
+    useImperativeHandle(ref, () => ({
+        focus: () => editorRef.current?.focus(),
+        setSelectionRange: () => {
+            const editor = editorRef.current;
+            if (!editor) return;
+            const range = document.createRange();
+            range.selectNodeContents(editor);
+            range.collapse(true);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    }));
 
-    return normalizedBody.slice(0, normalizedBody.length - normalizedSignature.length).replace(/\s+$/g, '');
-};
+    useEffect(() => {
+        if (editorRef.current && editorRef.current.innerHTML !== value) {
+            editorRef.current.innerHTML = value || '';
+        }
+    }, [value]);
 
-const applySignatureToBody = (body = '', nextSignature = '', previousSignature = '') => {
-    const withoutPrevious = removeTrailingSignature(body, previousSignature);
-    if (!nextSignature) {
-        return withoutPrevious;
-    }
-    if (removeTrailingSignature(withoutPrevious, nextSignature) !== withoutPrevious) {
-        return withoutPrevious;
-    }
-    return `${withoutPrevious}${withoutPrevious ? '\n\n' : ''}${nextSignature}`;
-};
+    const syncEditor = () => {
+        onChange(editorRef.current?.innerHTML || '');
+    };
+
+    return (
+        <div className={`relative ${className}`}>
+            <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                role="textbox"
+                aria-multiline="true"
+                aria-label={placeholder}
+                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:rounded-md"
+                onInput={syncEditor}
+                onBlur={syncEditor}
+            />
+            {!String(value || '').trim() && (
+                <span className="pointer-events-none absolute left-3 top-3 text-sm text-slate-400">{placeholder}</span>
+            )}
+        </div>
+    );
+});
+
+ComposeBodyEditor.displayName = 'ComposeBodyEditor';
 
 const hasDraftContent = (draft = {}) => (
-    ['to', 'cc', 'bcc', 'subject', 'body'].some((field) => String(draft[field] || '').trim())
+    ['to', 'cc', 'bcc', 'subject', 'body', 'html', 'body_html'].some((field) => String(draft[field] || '').trim())
 );
+
+const formatFileSize = (size = 0) => {
+    const bytes = Number(size) || 0;
+    if (bytes >= 1024 * 1024) {
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    if (bytes >= 1024) {
+        return `${Math.round(bytes / 1024)} KB`;
+    }
+    return `${bytes} B`;
+};
+
+const getAttachmentKind = (file) => {
+    const type = String(file?.type || '').toLowerCase();
+    const name = String(file?.name || '').toLowerCase();
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    if (type.includes('pdf') || name.endsWith('.pdf')) return 'pdf';
+    return 'file';
+};
 
 const ComposeMail = ({ onSent }) => {
     const { isOpen, composeState, draft, closeCompose, setComposeState } = useCompose();
     const { isMobile } = useLayout();
-    const [data, setData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '' });
+    const [data, setData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '', html: '' });
     const [showCc, setShowCc] = useState(false);
     const [showBcc, setShowBcc] = useState(false);
     const [attachments, setAttachments] = useState([]);
+    const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+    const [previewFile, setPreviewFile] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const sendEmailService = useApi(API_URLS.sendEmail);
     const saveDraftService = useApi(API_URLS.saveDraftEmails);
@@ -111,16 +162,19 @@ const ComposeMail = ({ onSent }) => {
             let signatures = [];
             const settingsResult = await getSettingsService.call({}, '', { silent: true });
             if (!settingsResult.error) {
-                signatures = normalizeSignatureOptions(settingsResult.data?.general || {});
+                signatures = normalizeSignatureOptions(settingsResult.data?.general || {}, MAIL_FROM || 'paul@tensology.com');
             }
 
-            const baseBody = draft.body || '';
-            const selectedSignature = signatures.find((entry) => baseBody.trim().endsWith(entry.signature))
+            const baseHtml = resolveDraftHtml(draft);
+            const selectedSignature = signatures.find((entry) => baseHtml.trim().endsWith(entry.html))
                 || signatures[0]
-                || { email: '', signature: '' };
-            const shouldApplySignature = selectedSignature.signature && !draft.in_reply_to;
+                || { email: '', html: '', text: '' };
+            const shouldApplySignature = selectedSignature.html && !draft.in_reply_to;
+            const nextHtml = shouldApplySignature
+                ? applySignatureHtml(baseHtml, selectedSignature.html)
+                : baseHtml;
             if (!cancelled) {
-                appliedSignatureRef.current = shouldApplySignature ? selectedSignature.signature : '';
+                appliedSignatureRef.current = shouldApplySignature ? selectedSignature.html : '';
                 setSignatureOptions(signatures);
                 setSelectedSignatureEmail(selectedSignature.email || '');
                 setData({
@@ -128,9 +182,8 @@ const ComposeMail = ({ onSent }) => {
                     cc: draft.cc || '',
                     bcc: draft.bcc || '',
                     subject: draft.subject || '',
-                    body: shouldApplySignature
-                        ? applySignatureToBody(baseBody, selectedSignature.signature)
-                        : baseBody
+                    body: htmlToPlainText(nextHtml),
+                    html: sanitizeComposeHtml(nextHtml)
                 });
             }
         };
@@ -177,6 +230,12 @@ const ComposeMail = ({ onSent }) => {
         return () => window.clearTimeout(focusTimer);
     }, [composeState, draft.in_reply_to, isOpen]);
 
+    useEffect(() => () => {
+        if (previewFile?.url) {
+            URL.revokeObjectURL(previewFile.url);
+        }
+    }, [previewFile]);
+
     const onValueChange = (event) => {
         hasUserEditedRef.current = true;
         setData({ ...data, [event.target.name]: event.target.value });
@@ -184,14 +243,76 @@ const ComposeMail = ({ onSent }) => {
 
     const onAttachmentChange = (event) => {
         hasUserEditedRef.current = true;
-        setAttachments(Array.from(event.target.files || []));
+        setAttachments((current) => appendComposeAttachments(current, event.target.files || []));
+        event.target.value = '';
+    };
+
+    const hasDraggedFiles = (event) => Array.from(event.dataTransfer?.types || []).includes('Files');
+
+    const onDragOver = (event) => {
+        if (!hasDraggedFiles(event)) {
+            return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        setIsDraggingFiles(true);
+    };
+
+    const onDragLeave = (event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+            setIsDraggingFiles(false);
+        }
+    };
+
+    const onDropFiles = (event) => {
+        if (!hasDraggedFiles(event)) {
+            return;
+        }
+        event.preventDefault();
+        const files = Array.from(event.dataTransfer?.files || []);
+        if (files.length) {
+            hasUserEditedRef.current = true;
+            setAttachments((current) => appendComposeAttachments(current, files));
+            setSnackbar({
+                open: true,
+                message: `${files.length} file${files.length === 1 ? '' : 's'} attached`,
+                severity: 'success'
+            });
+        }
+        setIsDraggingFiles(false);
+    };
+
+    const removeAttachment = (index) => {
+        hasUserEditedRef.current = true;
+        setAttachments((current) => removeComposeAttachmentAt(current, index));
+    };
+
+    const openAttachmentPreview = (file) => {
+        const kind = getAttachmentKind(file);
+        if (!['image', 'video', 'pdf'].includes(kind)) {
+            return;
+        }
+
+        setPreviewFile({
+            file,
+            kind,
+            url: URL.createObjectURL(file)
+        });
+    };
+
+    const closeAttachmentPreview = () => {
+        if (previewFile?.url) {
+            URL.revokeObjectURL(previewFile.url);
+        }
+        setPreviewFile(null);
     };
 
     const resetForm = () => {
-        setData({ to: '', cc: '', bcc: '', subject: '', body: '' });
+        setData({ to: '', cc: '', bcc: '', subject: '', body: '', html: '' });
         setShowCc(false);
         setShowBcc(false);
         setAttachments([]);
+        setPreviewFile(null);
         draftIdRef.current = '';
         hasUserEditedRef.current = false;
         lastSavedDraftRef.current = '';
@@ -199,14 +320,30 @@ const ComposeMail = ({ onSent }) => {
     };
 
     const changeSignature = (email) => {
-        const nextSignature = signatureOptions.find((entry) => entry.email === email)?.signature || '';
+        const nextSignature = signatureOptions.find((entry) => entry.email === email)?.html || '';
         const previousSignature = appliedSignatureRef.current;
         hasUserEditedRef.current = true;
         appliedSignatureRef.current = nextSignature;
         setSelectedSignatureEmail(email);
         setData((current) => ({
             ...current,
-            body: applySignatureToBody(current.body, nextSignature, previousSignature)
+            ...(() => {
+                const html = sanitizeComposeHtml(applySignatureHtml(current.html, nextSignature, previousSignature));
+                return {
+                    html,
+                    body: htmlToPlainText(html)
+                };
+            })()
+        }));
+    };
+
+    const onBodyHtmlChange = (html) => {
+        const sanitized = sanitizeComposeHtml(html);
+        hasUserEditedRef.current = true;
+        setData((current) => ({
+            ...current,
+            html: sanitized,
+            body: htmlToPlainText(sanitized)
         }));
     };
 
@@ -219,6 +356,7 @@ const ComposeMail = ({ onSent }) => {
             from: MAIL_FROM,
             subject: data.subject,
             body: data.body,
+            body_html: data.html,
             date: new Date(),
             image: '',
             name: MAILBOX_USER,
@@ -238,7 +376,8 @@ const ComposeMail = ({ onSent }) => {
             cc: draftPayload.cc,
             bcc: draftPayload.bcc,
             subject: draftPayload.subject,
-            body: draftPayload.body
+            body: draftPayload.body,
+            body_html: draftPayload.body_html
         });
 
         if (silent && draftSignature === lastSavedDraftRef.current) {
@@ -260,7 +399,8 @@ const ComposeMail = ({ onSent }) => {
             cc: draftPayload.cc,
             bcc: draftPayload.bcc,
             subject: draftPayload.subject,
-            body: draftPayload.body
+            body: draftPayload.body,
+            body_html: draftPayload.body_html
         });
         return result;
     }, [data, draft.in_reply_to, draft.references, saveDraftService]);
@@ -300,6 +440,7 @@ const ComposeMail = ({ onSent }) => {
         }
         payload.append('subject', data.subject);
         payload.append('body', data.body || '');
+        payload.append('html', data.html || '');
         if (draft.in_reply_to) {
             payload.append('inReplyTo', draft.in_reply_to);
         }
@@ -353,10 +494,20 @@ const ComposeMail = ({ onSent }) => {
 
     const composeWindow = (
         <div
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDropFiles}
             className={`fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all ${
                 composeState === 'expanded' && isMobile ? 'left-0 top-0' : 'right-3 bottom-0 sm:right-6'
             } ${windowClass}`}
         >
+            {isDraggingFiles && !isMinimized && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/85">
+                    <div className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-blue-700 shadow-lg">
+                        Drop files to attach
+                    </div>
+                </div>
+            )}
             <div
                 className="flex min-h-11 items-center justify-between bg-slate-800 px-3 text-white"
                 onClick={isMinimized ? () => setComposeState('normal') : undefined}
@@ -450,18 +601,56 @@ const ComposeMail = ({ onSent }) => {
                         ))}
                     </datalist>
 
-                    <Textarea
+                    <ComposeBodyEditor
                         ref={bodyRef}
-                        name="body"
-                        rows={composeState === 'expanded' ? 16 : 10}
-                        value={data.body}
-                        onChange={onValueChange}
+                        value={data.html}
+                        onChange={onBodyHtmlChange}
                         placeholder="Write your message"
-                        className="min-h-0 flex-1 border-0 px-3 py-3 focus:ring-0 [&_textarea]:min-h-[180px] [&_textarea]:resize-none [&_textarea]:border-0 [&_textarea]:shadow-none [&_textarea]:focus:ring-0"
+                        className="min-h-0 flex-1"
                     />
 
                     {attachments.length > 0 && (
-                        <p className="px-3 text-xs text-slate-500">{attachments.length} attachment(s) selected</p>
+                        <div className="border-t border-slate-100 bg-slate-50/70 px-3 py-2">
+                            <p className="mb-2 text-xs font-medium text-slate-600">
+                                {describeComposeAttachments(attachments)}
+                            </p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {attachments.map((file, index) => {
+                                    const kind = getAttachmentKind(file);
+                                    const canPreview = ['image', 'video', 'pdf'].includes(kind);
+                                    const FileIcon = kind === 'image' ? Image : FileText;
+                                    return (
+                                        <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 shadow-sm">
+                                            <FileIcon className="h-4 w-4 shrink-0 text-slate-500" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-xs font-semibold text-slate-800" title={file.name}>{file.name}</p>
+                                                <p className="text-[11px] text-slate-500">{formatFileSize(file.size)}</p>
+                                            </div>
+                                            {canPreview && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openAttachmentPreview(file)}
+                                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-blue-50 hover:text-blue-700"
+                                                    aria-label={`Preview ${file.name}`}
+                                                    title={`Preview ${file.name}`}
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => removeAttachment(index)}
+                                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-600"
+                                                aria-label={`Remove ${file.name}`}
+                                                title={`Remove ${file.name}`}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     )}
 
                     <div className="flex items-center justify-between border-t border-slate-100 px-3 py-3">
@@ -504,6 +693,26 @@ const ComposeMail = ({ onSent }) => {
                 severity={snackbar.severity}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
             />
+            {previewFile && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-4" onClick={closeAttachmentPreview}>
+                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-slate-900">{previewFile.file.name}</p>
+                                <p className="text-xs text-slate-500">{formatFileSize(previewFile.file.size)}</p>
+                            </div>
+                            <IconButton label="Close preview" size="sm" onClick={closeAttachmentPreview}>
+                                <X className="h-4 w-4" />
+                            </IconButton>
+                        </div>
+                        <div className="min-h-0 flex-1 bg-slate-100">
+                            {previewFile.kind === 'image' && <img src={previewFile.url} alt="" className="h-full w-full object-contain" />}
+                            {previewFile.kind === 'video' && <video src={previewFile.url} controls autoPlay className="h-full w-full bg-black" />}
+                            {previewFile.kind === 'pdf' && <object data={previewFile.url} type="application/pdf" className="h-full w-full bg-white" />}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 

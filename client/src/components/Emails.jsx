@@ -26,11 +26,11 @@ import MoveToLabelMenu from './MoveToLabelMenu';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { useCompose } from '../context/ComposeContext';
-import { parseSenderName } from '../utils/emailFormatter';
+import { formatAddressListLabel } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useAuth } from '../context/AuthContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
-import { getDeleteSelectionIds, hasActiveMailSelection } from '../utils/mailActions';
+import { getArchiveToggleAction, getDeleteSelectionIds, hasActiveMailSelection } from '../utils/mailActions';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -50,12 +50,12 @@ const emailMatchesRemoval = (email, idsToRemove) => {
 const getListSenderName = (email, activeTab) => {
     const isDraft = activeTab === 'drafts' || email.type === 'drafts';
     if (isDraft) {
-        return email.to ? parseSenderName(email.to) : '(no recipient)';
+        return email.to ? formatAddressListLabel(email.to) : '(no recipient)';
     }
     if (email.type === 'sent') {
-        return parseSenderName(email.to);
+        return formatAddressListLabel(email.to);
     }
-    return parseSenderName(email.from);
+    return formatAddressListLabel(email.from);
 };
 
 const normalizeEmailListResponse = (data) => {
@@ -153,6 +153,7 @@ const Emails = () => {
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
+    const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
     const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
     const getSummarizeAllStatusService = useApi(API_URLS.getSummarizeAllStatus);
@@ -600,10 +601,10 @@ const Emails = () => {
     const selectionCount = allMatchingSelected ? totalEmails : selectedEmails.length;
     const canSelectAllMatching = allSelected && !allMatchingSelected && totalEmails > emails.length;
     const isRefreshing = isFetching || isSyncing;
-    const senderColumnWidthCh = Math.max(
+    const senderColumnWidthCh = Math.min(30, Math.max(
         14,
         ...emails.map((email) => getListSenderName(email, activeTab).length)
-    ) + 1;
+    ) + 1);
 
     const selectAllEmails = (event) => {
         if (event.target.checked) {
@@ -727,6 +728,15 @@ const Emails = () => {
         });
     };
 
+    const openRecipientCompose = (recipient) => {
+        openComposeDraft({
+            to: recipient || '',
+            subject: '',
+            body: '',
+            title: 'New Message'
+        });
+    };
+
     const archiveSelectedEmails = async () => {
         if (!hasSelection) {
             return;
@@ -742,6 +752,43 @@ const Emails = () => {
         setStarredEmail((prevState) => !prevState);
         requestMailboxCountsRefresh();
         showActionToast(`${count} message${count === 1 ? '' : 's'} archived`);
+    };
+
+    const archiveToggleAction = getArchiveToggleAction(activeTab);
+    const canArchiveRows = activeTab === 'archived' || activeTab === 'inbox' || activeTab === 'starred' || Boolean(labelFilter);
+
+    const toggleArchivedEmail = async (email) => {
+        if (!email?._id || !canArchiveRows) {
+            return;
+        }
+
+        const ids = getEmailSelectionIds(email);
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const previousEmails = emails;
+        const previousTotal = totalEmails;
+        const nextEmails = previousEmails.filter((row) => !emailMatchesRemoval(row, ids));
+        const removedRows = previousEmails.length - nextEmails.length;
+
+        setEmails(nextEmails);
+        setSelectedEmails((current) => current.filter((id) => !ids.includes(id)));
+        setTotalEmails(Math.max(0, previousTotal - removedRows));
+        removeEmailsFromListCache(ids);
+        writeEmailListCache(cacheParams, nextEmails);
+
+        const service = archiveToggleAction.archived ? restoreArchivedEmailsService : archiveEmailsService;
+        const result = await service.call(ids, '', { silent: true });
+        if (result.error) {
+            setEmails(previousEmails);
+            setTotalEmails(previousTotal);
+            writeEmailListCache(cacheParams, previousEmails);
+            showActionToast(result.error, 'error');
+            return;
+        }
+
+        const count = Number(result.data?.count) || ids.length;
+        clearEmailListCache();
+        requestMailboxCountsRefresh();
+        showActionToast(`${count} message${count === 1 ? '' : 's'} ${archiveToggleAction.pastTense}`);
     };
 
     const requestDeleteSelectedEmails = () => {
@@ -1143,6 +1190,10 @@ const Emails = () => {
                                 onKeyboardDelete={handleKeyboardDelete}
                                 onKeyboardNavigate={handleKeyboardNavigate}
                                 onOpenDraft={openDraftEmail}
+                                onComposeTo={openRecipientCompose}
+                                onArchiveToggle={canArchiveRows ? toggleArchivedEmail : null}
+                                archiveActionLabel={archiveToggleAction.label}
+                                isArchiveView={archiveToggleAction.archived}
                                 deleteDialogOpen={confirmDeleteOpen}
                             />
                         ))}

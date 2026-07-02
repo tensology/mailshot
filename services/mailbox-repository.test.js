@@ -230,8 +230,8 @@ test('upserts imported mail and persists JSON fields', async () => {
     assert.match(calls[2].text, /DELETE FROM attachments/i);
     assert.match(calls[3].text, /INSERT INTO attachments/i);
     assert.match(calls[0].text, /ON CONFLICT \(id\)/i);
-    assert.deepEqual(calls[0].values[14], ['ops']);
-    assert.deepEqual(calls[0].values[15], ['<root>']);
+    assert.equal(calls[0].values[14], '["ops"]');
+    assert.equal(calls[0].values[15], '["<root>"]');
     assert.deepEqual(deletedPaths, ['/tmp/old-ticket.pdf']);
 });
 

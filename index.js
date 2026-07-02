@@ -13,6 +13,7 @@ import { loadSettingsFromDisk } from './services/settings-store.js';
 import { loadLabelRulesFromDisk } from './services/label-rule-store.js';
 import { startReadAloudCleanup } from './services/read-aloud-service.js';
 import { startEmailSummaryWorker } from './services/email-summary-service.js';
+import { initializeMailboxStore, getMailboxStoreStatus } from './services/postgres-mailbox-store.js';
 
 const __dirname = path.resolve();
 const SPA_ENTRY_POINT = path.join(__dirname, './client/build/index.html');
@@ -62,55 +63,65 @@ app.get('*', (req, res, next) => {
 
 const PORT = process.env.PORT || 8000;
 
-Connection();
+const boot = async () => {
+    Connection();
+    await initializeMailboxStore();
 
-const syncEnabled = String(process.env.MAILBOX_SYNC_ENABLED ?? 'true') !== 'false';
-if (isDbConnected()) {
-    console.log('Database connected on boot:', getDbStatus());
-}
+    const syncEnabled = String(process.env.MAILBOX_SYNC_ENABLED ?? 'true') !== 'false';
+    if (isDbConnected()) {
+        console.log('Database connected on boot:', getDbStatus());
+    }
 
-if (isDevelopment) {
-    console.log(`Mailshot running in ${APP_MODE} mode on port ${PORT}`);
-}
+    console.log('Mailbox store status:', getMailboxStoreStatus());
 
-if (isAuthConfigured()) {
-    console.log('Login authentication is enabled');
-} else {
-    console.warn('Login authentication is not configured. Set AUTH_USERNAME/AUTH_PASSWORD or auth.config.json');
-}
+    if (isDevelopment) {
+        console.log(`Mailshot running in ${APP_MODE} mode on port ${PORT}`);
+    }
 
-const loadedSessions = loadSessionsFromDisk();
-if (loadedSessions > 0) {
-    console.log(`Loaded ${loadedSessions} auth sessions from disk`);
-}
+    if (isAuthConfigured()) {
+        console.log('Login authentication is enabled');
+    } else {
+        console.warn('Login authentication is not configured. Set AUTH_USERNAME/AUTH_PASSWORD or auth.config.json');
+    }
 
-const loadedLabels = loadLabelsFromDisk();
-if (loadedLabels > 0) {
-    console.log(`Loaded ${loadedLabels} labels from disk cache`);
-}
+    const loadedSessions = loadSessionsFromDisk();
+    if (loadedSessions > 0) {
+        console.log(`Loaded ${loadedSessions} auth sessions from disk`);
+    }
 
-const loadedContacts = loadContactsFromDisk();
-if (loadedContacts > 0) {
-    console.log(`Loaded ${loadedContacts} contacts from disk cache`);
-}
+    const loadedLabels = loadLabelsFromDisk();
+    if (loadedLabels > 0) {
+        console.log(`Loaded ${loadedLabels} labels from disk cache`);
+    }
 
-const loadedSettings = loadSettingsFromDisk();
-if (loadedSettings > 0) {
-    console.log('Loaded app settings from disk cache');
-}
+    const loadedContacts = loadContactsFromDisk();
+    if (loadedContacts > 0) {
+        console.log(`Loaded ${loadedContacts} contacts from disk cache`);
+    }
 
-const loadedLabelRules = loadLabelRulesFromDisk();
-if (loadedLabelRules > 0) {
-    console.log(`Loaded ${loadedLabelRules} label rules from disk cache`);
-}
+    const loadedSettings = loadSettingsFromDisk();
+    if (loadedSettings > 0) {
+        console.log('Loaded app settings from disk cache');
+    }
 
-startMailboxSync({
-    intervalMs: Number(process.env.MAILBOX_POLL_INTERVAL_MS || 60000),
-    enabled: syncEnabled
+    const loadedLabelRules = loadLabelRulesFromDisk();
+    if (loadedLabelRules > 0) {
+        console.log(`Loaded ${loadedLabelRules} label rules from disk cache`);
+    }
+
+    startMailboxSync({
+        intervalMs: Number(process.env.MAILBOX_POLL_INTERVAL_MS || 60000),
+        enabled: syncEnabled
+    });
+    startReadAloudCleanup();
+    startEmailSummaryWorker().catch((error) => {
+        console.error('Email summary worker failed to start:', error.message || error);
+    });
+
+    app.listen(PORT, () => console.log(`Server started on PORT ${PORT}`));
+};
+
+boot().catch((error) => {
+    console.error('Server boot failed:', error.message || error);
+    process.exit(1);
 });
-startReadAloudCleanup();
-startEmailSummaryWorker().catch((error) => {
-    console.error('Email summary worker failed to start:', error.message || error);
-});
-
-app.listen(PORT, () => console.log(`Server started on PORT ${PORT}`));

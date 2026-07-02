@@ -113,6 +113,10 @@ export const API_URLS = {
         endpoint: 'archive',
         method: 'POST'
     },
+    restoreArchivedEmails: {
+        endpoint: 'archive/restore',
+        method: 'POST'
+    },
     markSpamEmails: {
         endpoint: 'spam',
         method: 'POST'

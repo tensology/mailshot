@@ -7,6 +7,10 @@ const USERNAME = process.env.DB_USERNAME;
 const PASSWORD = process.env.DB_PASSWORD;
 
 const buildConnectionString = () => {
+    if (String(process.env.MAILSHOT_DISABLE_MONGO || '').toLowerCase() === 'true') {
+        return '';
+    }
+
     if (process.env.MONGODB_URI) {
         return process.env.MONGODB_URI;
     }

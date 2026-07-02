@@ -9,7 +9,7 @@ import { createPostgresSettingsStore } from './postgres-metadata-store.js';
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'app-settings.json');
 const SETTINGS_KEY = 'global';
-export const SUPERUSER_EMAIL = String(process.env.MAILSHOT_SUPERUSER || 'paul@tensology.com').trim().toLowerCase();
+export const SUPERUSER_EMAIL = String(process.env.MAILSHOT_SUPERUSER || process.env.MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
 
 const defaultSettings = () => ({
     general: {
@@ -73,7 +73,7 @@ const getPostgresSettingsStore = () => {
 const normalizeEmail = (value = '') => {
     const raw = String(value || '').trim().toLowerCase();
     const email = (/<([^>]+)>/.exec(raw)?.[1] || raw).trim();
-    return email === 'port@tensology.com' ? SUPERUSER_EMAIL : email;
+    return email;
 };
 
 const normalizeSignatureEntries = (general = {}) => {
