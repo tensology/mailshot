@@ -57,7 +57,7 @@ export const setMailshotFaviconBadge = (count = 0) => {
     context.font = '800 64px Arial, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText('M', 44, 58);
+    context.fillText('M', 64, 68);
 
     const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
     context.textAlign = 'right';
