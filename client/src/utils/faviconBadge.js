@@ -61,7 +61,7 @@ export const setMailshotFaviconBadge = (count = 0) => {
     drawRoundedRect(context, 0, 0, 128, 128, 32);
     context.fill();
 
-    context.fillStyle = 'rgba(255,255,255,0.55)';
+    context.fillStyle = '#ffffff';
     drawMailshotMark(context);
 
     const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
