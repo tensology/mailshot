@@ -43,7 +43,7 @@ const MarqueePreview = ({ children }) => {
     }, [children]);
 
     return (
-        <span className="mailshot-marquee-viewport min-w-0 flex-1 text-slate-500">
+        <span className="mailshot-marquee-viewport hidden min-w-0 flex-1 text-slate-500 sm:inline-flex">
             <span
                 className="mailshot-marquee-track"
                 style={{
@@ -250,7 +250,7 @@ const Email = ({
                             {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
                             {snippet && (
                                 <>
-                                    <span className="shrink-0 text-slate-300">-</span>
+                                    <span className="hidden shrink-0 text-slate-300 sm:inline">-</span>
                                     <MarqueePreview>{snippet}</MarqueePreview>
                                 </>
                             )}
