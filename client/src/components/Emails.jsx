@@ -352,6 +352,58 @@ const Emails = () => {
         });
     }, [fetchEmailList, restoreEmailsFromBin, showActionToast, showUndoDelete]);
 
+    const offerArchiveUndo = useCallback(({
+        count,
+        ids = [],
+        action,
+        previousEmails,
+        previousTotal,
+        previousPage,
+        cacheParams,
+        bulkPayload = null
+    }) => {
+        const undoService = action?.archived ? archiveEmailsService : restoreArchivedEmailsService;
+        const message = count === 1
+            ? `Message ${action?.pastTense || 'archived'}`
+            : `${count} messages ${action?.pastTense || 'archived'}`;
+
+        showUndoDelete({
+            message,
+            restore: async () => {
+                const result = bulkPayload
+                    ? await undoService.call(bulkPayload)
+                    : await undoService.call(ids);
+
+                if (result.error) {
+                    showActionToast(result.error, 'error');
+                    throw new Error(result.error);
+                }
+
+                if (Array.isArray(previousEmails) && cacheParams) {
+                    setEmails(previousEmails);
+                    setTotalEmails(previousTotal);
+                    setPage(previousPage);
+                    writeEmailListCache(cacheParams, previousEmails);
+                } else {
+                    await fetchEmailList({ silent: true, pageOverride: previousPage || page });
+                }
+
+                clearBulkSelection();
+                clearEmailListCache();
+                requestMailboxCountsRefresh();
+                const undoLabel = action?.archived ? 'Unarchive undone' : 'Archive undone';
+                showActionToast(count === 1 ? undoLabel : `${undoLabel} for ${count} messages`);
+            }
+        });
+    }, [
+        archiveEmailsService,
+        fetchEmailList,
+        page,
+        restoreArchivedEmailsService,
+        showActionToast,
+        showUndoDelete
+    ]);
+
     useEffect(() => {
         const onEmailsRestored = (event) => {
             const restored = Array.isArray(event.detail?.emails) ? event.detail.emails : [];
@@ -732,17 +784,26 @@ const Emails = () => {
         if (!hasSelection) {
             return;
         }
-        const result = await archiveEmailsService.call(getBulkPayload());
+        const countBeforeAction = selectionCount;
+        const payload = getBulkPayload();
+        const previousPage = page;
+        const result = await archiveEmailsService.call(payload);
         if (result.error) {
             showActionToast(result.error, 'error');
             return;
         }
-        const count = Number(result.data?.count) || selectionCount;
+        const count = Number(result.data?.count) || countBeforeAction;
         clearBulkSelection();
         clearEmailListCache();
         setStarredEmail((prevState) => !prevState);
         requestMailboxCountsRefresh();
-        showActionToast(`${count} message${count === 1 ? '' : 's'} archived`);
+        offerArchiveUndo({
+            count,
+            ids: allMatchingSelected ? [] : [...selectedEmails],
+            action: getArchiveToggleAction(activeTab),
+            previousPage,
+            bulkPayload: allMatchingSelected ? payload : null
+        });
     };
 
     const archiveToggleAction = getArchiveToggleAction(activeTab);
@@ -779,7 +840,15 @@ const Emails = () => {
         const count = Number(result.data?.count) || ids.length;
         clearEmailListCache();
         requestMailboxCountsRefresh();
-        showActionToast(`${count} message${count === 1 ? '' : 's'} ${archiveToggleAction.pastTense}`);
+        offerArchiveUndo({
+            count,
+            ids,
+            action: archiveToggleAction,
+            previousEmails,
+            previousTotal,
+            previousPage: page,
+            cacheParams
+        });
     };
 
     const requestDeleteSelectedEmails = () => {
