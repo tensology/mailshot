@@ -21,6 +21,8 @@ const KOKORO_DEVICE = process.env.KOKORO_DEVICE || 'cpu';
 const KOKORO_DEFAULT_VOICE = process.env.KOKORO_VOICE || 'af_heart';
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg';
 const OGG_BITRATE = process.env.KOKORO_OGG_BITRATE || '48k';
+const TTS_RENDER_VERSION = 'kokoro-chunked-v1';
+const TTS_CHUNK_MAX_CHARS = 280;
 
 const jobs = new Map();
 let kokoroModelPromise = null;
@@ -37,6 +39,7 @@ const getKokoroVoice = (settings = {}) => (
 );
 
 const getCacheKey = (email, settings) => hashValue(JSON.stringify({
+    version: TTS_RENDER_VERSION,
     id: String(email._id || ''),
     subject: email.subject || '',
     body: email.body || email.body_html || '',
@@ -132,6 +135,9 @@ const getCachedJob = (cacheKey) => {
 
     try {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        if (meta.render_version !== TTS_RENDER_VERSION) {
+            return null;
+        }
         return {
             job_id: cacheKey,
             status: 'ready',
@@ -182,34 +188,116 @@ const isJobStale = (job) => (
     && job.status !== 'ready'
 );
 
-const generateAudioForSummary = async (job, summary, email = null, settings = {}) => {
-    const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
-    const tts = await getKokoroModel();
-    const audio = await tts.generate(summary, {
-        voice: getKokoroVoice(settings),
-        speed: 1
-    });
+export const splitSummaryForTts = (value = '', maxChars = TTS_CHUNK_MAX_CHARS) => {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) {
+        return [];
+    }
 
+    const sentenceParts = text
+        .split(/(?<=[.!?…。？！])\s+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    const chunks = [];
+    const splitLongPart = (part) => {
+        const parts = [];
+        let remaining = part;
+        while (remaining.length > maxChars) {
+            let splitAt = remaining.lastIndexOf(' ', maxChars);
+            if (splitAt < Math.floor(maxChars * 0.6)) {
+                splitAt = maxChars;
+            }
+            parts.push(remaining.slice(0, splitAt).trim());
+            remaining = remaining.slice(splitAt).trim();
+        }
+        if (remaining) {
+            parts.push(remaining);
+        }
+        return parts;
+    };
+
+    let current = '';
+    for (const sentence of sentenceParts) {
+        const parts = sentence.length > maxChars ? splitLongPart(sentence) : [sentence];
+        for (const part of parts) {
+            if (!part) {
+                continue;
+            }
+
+            const next = current ? `${current} ${part}` : part;
+            if (next.length <= maxChars) {
+                current = next;
+                continue;
+            }
+
+            if (current) {
+                chunks.push(current);
+            }
+            current = part;
+        }
+    }
+
+    if (current) {
+        chunks.push(current);
+    }
+
+    return chunks;
+};
+
+const escapeConcatPath = (filePath) => String(filePath).replace(/'/g, "'\\''");
+
+const generateAudioForSummary = async (job, summary, email = null, settings = {}) => {
     ensureStorageDir();
-    await audio.save(wavPath);
-    await execFileAsync(FFMPEG_PATH, [
-        '-y',
-        '-i',
-        wavPath,
-        '-c:a',
-        'libopus',
-        '-b:a',
-        OGG_BITRATE,
-        '-vbr',
-        'on',
-        job.filePath
-    ]);
-    fs.rmSync(wavPath, { force: true });
-    fs.writeFileSync(job.metaPath, JSON.stringify({
-        summary,
-        email_id: String(email?._id || ''),
-        created_at: new Date().toISOString()
-    }));
+    const tempDir = fs.mkdtempSync(path.join(STORAGE_DIR, `${job.job_id}-`));
+    const tts = await getKokoroModel();
+    const voice = getKokoroVoice(settings);
+    const chunks = splitSummaryForTts(summary);
+
+    try {
+        const wavPaths = [];
+        for (const [index, chunk] of chunks.entries()) {
+            const audio = await tts.generate(chunk, {
+                voice,
+                speed: 1
+            });
+            const wavPath = path.join(tempDir, `${String(index).padStart(3, '0')}.wav`);
+            await audio.save(wavPath);
+            wavPaths.push(wavPath);
+        }
+
+        const concatPath = path.join(tempDir, 'concat.txt');
+        fs.writeFileSync(
+            concatPath,
+            wavPaths.map((wavPath) => `file '${escapeConcatPath(wavPath)}'`).join('\n')
+        );
+
+        await execFileAsync(FFMPEG_PATH, [
+            '-y',
+            '-f',
+            'concat',
+            '-safe',
+            '0',
+            '-i',
+            concatPath,
+            '-c:a',
+            'libopus',
+            '-b:a',
+            OGG_BITRATE,
+            '-vbr',
+            'on',
+            job.filePath
+        ]);
+        fs.writeFileSync(job.metaPath, JSON.stringify({
+            summary,
+            email_id: String(email?._id || ''),
+            render_version: TTS_RENDER_VERSION,
+            chunks: chunks.length,
+            created_at: new Date().toISOString()
+        }));
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
 };
 
 const finalizeReadyJob = (job, email, summary = '') => {
