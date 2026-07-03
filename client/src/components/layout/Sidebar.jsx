@@ -10,6 +10,7 @@ import { API_URLS } from '../../services/api.urls';
 import LabelSidebar from '../LabelSidebar';
 import ContactSidebar from '../ContactSidebar';
 import ComposeMail from '../ComposeMail';
+import { setMailshotFaviconBadge } from '../../utils/faviconBadge';
 
 const navClass = ({ isActive }) => (
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
@@ -38,6 +39,10 @@ const Sidebar = ({ onSent }) => {
         return () => window.removeEventListener('mailshot:counts-refresh', refreshCounts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [type]);
+
+    useEffect(() => {
+        setMailshotFaviconBadge(Number(counts.inbox_unread) || 0);
+    }, [counts.inbox_unread]);
 
     const handleCompose = () => {
         openCompose();

@@ -1165,13 +1165,13 @@ const Emails = () => {
                         </div>
                     </div>
 
-                    <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:justify-end">
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-row lg:w-auto lg:justify-end">
                         {readSummaryEnabled && isSuperuser && activeTab === 'inbox' && (
                             <button
                                 type="button"
                                 onClick={handleSummarizeAll}
                                 disabled={summarizeAllActive || startSummarizeAllService.isLoading}
-                                className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 ${
+                                className={`inline-flex h-9 min-w-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 sm:shrink-0 ${
                                     summarizeAllActive
                                         ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                                         : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:text-emerald-700'
@@ -1186,7 +1186,7 @@ const Emails = () => {
                             type="button"
                             onClick={toggleUnreadFilter}
                             aria-pressed={unreadFilter}
-                            className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition ${
+                            className={`inline-flex h-9 min-w-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition sm:shrink-0 ${
                                 unreadFilter
                                     ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700'
@@ -1196,7 +1196,7 @@ const Emails = () => {
                         </button>
                         <form
                             onSubmit={submitSearch}
-                            className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:min-h-10 sm:min-w-[18rem] lg:w-80"
+                            className="col-span-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:col-auto sm:min-h-10 sm:min-w-[18rem] lg:w-80"
                         >
                             <Search className="h-4 w-4 shrink-0 text-slate-400" />
                             <input

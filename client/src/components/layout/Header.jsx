@@ -55,7 +55,7 @@ const Header = () => {
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
                         M
                     </div>
-                    <span className="hidden text-base font-semibold text-slate-900 sm:inline">Mailshot</span>
+                    <span className="inline text-base font-semibold text-slate-900">Mailshot</span>
                 </div>
 
                 <div className="ml-auto flex items-center gap-1">
