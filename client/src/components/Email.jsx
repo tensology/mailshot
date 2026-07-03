@@ -14,6 +14,7 @@ import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
 
 const MARQUEE_SPEED_PX_PER_SECOND = 46;
+const DOUBLE_TAP_MS = 320;
 
 const MarqueePreview = ({ children }) => {
     const copyRef = useRef(null);
@@ -83,6 +84,7 @@ const Email = ({
     const navigate = useNavigate();
     const { type } = useParams();
     const [searchParams] = useSearchParams();
+    const lastRowTapAt = useRef(0);
 
     const isDraft = type === 'drafts' || email.type === 'drafts';
     const senderSource = isDraft
@@ -153,6 +155,15 @@ const Email = ({
 
     const handleRowClick = (event) => {
         event.currentTarget.focus();
+        const now = Date.now();
+        const isDoubleActivation = event.detail > 1 || (now - lastRowTapAt.current <= DOUBLE_TAP_MS);
+        lastRowTapAt.current = now;
+
+        if (isDoubleActivation && !deleteDialogOpen) {
+            openEmail();
+            return;
+        }
+
         onRowSelect(email, index, event);
     };
 
@@ -174,7 +185,6 @@ const Email = ({
             role="button"
             tabIndex={0}
             onClick={handleRowClick}
-            onDoubleClick={openEmail}
             onKeyDown={openEmailFromKeyboard}
             data-email-row-id={email._id}
             aria-selected={isHighlighted}
@@ -207,44 +217,44 @@ const Email = ({
             <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-2.5">
                 <div className="min-w-0">
                     <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-                    <div className="flex min-w-0 items-center overflow-hidden text-sm leading-5 sm:shrink-0">
-                        <span
-                            className={`flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden whitespace-nowrap sm:w-[var(--mail-sender-width)] ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
-                            style={{ '--mail-sender-width': `${senderColumnWidthCh || 14}ch` }}
-                            title={senderSource || senderName}
-                        >
-                            {visibleSenderContacts.length ? visibleSenderContacts.map((contact, contactIndex) => (
-                                <span key={`${contact.email}-${contactIndex}`} className="inline-flex min-w-0 items-center">
-                                    {contactIndex > 0 && <span className="mr-1 text-slate-400">,</span>}
-                                    <span className="min-w-0 truncate" title={contact.raw || contact.email || contact.label}>
-                                        {contact.label}
+                        <div className="flex min-w-0 items-center overflow-hidden text-sm leading-5 sm:shrink-0">
+                            <span
+                                className={`flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden whitespace-nowrap sm:w-[var(--mail-sender-width)] ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
+                                style={{ '--mail-sender-width': `${senderColumnWidthCh || 14}ch` }}
+                                title={senderSource || senderName}
+                            >
+                                {visibleSenderContacts.length ? visibleSenderContacts.map((contact, contactIndex) => (
+                                    <span key={`${contact.email}-${contactIndex}`} className="inline-flex min-w-0 items-center">
+                                        {contactIndex > 0 && <span className="mr-1 text-slate-400">,</span>}
+                                        <span className="min-w-0 truncate" title={contact.raw || contact.email || contact.label}>
+                                            {contact.label}
+                                        </span>
                                     </span>
-                                </span>
-                            )) : senderName}
-                            {hiddenSenderCount > 0 && (
-                                <span className="shrink-0 text-xs font-medium text-slate-500">+{hiddenSenderCount}</span>
-                            )}
-                        </span>
-                    </div>
-
-                    <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5 sm:flex-1">
-                        <span className={`min-w-0 shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
-                            {isDraft && <span className="font-semibold text-red-600">Draft </span>}
-                            {subject}
-                        </span>
-                        {email.thread_count > 1 && (
-                            <span className="shrink-0 text-xs font-medium text-slate-500">
-                                ({email.thread_count})
+                                )) : senderName}
+                                {hiddenSenderCount > 0 && (
+                                    <span className="shrink-0 text-xs font-medium text-slate-500">+{hiddenSenderCount}</span>
+                                )}
                             </span>
-                        )}
-                        {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                        {snippet && (
-                            <>
-                                <span className="shrink-0 text-slate-300">-</span>
-                                <MarqueePreview>{snippet}</MarqueePreview>
-                            </>
-                        )}
-                    </div>
+                        </div>
+
+                        <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5 sm:flex-1">
+                            <span className={`min-w-0 shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                                {isDraft && <span className="font-semibold text-red-600">Draft </span>}
+                                {subject}
+                            </span>
+                            {email.thread_count > 1 && (
+                                <span className="shrink-0 text-xs font-medium text-slate-500">
+                                    ({email.thread_count})
+                                </span>
+                            )}
+                            {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                            {snippet && (
+                                <>
+                                    <span className="shrink-0 text-slate-300">-</span>
+                                    <MarqueePreview>{snippet}</MarqueePreview>
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {(email.labels || []).length > 0 && (
