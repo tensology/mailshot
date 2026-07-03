@@ -694,7 +694,7 @@ const ComposeMail = ({ onSent }) => {
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
             />
             {previewFile && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-4" onClick={closeAttachmentPreview}>
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4" onClick={closeAttachmentPreview}>
                     <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
                             <div className="min-w-0 flex-1">

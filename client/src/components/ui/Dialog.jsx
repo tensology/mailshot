@@ -50,7 +50,7 @@ const Dialog = ({
     }
 
     return createPortal((
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+        <div className="fixed inset-0 z-[120] flex items-end justify-center p-4 sm:items-center">
             <button
                 type="button"
                 aria-label="Close dialog"
