@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { setMailshotFaviconBadge } from './faviconBadge.js';
 
 const originalDocument = globalThis.document;
+const originalPath2D = globalThis.Path2D;
 
 test('setMailshotFaviconBadge falls back to the base icon when count is zero', () => {
     const link = {};
@@ -34,9 +35,15 @@ test('setMailshotFaviconBadge draws a png favicon when unread count is positive'
         fill() {},
         stroke() {},
         strokeText() {},
-        fillText() {}
+        fillText() {},
+        save() {},
+        scale() {},
+        restore() {}
     };
     try {
+        globalThis.Path2D = function Path2D(value) {
+            this.value = value;
+        };
         globalThis.document = {
             querySelector: () => link,
             createElement: () => {
@@ -57,5 +64,6 @@ test('setMailshotFaviconBadge draws a png favicon when unread count is positive'
         assert.equal(canvases[0].height, 128);
     } finally {
         globalThis.document = originalDocument;
+        globalThis.Path2D = originalPath2D;
     }
 });

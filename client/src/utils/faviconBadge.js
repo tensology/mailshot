@@ -25,6 +25,14 @@ const drawRoundedRect = (context, x, y, width, height, radius) => {
     context.closePath();
 };
 
+const drawMailshotMark = (context) => {
+    const path = new Path2D('M17 44V20h7.3l7.7 12.7L39.7 20H47v24h-6.5V30.7L34.1 41h-4.2l-6.4-10.3V44H17z');
+    context.save();
+    context.scale(2, 2);
+    context.fill(path);
+    context.restore();
+};
+
 export const setMailshotFaviconBadge = (count = 0) => {
     if (typeof document === 'undefined') {
         return;
@@ -54,10 +62,7 @@ export const setMailshotFaviconBadge = (count = 0) => {
     context.fill();
 
     context.fillStyle = 'rgba(255,255,255,0.55)';
-    context.font = '800 64px Arial, sans-serif';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText('M', 64, 68);
+    drawMailshotMark(context);
 
     const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
     context.textAlign = 'right';
