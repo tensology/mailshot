@@ -24,6 +24,7 @@ test('setMailshotFaviconBadge falls back to the base icon when count is zero', (
 
 test('setMailshotFaviconBadge draws a png favicon when unread count is positive', () => {
     const link = {};
+    const canvases = [];
     const context = {
         beginPath() {},
         moveTo() {},
@@ -37,16 +38,22 @@ test('setMailshotFaviconBadge draws a png favicon when unread count is positive'
     try {
         globalThis.document = {
             querySelector: () => link,
-            createElement: () => ({
-                getContext: () => context,
-                toDataURL: () => 'data:image/png;base64,badge'
-            })
+            createElement: () => {
+                const canvas = {
+                    getContext: () => context,
+                    toDataURL: () => 'data:image/png;base64,badge'
+                };
+                canvases.push(canvas);
+                return canvas;
+            }
         };
 
         setMailshotFaviconBadge(7);
 
         assert.equal(link.type, 'image/png');
         assert.equal(link.href, 'data:image/png;base64,badge');
+        assert.equal(canvases[0].width, 128);
+        assert.equal(canvases[0].height, 128);
     } finally {
         globalThis.document = originalDocument;
     }

@@ -40,8 +40,8 @@ export const setMailshotFaviconBadge = (count = 0) => {
     }
 
     const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
+    canvas.width = 128;
+    canvas.height = 128;
     const context = canvas.getContext('2d');
     if (!context) {
         link.type = 'image/svg+xml';
@@ -50,29 +50,31 @@ export const setMailshotFaviconBadge = (count = 0) => {
     }
 
     context.fillStyle = '#2563eb';
-    drawRoundedRect(context, 0, 0, 64, 64, 16);
+    drawRoundedRect(context, 0, 0, 128, 128, 32);
     context.fill();
 
     context.fillStyle = '#ffffff';
-    context.font = '700 28px Arial, sans-serif';
+    context.font = '700 56px Arial, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText('M', 32, 34);
+    context.fillText('M', 58, 70);
 
     const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
-    const badgeWidth = label.length > 2 ? 32 : 26;
-    const badgeX = 64 - badgeWidth - 2;
+    const badgeWidth = label.length > 2 ? 66 : label.length > 1 ? 54 : 44;
+    const badgeHeight = 42;
+    const badgeX = 128 - badgeWidth - 4;
+    const badgeY = 4;
 
     context.fillStyle = '#dc2626';
-    drawRoundedRect(context, badgeX, 2, badgeWidth, 24, 12);
+    drawRoundedRect(context, badgeX, badgeY, badgeWidth, badgeHeight, 21);
     context.fill();
-    context.lineWidth = 3;
+    context.lineWidth = 6;
     context.strokeStyle = '#ffffff';
     context.stroke();
 
     context.fillStyle = '#ffffff';
-    context.font = label.length > 2 ? '700 10px Arial, sans-serif' : '700 13px Arial, sans-serif';
-    context.fillText(label, badgeX + badgeWidth / 2, 14);
+    context.font = label.length > 2 ? '700 20px Arial, sans-serif' : '700 26px Arial, sans-serif';
+    context.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2 + 1);
 
     link.type = 'image/png';
     link.href = canvas.toDataURL('image/png');
