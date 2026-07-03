@@ -54,27 +54,27 @@ export const setMailshotFaviconBadge = (count = 0) => {
     context.fill();
 
     context.fillStyle = '#ffffff';
-    context.font = '700 56px Arial, sans-serif';
+    context.font = '700 52px Arial, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText('M', 58, 70);
+    context.fillText('M', 50, 78);
 
     const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
-    const badgeWidth = label.length > 2 ? 66 : label.length > 1 ? 54 : 44;
-    const badgeHeight = 42;
-    const badgeX = 128 - badgeWidth - 4;
-    const badgeY = 4;
+    const badgeWidth = label.length > 2 ? 88 : label.length > 1 ? 74 : 62;
+    const badgeHeight = 60;
+    const badgeX = 128 - badgeWidth - 1;
+    const badgeY = 1;
 
     context.fillStyle = '#dc2626';
-    drawRoundedRect(context, badgeX, badgeY, badgeWidth, badgeHeight, 21);
+    drawRoundedRect(context, badgeX, badgeY, badgeWidth, badgeHeight, 30);
     context.fill();
-    context.lineWidth = 6;
+    context.lineWidth = 8;
     context.strokeStyle = '#ffffff';
     context.stroke();
 
     context.fillStyle = '#ffffff';
-    context.font = label.length > 2 ? '700 20px Arial, sans-serif' : '700 26px Arial, sans-serif';
-    context.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2 + 1);
+    context.font = label.length > 2 ? '800 28px Arial, sans-serif' : '800 36px Arial, sans-serif';
+    context.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2 + 2);
 
     link.type = 'image/png';
     link.href = canvas.toDataURL('image/png');
