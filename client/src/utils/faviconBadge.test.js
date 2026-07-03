@@ -33,6 +33,7 @@ test('setMailshotFaviconBadge draws a png favicon when unread count is positive'
         closePath() {},
         fill() {},
         stroke() {},
+        strokeText() {},
         fillText() {}
     };
     try {

@@ -54,27 +54,21 @@ export const setMailshotFaviconBadge = (count = 0) => {
     context.fill();
 
     context.fillStyle = '#ffffff';
-    context.font = '700 52px Arial, sans-serif';
+    context.font = '700 56px Arial, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText('M', 50, 78);
+    context.fillText('M', 44, 58);
 
     const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
-    const badgeWidth = label.length > 2 ? 88 : label.length > 1 ? 74 : 62;
-    const badgeHeight = 60;
-    const badgeX = 128 - badgeWidth - 1;
-    const badgeY = 1;
-
-    context.fillStyle = '#dc2626';
-    drawRoundedRect(context, badgeX, badgeY, badgeWidth, badgeHeight, 30);
-    context.fill();
-    context.lineWidth = 8;
+    context.textAlign = 'right';
+    context.textBaseline = 'alphabetic';
+    context.lineJoin = 'round';
+    context.lineWidth = label.length > 2 ? 9 : 10;
     context.strokeStyle = '#ffffff';
-    context.stroke();
-
-    context.fillStyle = '#ffffff';
-    context.font = label.length > 2 ? '800 28px Arial, sans-serif' : '800 36px Arial, sans-serif';
-    context.fillText(label, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2 + 2);
+    context.fillStyle = '#020617';
+    context.font = label.length > 2 ? '900 42px Arial, sans-serif' : '900 54px Arial, sans-serif';
+    context.strokeText(label, 124, 123);
+    context.fillText(label, 124, 123);
 
     link.type = 'image/png';
     link.href = canvas.toDataURL('image/png');
