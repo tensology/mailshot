@@ -728,15 +728,6 @@ const Emails = () => {
         });
     };
 
-    const openRecipientCompose = (recipient) => {
-        openComposeDraft({
-            to: recipient || '',
-            subject: '',
-            body: '',
-            title: 'New Message'
-        });
-    };
-
     const archiveSelectedEmails = async () => {
         if (!hasSelection) {
             return;
@@ -1136,7 +1127,7 @@ const Emails = () => {
                         </button>
                         <form
                             onSubmit={submitSearch}
-                            className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:min-w-[18rem] lg:w-80"
+                            className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:min-h-10 sm:min-w-[18rem] lg:w-80"
                         >
                             <Search className="h-4 w-4 shrink-0 text-slate-400" />
                             <input
@@ -1144,7 +1135,7 @@ const Emails = () => {
                                 value={searchInput}
                                 onChange={(event) => setSearchInput(event.target.value)}
                                 placeholder={`Search ${labelFilter ? 'label' : 'mail'}`}
-                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                                className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                             />
                             {searchFilter && (
                                 <button
@@ -1190,7 +1181,6 @@ const Emails = () => {
                                 onKeyboardDelete={handleKeyboardDelete}
                                 onKeyboardNavigate={handleKeyboardNavigate}
                                 onOpenDraft={openDraftEmail}
-                                onComposeTo={openRecipientCompose}
                                 onArchiveToggle={canArchiveRows ? toggleArchivedEmail : null}
                                 archiveActionLabel={archiveToggleAction.label}
                                 isArchiveView={archiveToggleAction.archived}

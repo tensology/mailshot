@@ -74,7 +74,6 @@ const Email = ({
     onKeyboardDelete,
     onKeyboardNavigate,
     onOpenDraft,
-    onComposeTo,
     onArchiveToggle,
     archiveActionLabel = 'Archive',
     isArchiveView = false,
@@ -162,11 +161,6 @@ const Email = ({
         onReadSummary?.(email);
     };
 
-    const handleComposeTo = (event, contact) => {
-        event.stopPropagation();
-        onComposeTo?.(contact.raw || contact.email || contact.label);
-    };
-
     const handleArchiveToggle = (event) => {
         event.stopPropagation();
         onArchiveToggle?.(email);
@@ -184,12 +178,12 @@ const Email = ({
             onKeyDown={openEmailFromKeyboard}
             data-email-row-id={email._id}
             aria-selected={isHighlighted}
-            className={`group flex w-full items-center gap-0 border-b border-slate-100 text-left transition hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
+            className={`group flex w-full items-stretch gap-0 border-b border-slate-100 text-left transition hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
                 isHighlighted ? 'bg-blue-50/90' : rowTone === 'muted' ? 'bg-slate-50/70' : 'bg-white'
             }`}
         >
             <div
-                className="flex min-h-[4.25rem] w-11 shrink-0 items-center justify-center px-3 py-3"
+                className="flex min-h-[4.75rem] w-11 shrink-0 items-center justify-center px-3 py-3 sm:min-h-[4.25rem]"
                 onClick={handleCheckboxClick}
                 title={isChecked ? 'Uncheck' : 'Check'}
             >
@@ -204,38 +198,37 @@ const Email = ({
             <button
                 type="button"
                 onClick={toggleStarredEmail}
-                className="flex h-[4.25rem] shrink-0 items-center text-slate-400 transition hover:text-amber-500"
+                className="flex min-h-[4.75rem] shrink-0 items-center text-slate-400 transition hover:text-amber-500 sm:min-h-[4.25rem]"
                 aria-label={email.starred ? 'Unstar' : 'Star'}
             >
                 <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
             </button>
 
-            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:px-4">
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-2.5">
                 <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5">
+                    <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                    <div className="flex min-w-0 items-center overflow-hidden text-sm leading-5 sm:shrink-0">
                         <span
-                            className={`flex shrink-0 items-center gap-1 overflow-hidden whitespace-nowrap ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
-                            style={{ width: `${senderColumnWidthCh || 14}ch` }}
+                            className={`flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden whitespace-nowrap sm:w-[var(--mail-sender-width)] ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
+                            style={{ '--mail-sender-width': `${senderColumnWidthCh || 14}ch` }}
                             title={senderSource || senderName}
                         >
                             {visibleSenderContacts.length ? visibleSenderContacts.map((contact, contactIndex) => (
                                 <span key={`${contact.email}-${contactIndex}`} className="inline-flex min-w-0 items-center">
                                     {contactIndex > 0 && <span className="mr-1 text-slate-400">,</span>}
-                                    <button
-                                        type="button"
-                                        onClick={(event) => handleComposeTo(event, contact)}
-                                        className="min-w-0 truncate rounded text-left hover:text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                        title={`Compose to ${contact.raw || contact.email}`}
-                                    >
+                                    <span className="min-w-0 truncate" title={contact.raw || contact.email || contact.label}>
                                         {contact.label}
-                                    </button>
+                                    </span>
                                 </span>
                             )) : senderName}
                             {hiddenSenderCount > 0 && (
                                 <span className="shrink-0 text-xs font-medium text-slate-500">+{hiddenSenderCount}</span>
                             )}
                         </span>
-                        <span className={`shrink-0 whitespace-nowrap ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                    </div>
+
+                    <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5 sm:flex-1">
+                        <span className={`min-w-0 shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
                             {isDraft && <span className="font-semibold text-red-600">Draft </span>}
                             {subject}
                         </span>
@@ -252,6 +245,7 @@ const Email = ({
                             </>
                         )}
                     </div>
+                    </div>
 
                     {(email.labels || []).length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
@@ -266,7 +260,7 @@ const Email = ({
                         </div>
                     )}
                 </div>
-                <div className="mt-0.5 flex shrink-0 items-center justify-end gap-1.5 text-right text-xs leading-4 text-slate-500">
+                <div className="mt-0.5 flex shrink-0 items-center justify-end gap-1 text-right text-xs leading-4 text-slate-500 sm:gap-1.5">
                     {readSummaryEnabled && (
                         <button
                             type="button"
