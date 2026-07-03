@@ -53,8 +53,8 @@ export const setMailshotFaviconBadge = (count = 0) => {
     drawRoundedRect(context, 0, 0, 128, 128, 32);
     context.fill();
 
-    context.fillStyle = '#ffffff';
-    context.font = '700 56px Arial, sans-serif';
+    context.fillStyle = 'rgba(255,255,255,0.55)';
+    context.font = '800 64px Arial, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillText('M', 44, 58);
@@ -63,12 +63,12 @@ export const setMailshotFaviconBadge = (count = 0) => {
     context.textAlign = 'right';
     context.textBaseline = 'alphabetic';
     context.lineJoin = 'round';
-    context.lineWidth = label.length > 2 ? 9 : 10;
+    context.lineWidth = label.length > 2 ? 11 : 13;
     context.strokeStyle = '#ffffff';
     context.fillStyle = '#020617';
-    context.font = label.length > 2 ? '900 42px Arial, sans-serif' : '900 54px Arial, sans-serif';
-    context.strokeText(label, 124, 123);
-    context.fillText(label, 124, 123);
+    context.font = label.length > 2 ? '900 54px Arial, sans-serif' : '900 78px Arial, sans-serif';
+    context.strokeText(label, 127, 126);
+    context.fillText(label, 127, 126);
 
     link.type = 'image/png';
     link.href = canvas.toDataURL('image/png');
