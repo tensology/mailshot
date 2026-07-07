@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-import { splitSummaryForTts } from './read-aloud-service.js';
+import {
+    cleanupReadAloudAudio,
+    splitSummaryForTts
+} from './read-aloud-service.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ttsStorageDir = path.resolve(__dirname, '../storage/tts');
 
 test('splitSummaryForTts chunks summaries without changing word order', () => {
     const summary = [
@@ -27,4 +37,18 @@ test('splitSummaryForTts splits long sentences at word boundaries where possible
         'iota kappa lambda mu nu',
         'xi omicron'
     ]);
+});
+
+test('cleanupReadAloudAudio removes stale temporary render directories', () => {
+    const tempDir = path.join(ttsStorageDir, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test');
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '000.wav'), 'partial audio');
+
+    const staleDate = new Date(Date.now() - 20 * 60 * 1000);
+    fs.utimesSync(path.join(tempDir, '000.wav'), staleDate, staleDate);
+    fs.utimesSync(tempDir, staleDate, staleDate);
+
+    cleanupReadAloudAudio();
+
+    assert.equal(fs.existsSync(tempDir), false);
 });

@@ -188,6 +188,8 @@ const isJobStale = (job) => (
     && job.status !== 'ready'
 );
 
+const isTempRenderDir = (file = '') => /^[a-f0-9]{32}-/.test(String(file || ''));
+
 export const splitSummaryForTts = (value = '', maxChars = TTS_CHUNK_MAX_CHARS) => {
     const text = String(value || '').replace(/\s+/g, ' ').trim();
     if (!text) {
@@ -531,7 +533,15 @@ export const cleanupReadAloudAudio = () => {
     for (const file of fs.readdirSync(STORAGE_DIR)) {
         const filePath = path.join(STORAGE_DIR, file);
         const stat = fs.statSync(filePath);
-        if (now - stat.mtimeMs > CACHE_TTL_MS) {
+        const ageMs = now - stat.mtimeMs;
+        if (stat.isDirectory()) {
+            if ((isTempRenderDir(file) && ageMs > JOB_STALE_MS) || ageMs > CACHE_TTL_MS) {
+                fs.rmSync(filePath, { recursive: true, force: true });
+            }
+            continue;
+        }
+
+        if (ageMs > CACHE_TTL_MS) {
             fs.rmSync(filePath, { force: true });
         }
     }

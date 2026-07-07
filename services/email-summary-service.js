@@ -65,7 +65,6 @@ export const needsReadAloudPipeline = (email = {}) => (
     && !email.bin
     && !email.spam
     && email.read_aloud_status !== 'ready'
-    && email.read_aloud_status !== 'processing'
 );
 
 export const shouldPrefetchEmailSummary = needsReadAloudPipeline;
@@ -96,6 +95,19 @@ const persistEmailReadAloudFields = async (email, updates = {}) => {
     }
 
     return { ...email, ...updates };
+};
+
+export const safePersistEmailReadAloudFields = async (
+    email,
+    updates = {},
+    persist = persistEmailReadAloudFields
+) => {
+    try {
+        return await persist(email, updates);
+    } catch (error) {
+        console.error('Failed to persist read aloud status:', error.message || error);
+        return { ...email, ...updates };
+    }
 };
 
 const markBulkItemFinished = (failed = false) => {
@@ -129,7 +141,7 @@ const processReadAloudPipeline = async (email) => {
             return;
         }
 
-        let current = await persistEmailReadAloudFields(email, {
+        let current = await safePersistEmailReadAloudFields(email, {
             read_summary_status: 'processing',
             read_aloud_status: 'processing'
         });
@@ -140,7 +152,7 @@ const processReadAloudPipeline = async (email) => {
                 settings,
                 prompt: buildSummaryPrompt(current)
             });
-            current = await persistEmailReadAloudFields(current, {
+            current = await safePersistEmailReadAloudFields(current, {
                 read_summary: summary,
                 read_summary_status: 'ready',
                 read_summary_at: new Date()
@@ -150,7 +162,7 @@ const processReadAloudPipeline = async (email) => {
         const { prefetchReadAloudAudioAwait } = await import('./read-aloud-service.js');
         await prefetchReadAloudAudioAwait(current, settings, summary);
 
-        await persistEmailReadAloudFields(current, {
+        await safePersistEmailReadAloudFields(current, {
             read_summary: summary,
             read_summary_status: 'ready',
             read_aloud_status: 'ready',
@@ -158,7 +170,7 @@ const processReadAloudPipeline = async (email) => {
         });
     } catch (error) {
         failed = true;
-        await persistEmailReadAloudFields(email, {
+        await safePersistEmailReadAloudFields(email, {
             read_summary_status: 'error',
             read_aloud_status: 'error'
         });
@@ -229,7 +241,7 @@ const loadReadAloudCandidates = async ({ limit = 0 } = {}) => {
             type: 'inbox',
             bin: false,
             spam: false,
-            read_aloud_status: { $nin: ['ready', 'processing'] }
+            read_aloud_status: { $ne: 'ready' }
         })
             .sort({ date: -1 });
 
