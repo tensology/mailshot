@@ -3,6 +3,7 @@ import { ChevronUp, MoreHorizontal } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { splitPlainQuotedContent, splitHtmlQuotedContent } from '../../utils/quoteSplitter';
 import { formatEmailBody, extractHtmlBody } from '../../utils/emailFormatter';
+import { forceLinksToOpenInNewTab } from '../../utils/htmlLinks';
 import IconButton from '../ui/IconButton';
 
 const QuotedContent = ({ body, bodyHtml }) => {
@@ -17,10 +18,10 @@ const QuotedContent = ({ body, bodyHtml }) => {
     const hasQuote = hasHtmlQuote || hasPlainQuote;
 
     const mainHtml = htmlParts.main
-        ? DOMPurify.sanitize(htmlParts.main, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] })
+        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.main, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] }))
         : '';
     const quotedHtml = htmlParts.quoted
-        ? DOMPurify.sanitize(htmlParts.quoted, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] })
+        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.quoted, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] }))
         : '';
 
     const showHtml = mainHtml && mainHtml.replace(/<[^>]+>/g, '').trim();
