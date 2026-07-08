@@ -13,6 +13,7 @@ import {
     archiveEmails,
     restoreArchivedEmails,
     deleteEmails,
+    parseForwardedAttachmentRefs,
     __setMailboxStoreForTests
 } from './email-controller.js';
 
@@ -43,6 +44,20 @@ const createResponse = () => {
         }
     };
 };
+
+test('parseForwardedAttachmentRefs accepts valid forwarded attachment metadata only', () => {
+    assert.deepEqual(parseForwardedAttachmentRefs(JSON.stringify([
+        { emailId: 'email-1', attachmentId: 'attachment-1' },
+        { email_id: 'email-2', attachment_id: 'attachment-2' },
+        { emailId: '', attachmentId: 'missing-email' },
+        { emailId: 'missing-attachment', attachmentId: '' }
+    ])), [
+        { emailId: 'email-1', attachmentId: 'attachment-1' },
+        { emailId: 'email-2', attachmentId: 'attachment-2' }
+    ]);
+
+    assert.deepEqual(parseForwardedAttachmentRefs('not json'), []);
+});
 
 test('getEmails serves Postgres-backed mailbox data when the mailbox store is ready', async () => {
     __setMailboxStoreForTests({

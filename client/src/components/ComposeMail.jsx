@@ -127,6 +127,16 @@ const getAttachmentKind = (file) => {
     return 'file';
 };
 
+const isForwardedAttachment = (file) => file?.source === 'forwarded';
+
+const getAttachmentDisplayName = (file) => file?.name || file?.filename || 'attachment';
+
+const getAttachmentKey = (file, index) => (
+    isForwardedAttachment(file)
+        ? `forwarded-${file.emailId}-${file.attachmentId}-${index}`
+        : `${file.name}-${file.size}-${file.lastModified}-${index}`
+);
+
 const ComposeMail = ({ onSent }) => {
     const { isOpen, composeState, draft, closeCompose, setComposeState } = useCompose();
     const { isMobile } = useLayout();
@@ -194,7 +204,7 @@ const ComposeMail = ({ onSent }) => {
         lastSavedDraftRef.current = '';
         setShowCc(Boolean(draft.show_cc || draft.cc));
         setShowBcc(Boolean(draft.show_bcc || draft.bcc));
-        setAttachments([]);
+        setAttachments(Array.isArray(draft.forwarded_attachments) ? draft.forwarded_attachments : []);
         setSignatureOptions([]);
         setSelectedSignatureEmail('');
         appliedSignatureRef.current = '';
@@ -290,6 +300,15 @@ const ComposeMail = ({ onSent }) => {
     const openAttachmentPreview = (file) => {
         const kind = getAttachmentKind(file);
         if (!['image', 'video', 'pdf'].includes(kind)) {
+            return;
+        }
+
+        if (isForwardedAttachment(file)) {
+            setPreviewFile({
+                file,
+                kind,
+                url: file.url || ''
+            });
             return;
         }
 
@@ -447,7 +466,19 @@ const ComposeMail = ({ onSent }) => {
         if (draft.references?.length) {
             payload.append('references', draft.references.join(','));
         }
-        attachments.forEach((file) => payload.append('attachments', file));
+        const forwardedAttachments = attachments
+            .filter(isForwardedAttachment)
+            .map((file) => ({
+                emailId: file.emailId,
+                attachmentId: file.attachmentId
+            }))
+            .filter((file) => file.emailId && file.attachmentId);
+        attachments
+            .filter((file) => !isForwardedAttachment(file))
+            .forEach((file) => payload.append('attachments', file));
+        if (forwardedAttachments.length > 0) {
+            payload.append('forwardedAttachments', JSON.stringify(forwardedAttachments));
+        }
 
         const result = await sendEmailService.call(payload);
         if (result.error) {
@@ -619,11 +650,12 @@ const ComposeMail = ({ onSent }) => {
                                     const kind = getAttachmentKind(file);
                                     const canPreview = ['image', 'video', 'pdf'].includes(kind);
                                     const FileIcon = kind === 'image' ? Image : FileText;
+                                    const displayName = getAttachmentDisplayName(file);
                                     return (
-                                        <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 shadow-sm">
+                                        <div key={getAttachmentKey(file, index)} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 shadow-sm">
                                             <FileIcon className="h-4 w-4 shrink-0 text-slate-500" />
                                             <div className="min-w-0 flex-1">
-                                                <p className="truncate text-xs font-semibold text-slate-800" title={file.name}>{file.name}</p>
+                                                <p className="truncate text-xs font-semibold text-slate-800" title={displayName}>{displayName}</p>
                                                 <p className="text-[11px] text-slate-500">{formatFileSize(file.size)}</p>
                                             </div>
                                             {canPreview && (
@@ -631,8 +663,8 @@ const ComposeMail = ({ onSent }) => {
                                                     type="button"
                                                     onClick={() => openAttachmentPreview(file)}
                                                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-blue-50 hover:text-blue-700"
-                                                    aria-label={`Preview ${file.name}`}
-                                                    title={`Preview ${file.name}`}
+                                                    aria-label={`Preview ${displayName}`}
+                                                    title={`Preview ${displayName}`}
                                                 >
                                                     <Eye className="h-4 w-4" />
                                                 </button>
@@ -641,8 +673,8 @@ const ComposeMail = ({ onSent }) => {
                                                 type="button"
                                                 onClick={() => removeAttachment(index)}
                                                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-600"
-                                                aria-label={`Remove ${file.name}`}
-                                                title={`Remove ${file.name}`}
+                                                aria-label={`Remove ${displayName}`}
+                                                title={`Remove ${displayName}`}
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </button>

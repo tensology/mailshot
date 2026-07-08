@@ -207,10 +207,23 @@ const ViewEmail = () => {
         const references = [...(message.references || []), message.messageId].filter(Boolean);
 
         if (mode === 'forward') {
+            const forwardedAttachments = getVisibleAttachments(message).map((attachment) => ({
+                source: 'forwarded',
+                emailId: String(message._id || ''),
+                attachmentId: String(attachment.attachment_id || ''),
+                name: attachment.filename || 'attachment',
+                filename: attachment.filename || 'attachment',
+                size: Number(attachment.size || 0),
+                type: attachment.content_type || 'application/octet-stream',
+                content_type: attachment.content_type || 'application/octet-stream',
+                url: buildAttachmentUrl(message._id, attachment.attachment_id, { inline: true })
+            })).filter((attachment) => attachment.emailId && attachment.attachmentId);
+
             openComposeDraft({
                 to: '',
                 subject: (message.subject || '').startsWith('Fwd:') ? message.subject : `Fwd: ${message.subject || '(no subject)'}`,
                 body: buildForwardBody(message, plainBody),
+                forwarded_attachments: forwardedAttachments,
                 title: 'Forward'
             });
             return;

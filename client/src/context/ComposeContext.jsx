@@ -10,6 +10,7 @@ const emptyDraft = () => ({
     body: '',
     in_reply_to: '',
     references: [],
+    forwarded_attachments: [],
     show_cc: false,
     show_bcc: false,
     title: 'New Message'
@@ -33,7 +34,8 @@ export const ComposeProvider = ({ children }) => {
         setDraft({
             ...emptyDraft(),
             ...nextDraft,
-            references: Array.isArray(nextDraft.references) ? nextDraft.references : []
+            references: Array.isArray(nextDraft.references) ? nextDraft.references : [],
+            forwarded_attachments: Array.isArray(nextDraft.forwarded_attachments) ? nextDraft.forwarded_attachments : []
         });
         setComposeState('normal');
         setIsOpen(true);

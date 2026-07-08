@@ -264,6 +264,67 @@ const hasDraftContent = (payload = {}) => (
     ['to', 'cc', 'bcc', 'subject', 'body'].some((field) => String(payload[field] || '').trim())
 );
 
+export const parseForwardedAttachmentRefs = (value) => {
+    if (!value) {
+        return [];
+    }
+
+    try {
+        const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+        return (Array.isArray(parsed) ? parsed : [])
+            .map((item) => ({
+                emailId: String(item.emailId || item.email_id || '').trim(),
+                attachmentId: String(item.attachmentId || item.attachment_id || '').trim()
+            }))
+            .filter((item) => item.emailId && item.attachmentId);
+    } catch {
+        return [];
+    }
+};
+
+const findStoredEmail = async (emailId) => {
+    if (isMailboxStoreReady()) {
+        const repository = getMailboxRepository();
+        return repository.findById(emailId);
+    }
+
+    const resolved = await findEmailRecord(emailId);
+    return resolved?.email || null;
+};
+
+const copyForwardedAttachments = async (refs = []) => {
+    const copied = [];
+    const seen = new Set();
+
+    for (const ref of refs) {
+        const key = `${ref.emailId}:${ref.attachmentId}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+
+        const email = await findStoredEmail(ref.emailId);
+        const attachment = (email?.attachments || []).find((item) => (
+            String(item.attachment_id || '') === ref.attachmentId
+        ));
+        if (!attachment) {
+            continue;
+        }
+
+        const data = readAttachmentFile(attachment.storage_path);
+        if (!data) {
+            continue;
+        }
+
+        copied.push(saveAttachmentFromBuffer(data, {
+            filename: attachment.filename || 'attachment',
+            content_type: attachment.content_type || 'application/octet-stream'
+        }));
+    }
+
+    return copied;
+};
+
 const normalizeDraftPayload = (payload = {}) => {
     const now = new Date();
     const draftId = payload._id || payload.id || '';
@@ -1153,6 +1214,10 @@ export const sendEmail = async (request, response) => {
             filename: file.originalname,
             content_type: file.mimetype
         }));
+        const forwardedAttachments = await copyForwardedAttachments(
+            parseForwardedAttachmentRefs(request.body.forwardedAttachments)
+        );
+        const allAttachments = [...uploadedAttachments, ...forwardedAttachments];
 
         const payload = {
             to: request.body.to,
@@ -1165,7 +1230,7 @@ export const sendEmail = async (request, response) => {
             references: request.body.references
                 ? String(request.body.references).split(',').map((item) => item.trim()).filter(Boolean)
                 : undefined,
-            attachments: uploadedAttachments
+            attachments: allAttachments
         };
 
         const info = await sendMail(payload);
@@ -1188,7 +1253,7 @@ export const sendEmail = async (request, response) => {
             in_reply_to: payload.inReplyTo || '',
             references: payload.references || [],
             labels: [],
-            attachments: uploadedAttachments
+            attachments: allAttachments
         };
 
         if (isMailboxStoreReady()) {
