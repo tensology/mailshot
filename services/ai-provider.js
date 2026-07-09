@@ -61,6 +61,7 @@ export const buildProviderHeaders = (provider, apiKey) => {
 };
 
 const STANDARD_COMPLETION_TOKEN_LIMIT = 220;
+const EXPANDED_COMPLETION_TOKEN_LIMIT = 1800;
 const REASONING_COMPLETION_TOKEN_LIMIT = 1000;
 
 export const FAST_SUMMARY_MODEL_DEFAULTS = {
@@ -214,7 +215,7 @@ export const getCompletionRequestOptions = (provider, model, { expanded = false 
         };
     }
 
-    return { max_tokens: STANDARD_COMPLETION_TOKEN_LIMIT };
+    return { max_tokens: expanded ? EXPANDED_COMPLETION_TOKEN_LIMIT : STANDARD_COMPLETION_TOKEN_LIMIT };
 };
 
 export const extractSummary = (provider, payload = {}) => {
@@ -292,7 +293,7 @@ const adjustBodyForProviderError = (body = {}, message = '') => {
 };
 
 const buildSummaryBody = ({ provider, model, prompt, expanded = false }) => {
-    const system = 'You summarize email for spoken playback. Be concise, natural, and useful. Do not mention raw headers unless they matter.';
+    const system = 'You summarize email for spoken playback. Return only the final summary. Be concise, natural, and useful. Do not include reasoning, analysis, markdown, or preamble. Do not mention raw headers unless they matter.';
 
     if (provider === 'anthropic') {
         return {
@@ -392,7 +393,7 @@ const requestSummaryWithRetries = async ({ provider, config, apiKey, model, prom
     }
 
     let summary = extractSummary(provider, payload);
-    if (!summary && wasSummaryTruncated(payload) && modelUsesMaxCompletionTokens(model)) {
+    if (!summary && wasSummaryTruncated(payload)) {
         logPipelineEvent('summary.provider.retry_expanded', {
             ...trace,
             provider,

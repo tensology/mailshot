@@ -33,6 +33,12 @@ test('standard models keep a small max_tokens budget', () => {
     });
 });
 
+test('expanded retry gives standard models enough room after length truncation', () => {
+    assert.deepEqual(getCompletionRequestOptions('openrouter', 'tencent/hy3:free', { expanded: true }), {
+        max_tokens: 1800
+    });
+});
+
 test('extractSummary handles string and array chat completion content', () => {
     assert.equal(
         extractSummary('openai', {
