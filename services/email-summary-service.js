@@ -8,6 +8,11 @@ import {
     updateCachedEmail
 } from './mail-sync.js';
 import { getMailboxRepository, isMailboxStoreReady } from './postgres-mailbox-store.js';
+import {
+    getEmailLogContext,
+    getErrorLogContext,
+    logPipelineEvent
+} from './pipeline-logger.js';
 
 const SUMMARY_QUEUE = [];
 const QUEUED_IDS = new Set();
@@ -105,7 +110,11 @@ export const safePersistEmailReadAloudFields = async (
     try {
         return await persist(email, updates);
     } catch (error) {
-        console.error('Failed to persist read aloud status:', error.message || error);
+        logPipelineEvent('summary.persist.failed', {
+            ...getEmailLogContext(email),
+            updates: Object.keys(updates || {}),
+            error: getErrorLogContext(error)
+        }, 'error');
         return { ...email, ...updates };
     }
 };
@@ -134,10 +143,22 @@ const processReadAloudPipeline = async (email) => {
 
     PROCESSING_IDS.add(emailId);
     let failed = false;
+    const startedAt = Date.now();
+    const logContext = getEmailLogContext(email);
 
     try {
+        logPipelineEvent('summary.pipeline.start', {
+            ...logContext,
+            queue_depth: SUMMARY_QUEUE.length,
+            processing_count: PROCESSING_IDS.size
+        });
+
         const settings = await getSettings();
         if (!hasSummaryProviderConfigured(settings)) {
+            logPipelineEvent('summary.pipeline.skipped', {
+                ...logContext,
+                reason: 'summary_provider_not_configured'
+            }, 'warn');
             return;
         }
 
@@ -148,14 +169,25 @@ const processReadAloudPipeline = async (email) => {
 
         let summary = getStoredEmailSummary(current);
         if (!summary) {
+            logPipelineEvent('summary.generate.start', getEmailLogContext(current));
             summary = await summarizeEmailWithSettings({
                 settings,
-                prompt: buildSummaryPrompt(current)
+                prompt: buildSummaryPrompt(current),
+                trace: getEmailLogContext(current)
+            });
+            logPipelineEvent('summary.generate.ready', {
+                ...getEmailLogContext(current),
+                summary_length: summary.length
             });
             current = await safePersistEmailReadAloudFields(current, {
                 read_summary: summary,
                 read_summary_status: 'ready',
                 read_summary_at: new Date()
+            });
+        } else {
+            logPipelineEvent('summary.generate.cached', {
+                ...getEmailLogContext(current),
+                summary_length: summary.length
             });
         }
 
@@ -168,17 +200,33 @@ const processReadAloudPipeline = async (email) => {
             read_aloud_status: 'ready',
             read_summary_at: current.read_summary_at || new Date()
         });
+        logPipelineEvent('summary.pipeline.ready', {
+            ...getEmailLogContext(current),
+            duration_ms: Date.now() - startedAt,
+            summary_length: summary.length
+        });
     } catch (error) {
         failed = true;
         await safePersistEmailReadAloudFields(email, {
             read_summary_status: 'error',
             read_aloud_status: 'error'
         });
-        console.error(`Read aloud pipeline failed for ${emailId}:`, error.message || error);
+        logPipelineEvent('summary.pipeline.failed', {
+            ...logContext,
+            duration_ms: Date.now() - startedAt,
+            error: getErrorLogContext(error)
+        }, 'error');
     } finally {
         PROCESSING_IDS.delete(emailId);
         QUEUED_IDS.delete(emailId);
         markBulkItemFinished(failed);
+        logPipelineEvent('summary.pipeline.finish', {
+            ...logContext,
+            failed,
+            duration_ms: Date.now() - startedAt,
+            queue_depth: SUMMARY_QUEUE.length,
+            processing_count: PROCESSING_IDS.size
+        }, failed ? 'warn' : 'info');
     }
 };
 
@@ -215,6 +263,10 @@ export const enqueueEmailSummary = (email) => {
 
     QUEUED_IDS.add(emailId);
     SUMMARY_QUEUE.push(email);
+    logPipelineEvent('summary.queue.added', {
+        ...getEmailLogContext(email),
+        queue_depth: SUMMARY_QUEUE.length
+    });
     schedulePump();
     return true;
 };
@@ -298,6 +350,10 @@ export const startBulkReadAloudSummaries = async () => {
 
     bulkProgress.total = queued;
     bulkProgress.active = queued > 0;
+    logPipelineEvent('summary.bulk.queued', {
+        candidates: candidates.length,
+        queued
+    });
 
     if (queued === 0) {
         bulkProgress.finished_at = new Date().toISOString();
@@ -323,7 +379,10 @@ export const startEmailSummaryWorker = async () => {
     });
 
     if (queued > 0) {
-        console.log(`Queued ${queued} email summaries for background generation`);
+        logPipelineEvent('summary.worker.queued', {
+            candidates: candidates.length,
+            queued
+        });
     }
 };
 

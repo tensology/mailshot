@@ -8,6 +8,11 @@ import { summarizeEmailWithSettings } from './ai-provider.js';
 import { buildSummaryPrompt, getStoredEmailSummary } from './email-summary-service.js';
 import { getSettings } from './settings-store.js';
 import { hasSummaryProviderConfigured } from './ai-provider.js';
+import {
+    getEmailLogContext,
+    getErrorLogContext,
+    logPipelineEvent
+} from './pipeline-logger.js';
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -156,12 +161,33 @@ const getCachedJob = (cacheKey) => {
 
 const getKokoroModel = async () => {
     if (!kokoroModelPromise) {
+        logPipelineEvent('tts.model.load_start', {
+            model_id: MODEL_ID,
+            dtype: KOKORO_DTYPE,
+            device: KOKORO_DEVICE
+        });
         kokoroModelPromise = import('kokoro-js').then(({ KokoroTTS }) => (
             KokoroTTS.from_pretrained(MODEL_ID, {
                 dtype: KOKORO_DTYPE,
                 device: KOKORO_DEVICE
             })
-        ));
+        )).then((model) => {
+            logPipelineEvent('tts.model.load_ready', {
+                model_id: MODEL_ID,
+                dtype: KOKORO_DTYPE,
+                device: KOKORO_DEVICE
+            });
+            return model;
+        }).catch((error) => {
+            logPipelineEvent('tts.model.load_failed', {
+                model_id: MODEL_ID,
+                dtype: KOKORO_DTYPE,
+                device: KOKORO_DEVICE,
+                error: getErrorLogContext(error)
+            }, 'error');
+            kokoroModelPromise = null;
+            throw error;
+        });
     }
     return kokoroModelPromise;
 };
@@ -252,19 +278,37 @@ const escapeConcatPath = (filePath) => String(filePath).replace(/'/g, "'\\''");
 const generateAudioForSummary = async (job, summary, email = null, settings = {}) => {
     ensureStorageDir();
     const tempDir = fs.mkdtempSync(path.join(STORAGE_DIR, `${job.job_id}-`));
+    const startedAt = Date.now();
     const tts = await getKokoroModel();
     const voice = getKokoroVoice(settings);
     const chunks = splitSummaryForTts(summary);
+    const logContext = {
+        ...getEmailLogContext(email),
+        job_id: job.job_id,
+        voice,
+        chunk_count: chunks.length,
+        summary_length: String(summary || '').length
+    };
 
     try {
+        logPipelineEvent('tts.audio.generate_start', logContext);
         const wavPaths = [];
         for (const [index, chunk] of chunks.entries()) {
+            const chunkStartedAt = Date.now();
             const audio = await tts.generate(chunk, {
                 voice,
                 speed: 1
             });
             const wavPath = path.join(tempDir, `${String(index).padStart(3, '0')}.wav`);
             await audio.save(wavPath);
+            const wavSize = fs.existsSync(wavPath) ? fs.statSync(wavPath).size : 0;
+            logPipelineEvent('tts.audio.chunk_ready', {
+                ...logContext,
+                chunk_index: index,
+                chunk_length: chunk.length,
+                wav_size: wavSize,
+                duration_ms: Date.now() - chunkStartedAt
+            });
             wavPaths.push(wavPath);
         }
 
@@ -290,6 +334,7 @@ const generateAudioForSummary = async (job, summary, email = null, settings = {}
             'on',
             job.filePath
         ]);
+        const outputSize = fs.existsSync(job.filePath) ? fs.statSync(job.filePath).size : 0;
         fs.writeFileSync(job.metaPath, JSON.stringify({
             summary,
             email_id: String(email?._id || ''),
@@ -297,8 +342,25 @@ const generateAudioForSummary = async (job, summary, email = null, settings = {}
             chunks: chunks.length,
             created_at: new Date().toISOString()
         }));
+        logPipelineEvent('tts.audio.ready', {
+            ...logContext,
+            output_size: outputSize,
+            bitrate: OGG_BITRATE,
+            duration_ms: Date.now() - startedAt
+        });
+    } catch (error) {
+        logPipelineEvent('tts.audio.failed', {
+            ...logContext,
+            duration_ms: Date.now() - startedAt,
+            error: getErrorLogContext(error)
+        }, 'error');
+        throw error;
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
+        logPipelineEvent('tts.audio.temp_cleaned', {
+            ...logContext,
+            duration_ms: Date.now() - startedAt
+        });
     }
 };
 
@@ -311,23 +373,40 @@ const finalizeReadyJob = (job, email, summary = '') => {
 
 const processJob = async (job, email, settings, summaryText = '') => {
     const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
+    const startedAt = Date.now();
+    const logContext = {
+        ...getEmailLogContext(email),
+        job_id: job.job_id
+    };
 
     try {
         job.status = 'processing';
+        logPipelineEvent('tts.job.start', logContext);
         const storedSummary = summaryText || getStoredEmailSummary(email);
         const summary = storedSummary || await summarizeEmailWithSettings({
             settings,
-            prompt: buildSummaryPrompt(email)
+            prompt: buildSummaryPrompt(email),
+            trace: getEmailLogContext(email)
         });
 
         job.summary = summary;
         await generateAudioForSummary(job, summary, email, settings);
         job.status = 'ready';
+        logPipelineEvent('tts.job.ready', {
+            ...logContext,
+            duration_ms: Date.now() - startedAt,
+            summary_length: summary.length
+        });
         return finalizeReadyJob(job, email, summary);
     } catch (error) {
         job.status = 'error';
         job.error = error.message || 'Could not generate read aloud audio';
         fs.rmSync(wavPath, { force: true });
+        logPipelineEvent('tts.job.failed', {
+            ...logContext,
+            duration_ms: Date.now() - startedAt,
+            error: getErrorLogContext(error)
+        }, 'error');
         throw error;
     }
 };
@@ -345,16 +424,29 @@ export const prefetchReadAloudAudioAwait = async (email, settings, summaryText =
         if (email?._id) {
             rememberEmailCache(email._id, cacheKey, cached.summary || summaryText);
         }
+        logPipelineEvent('tts.prefetch.cache_hit', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey
+        });
         return getJobSnapshot(cached);
     }
 
     const existing = jobs.get(cacheKey);
     if (existing?.status === 'ready') {
+        logPipelineEvent('tts.prefetch.existing_ready', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey
+        });
         return getJobSnapshot(existing);
     }
 
     const job = createJob(cacheKey);
     jobs.set(cacheKey, job);
+    logPipelineEvent('tts.prefetch.queued', {
+        ...getEmailLogContext(email),
+        job_id: cacheKey,
+        synchronous: true
+    });
     return processJob(job, email, settings, summaryText);
 };
 
@@ -371,16 +463,30 @@ export const prefetchReadAloudAudio = (email, settings, summaryText = '') => {
         if (email?._id) {
             rememberEmailCache(email._id, cacheKey, cached.summary || summaryText);
         }
+        logPipelineEvent('tts.prefetch.cache_hit', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey
+        });
         return getJobSnapshot(cached);
     }
 
     const existing = jobs.get(cacheKey);
     if (existing && existing.status !== 'error') {
+        logPipelineEvent('tts.prefetch.existing', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey,
+            status: existing.status
+        });
         return getJobSnapshot(existing);
     }
 
     const job = createJob(cacheKey);
     jobs.set(cacheKey, job);
+    logPipelineEvent('tts.prefetch.queued', {
+        ...getEmailLogContext(email),
+        job_id: cacheKey,
+        synchronous: false
+    });
     processJob(job, email, settings, summaryText).catch(() => {});
     return getJobSnapshot(job);
 };
@@ -407,20 +513,38 @@ export const startReadAloudJob = async (email) => {
         if (emailId) {
             rememberEmailCache(emailId, cached.job_id, cached.summary || storedSummary);
         }
+        logPipelineEvent('tts.manual.cache_hit', {
+            ...getEmailLogContext(email),
+            job_id: cached.job_id
+        });
         return getJobSnapshot(cached);
     }
 
     const existing = jobs.get(cacheKey);
     if (existing?.status === 'ready') {
+        logPipelineEvent('tts.manual.existing_ready', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey
+        });
         return getJobSnapshot(existing);
     }
 
     if (existing && (existing.status === 'queued' || existing.status === 'processing') && !isJobStale(existing)) {
+        logPipelineEvent('tts.manual.existing', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey,
+            status: existing.status
+        });
         return getJobSnapshot(existing);
     }
 
     if (existing && isJobStale(existing)) {
         jobs.delete(cacheKey);
+        logPipelineEvent('tts.manual.stale_replaced', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey,
+            status: existing.status
+        }, 'warn');
     }
 
     const job = createJob(cacheKey);
@@ -429,6 +553,11 @@ export const startReadAloudJob = async (email) => {
     }
 
     jobs.set(cacheKey, job);
+    logPipelineEvent('tts.manual.queued', {
+        ...getEmailLogContext(email),
+        job_id: cacheKey,
+        has_stored_summary: Boolean(storedSummary)
+    });
     processJob(job, email, settings, storedSummary || '').catch(() => {});
     return getJobSnapshot(job);
 };
@@ -530,6 +659,8 @@ export const deleteReadAloudAssetsForEmails = (emailIds = []) => {
 export const cleanupReadAloudAudio = () => {
     ensureStorageDir();
     const now = Date.now();
+    let removedFiles = 0;
+    let removedDirs = 0;
     for (const file of fs.readdirSync(STORAGE_DIR)) {
         const filePath = path.join(STORAGE_DIR, file);
         const stat = fs.statSync(filePath);
@@ -537,12 +668,14 @@ export const cleanupReadAloudAudio = () => {
         if (stat.isDirectory()) {
             if ((isTempRenderDir(file) && ageMs > JOB_STALE_MS) || ageMs > CACHE_TTL_MS) {
                 fs.rmSync(filePath, { recursive: true, force: true });
+                removedDirs += 1;
             }
             continue;
         }
 
         if (ageMs > CACHE_TTL_MS) {
             fs.rmSync(filePath, { force: true });
+            removedFiles += 1;
         }
     }
 
@@ -557,9 +690,11 @@ export const cleanupReadAloudAudio = () => {
             const audioPath = path.join(STORAGE_DIR, `${index.cache_key}.${AUDIO_EXTENSION}`);
             if (!fs.existsSync(audioPath)) {
                 fs.rmSync(indexPath, { force: true });
+                removedFiles += 1;
             }
         } catch {
             fs.rmSync(indexPath, { force: true });
+            removedFiles += 1;
         }
     }
 
@@ -567,6 +702,12 @@ export const cleanupReadAloudAudio = () => {
         if (job.status === 'ready' && !fs.existsSync(path.join(STORAGE_DIR, job.filename))) {
             jobs.delete(jobId);
         }
+    }
+    if (removedFiles > 0 || removedDirs > 0) {
+        logPipelineEvent('tts.cleanup.removed', {
+            removed_files: removedFiles,
+            removed_dirs: removedDirs
+        });
     }
 };
 

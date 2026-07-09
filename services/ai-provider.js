@@ -324,47 +324,105 @@ const requestSummary = async ({ provider, config, apiKey, body }) => {
     return { result, payload };
 };
 
-const requestSummaryWithRetries = async ({ provider, config, apiKey, model, prompt }) => {
+const getProviderPayloadMessage = (payload = {}) => (
+    payload?.error?.message || payload?.message || ''
+);
+
+const requestSummaryWithRetries = async ({ provider, config, apiKey, model, prompt, trace = {} }) => {
     let body = buildSummaryBody({ provider, model, prompt });
     let result;
     let payload = {};
+    const startedAt = Date.now();
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
+        const attemptStartedAt = Date.now();
+        logPipelineEvent('summary.provider.request', {
+            ...trace,
+            provider,
+            model,
+            attempt: attempt + 1,
+            prompt_length: String(prompt || '').length,
+            uses_max_completion_tokens: Object.prototype.hasOwnProperty.call(body, 'max_completion_tokens'),
+            has_temperature: Object.prototype.hasOwnProperty.call(body, 'temperature'),
+            has_reasoning_effort: Object.prototype.hasOwnProperty.call(body, 'reasoning_effort')
+        });
         ({ result, payload } = await requestSummary({ provider, config, apiKey, body }));
+        logPipelineEvent(result.ok ? 'summary.provider.response' : 'summary.provider.error_response', {
+            ...trace,
+            provider,
+            model,
+            attempt: attempt + 1,
+            status: result.status,
+            status_text: result.statusText,
+            duration_ms: Date.now() - attemptStartedAt,
+            finish_reason: payload?.choices?.[0]?.finish_reason || '',
+            provider_message: getProviderPayloadMessage(payload)
+        }, result.ok ? 'info' : 'warn');
 
         if (result.ok) {
             break;
         }
 
-        const message = payload?.error?.message || payload?.message || '';
+        const message = getProviderPayloadMessage(payload);
         const adjustedBody = adjustBodyForProviderError(body, message);
         if (JSON.stringify(adjustedBody) === JSON.stringify(body)) {
             break;
         }
 
+        logPipelineEvent('summary.provider.retry_adjusted', {
+            ...trace,
+            provider,
+            model,
+            attempt: attempt + 1,
+            message,
+            changed_fields: {
+                max_tokens: body.max_tokens !== adjustedBody.max_tokens,
+                max_completion_tokens: body.max_completion_tokens !== adjustedBody.max_completion_tokens,
+                temperature_removed: Object.prototype.hasOwnProperty.call(body, 'temperature') && !Object.prototype.hasOwnProperty.call(adjustedBody, 'temperature'),
+                reasoning_effort_removed: Object.prototype.hasOwnProperty.call(body, 'reasoning_effort') && !Object.prototype.hasOwnProperty.call(adjustedBody, 'reasoning_effort')
+            }
+        }, 'warn');
         body = adjustedBody;
     }
 
     if (!result.ok) {
-        throw new Error(payload?.error?.message || payload?.message || 'Could not summarize this email');
+        const error = new Error(getProviderPayloadMessage(payload) || 'Could not summarize this email');
+        error.status = result.status;
+        throw error;
     }
 
     let summary = extractSummary(provider, payload);
     if (!summary && wasSummaryTruncated(payload) && modelUsesMaxCompletionTokens(model)) {
+        logPipelineEvent('summary.provider.retry_expanded', {
+            ...trace,
+            provider,
+            model,
+            reason: 'empty_summary_after_length_finish'
+        }, 'warn');
         body = buildSummaryBody({ provider, model, prompt, expanded: true });
         ({ result, payload } = await requestSummary({ provider, config, apiKey, body }));
 
         if (!result.ok) {
-            throw new Error(payload?.error?.message || payload?.message || 'Could not summarize this email');
+            const error = new Error(getProviderPayloadMessage(payload) || 'Could not summarize this email');
+            error.status = result.status;
+            throw error;
         }
 
         summary = extractSummary(provider, payload);
     }
 
+    logPipelineEvent('summary.provider.complete', {
+        ...trace,
+        provider,
+        model,
+        duration_ms: Date.now() - startedAt,
+        summary_length: String(summary || '').length,
+        finish_reason: payload?.choices?.[0]?.finish_reason || ''
+    });
     return summary;
 };
 
-export const summarizeWithProvider = async ({ settings, prompt, model: modelOverride = '' }) => {
+export const summarizeWithProvider = async ({ settings, prompt, model: modelOverride = '', trace = {} }) => {
     const ai = settings.ai || {};
     const provider = providerDefaults[ai.provider] ? ai.provider : 'openai';
     const config = getProviderConfig(provider);
@@ -372,24 +430,54 @@ export const summarizeWithProvider = async ({ settings, prompt, model: modelOver
     const model = String(modelOverride || ai.model || '').trim();
 
     if (!apiKey || !model || !ai.enabled) {
-        throw new Error('AI provider, API key, and model must be saved before read aloud is available.');
+        const error = new Error('AI provider, API key, and model must be saved before read aloud is available.');
+        logPipelineEvent('summary.provider.not_configured', {
+            ...trace,
+            provider,
+            model_configured: Boolean(model),
+            api_key_configured: Boolean(apiKey),
+            ai_enabled: Boolean(ai.enabled)
+        }, 'warn');
+        throw error;
     }
 
-    const summary = await requestSummaryWithRetries({ provider, config, apiKey, model, prompt });
+    let summary = '';
+    try {
+        summary = await requestSummaryWithRetries({ provider, config, apiKey, model, prompt, trace });
+    } catch (error) {
+        logPipelineEvent('summary.provider.failed', {
+            ...trace,
+            provider,
+            model,
+            error: getErrorLogContext(error)
+        }, 'error');
+        throw error;
+    }
     if (!summary) {
+        logPipelineEvent('summary.provider.empty', {
+            ...trace,
+            provider,
+            model
+        }, 'error');
         throw new Error('The AI provider returned an empty summary');
     }
 
     return summary;
 };
 
-export const summarizeEmailWithSettings = async ({ settings, prompt }) => {
+export const summarizeEmailWithSettings = async ({ settings, prompt, trace = {} }) => {
     const { provider, apiKey } = resolveSummaryCredentials(settings);
     if (!apiKey) {
         throw new Error('Save a summary provider API key before using read aloud.');
     }
 
     const summaryModel = resolveSummaryModel(settings);
+    logPipelineEvent('summary.provider.selected', {
+        ...trace,
+        provider,
+        model: summaryModel,
+        prompt_length: String(prompt || '').length
+    });
     return summarizeWithProvider({
         settings: {
             ...settings,
@@ -401,6 +489,11 @@ export const summarizeEmailWithSettings = async ({ settings, prompt }) => {
             }
         },
         prompt,
-        model: summaryModel
+        model: summaryModel,
+        trace
     });
 };
+import {
+    getErrorLogContext,
+    logPipelineEvent
+} from './pipeline-logger.js';

@@ -56,5 +56,6 @@ test('safe read-aloud persistence contains transient write failures', async (t) 
     assert.equal(persisted._id, 'email-1');
     assert.equal(persisted.read_aloud_status, 'error');
     assert.equal(logs.length, 1);
-    assert.match(String(logs[0][1]), /Connection terminated unexpectedly/);
+    assert.match(String(logs[0][0]), /summary\.persist\.failed/);
+    assert.match(String(logs[0][0]), /Connection terminated unexpectedly/);
 });
