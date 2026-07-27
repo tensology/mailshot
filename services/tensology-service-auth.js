@@ -3,6 +3,12 @@ import { getSettings, loadSettingsFromDisk } from './settings-store.js';
 const cache = new Map();
 const CACHE_MS = 60_000;
 
+const withDeploymentFallback = (configured = {}) => ({
+    ...configured,
+    enabled: configured.enabled || String(process.env.TENSOLOGY_API_ENABLED || '').toLowerCase() === 'true',
+    base_url: configured.base_url || process.env.TENSOLOGY_API_URL || 'https://www.tensology.com'
+});
+
 const extractBearer = (request) => {
     const header = String(request.headers.authorization || '');
     return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
@@ -12,14 +18,14 @@ export const requireTensologyService = async (request, response, next) => {
     const rawKey = extractBearer(request);
     if (!rawKey) return response.status(401).json({ error: { code: 'unauthorized', message: 'Service API key required' } });
     let settings = await getSettings();
-    let configured = settings.tensology || {};
+    let configured = withDeploymentFallback(settings.tensology);
     // Settings can be provisioned by an installer or deployment process while
     // Mailshot is already running. Refresh the encrypted disk cache once before
     // reporting an unavailable integration so a restart is not required.
     if (!configured.enabled || !configured.base_url) {
         loadSettingsFromDisk();
         settings = await getSettings();
-        configured = settings.tensology || {};
+        configured = withDeploymentFallback(settings.tensology);
     }
     if (!configured.enabled || !configured.base_url) {
         return response.status(503).json({ error: { code: 'not_configured', message: 'Tensology integration is not configured' } });
