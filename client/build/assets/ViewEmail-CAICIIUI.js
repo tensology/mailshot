@@ -1,4 +1,4 @@
-import{d as _,r as p,j as e,I as y,p as Ue,h as Be,o as ze,n as He,l as Fe,b as Oe,c as Ve,S as Qe,q as We,L as Ge,V as Ke,X as Ye,T as Xe,A as v,s as ie}from"./index-B56XE6bG.js";import{u as N,T as Je,C as Ze}from"./ConfirmDialog-CkgMP7DJ.js";import{q as $,s as et,t as ge,u as tt,m as ce,d as M,M as st,A as rt,g as de,h as me,v as at,x as Z,n as ee,y as lt}from"./mailActions-CqUi3FSB.js";import{p as ue,F as xe}from"./purify.es-CD5Hqc2Z.js";import{B as nt}from"./Button-BwBlxbh3.js";import{A as ot}from"./tag-p36LyU9Q.js";/**
+import{d as _,r as p,j as e,I as y,p as Ue,h as Be,o as ze,n as He,l as Fe,b as Oe,c as Ve,S as Qe,q as We,L as Ge,V as Ke,X as Ye,T as Xe,A as v,s as ie}from"./index-Bk6hF4Ft.js";import{u as N,T as Je,C as Ze}from"./ConfirmDialog-Dm6SI3rW.js";import{q as $,s as et,t as ge,u as tt,m as ce,d as M,M as st,A as rt,g as de,h as me,v as at,x as Z,n as ee,y as lt}from"./mailActions-CRwB4vmC.js";import{p as ue,F as xe}from"./purify.es-5UJdPhtj.js";import{B as nt}from"./Button-B_GsFE8j.js";import{A as ot}from"./tag-BP2uBgnn.js";/**
  * @license lucide-react v0.511.0 - ISC
  *
  * This source code is licensed under the ISC license.

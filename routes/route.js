@@ -61,7 +61,9 @@ import {
     updateGeneralSettings,
     updateAiSettings,
     updateTtsSettings,
-    fetchAiModels
+    fetchAiModels,
+    updateTensologySettings,
+    testTensologyConnection
 } from '../controller/settings-controller.js';
 
 import { requireAuth } from '../middleware/auth.js';
@@ -113,6 +115,8 @@ routes.get('/settings', getAppSettings);
 routes.put('/settings/general', updateGeneralSettings);
 routes.put('/settings/ai', updateAiSettings);
 routes.put('/settings/tts', updateTtsSettings);
+routes.put('/settings/tensology', updateTensologySettings);
+routes.post('/settings/tensology/test', testTensologyConnection);
 routes.post('/settings/ai/models', fetchAiModels);
 
 routes.get('/labels', getLabels);

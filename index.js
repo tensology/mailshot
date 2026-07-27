@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import Connection from './database/db.js';
 import routes from './routes/route.js';
+import integrationRoutes from './routes/integration-route.js';
 import path from 'path';
 import { startMailboxSync } from './services/mail-sync.js';
 import { isDbConnected, getDbStatus } from './database/db.js';
@@ -22,7 +23,14 @@ const isDevelopment = APP_MODE === 'development';
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = String(process.env.MAILSHOT_ALLOWED_ORIGINS || 'https://mailshot.tensology.com')
+    .split(',').map((value) => value.trim()).filter(Boolean);
+app.use(cors({ origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || (isDevelopment && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))) {
+        return callback(null, true);
+    }
+    return callback(new Error('Origin not allowed'));
+} }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
@@ -45,6 +53,9 @@ const maybeServeSpa = (req, res, next) => {
 
 // Static assets and index.html must be served before authenticated API routes.
 app.use(express.static(path.join(__dirname, './client/build')));
+
+// Machine API is deliberately separate from browser-session routes.
+app.use('/api/integrations/v1', integrationRoutes);
 
 app.get('/login', maybeServeSpa);
 app.get('/contacts', maybeServeSpa);
