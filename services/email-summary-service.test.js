@@ -7,7 +7,7 @@ import {
     safePersistEmailReadAloudFields
 } from './email-summary-service.js';
 
-test('only queues inbox emails that still need summary and speech', () => {
+test('only queues inbox emails that still need a summary', () => {
     assert.equal(needsReadAloudPipeline({
         type: 'inbox',
         bin: false,
@@ -17,6 +17,17 @@ test('only queues inbox emails that still need summary and speech', () => {
     assert.equal(needsReadAloudPipeline({
         type: 'inbox',
         read_aloud_status: 'ready'
+    }), true);
+
+    assert.equal(needsReadAloudPipeline({
+        type: 'inbox',
+        read_summary_status: 'ready',
+        read_aloud_status: 'processing'
+    }), false);
+
+    assert.equal(needsReadAloudPipeline({
+        type: 'inbox',
+        read_summary: 'Already summarized'
     }), false);
 
     assert.equal(needsReadAloudPipeline({

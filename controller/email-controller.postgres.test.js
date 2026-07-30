@@ -60,6 +60,7 @@ test('parseForwardedAttachmentRefs accepts valid forwarded attachment metadata o
 });
 
 test('getEmails serves Postgres-backed mailbox data when the mailbox store is ready', async () => {
+    const largeBody = `<p>${'private message '.repeat(1000)}</p>`;
     __setMailboxStoreForTests({
         ready: true,
         repository: {
@@ -67,7 +68,8 @@ test('getEmails serves Postgres-backed mailbox data when the mailbox store is re
                 _id: 'email-1',
                 type: 'inbox',
                 subject: 'Hello',
-                body: '',
+                body: largeBody,
+                body_html: largeBody,
                 from: 'sender@example.com',
                 to: 'user@example.com',
                 cc: '',
@@ -99,6 +101,9 @@ test('getEmails serves Postgres-backed mailbox data when the mailbox store is re
     assert.equal(response.state.statusCode, 200);
     assert.equal(response.state.payload.total, 1);
     assert.equal(response.state.payload.emails[0]._id, 'email-1');
+    assert.equal(response.state.payload.emails[0].body, undefined);
+    assert.equal(response.state.payload.emails[0].body_html, undefined);
+    assert.equal(response.state.payload.emails[0].preview.length, 500);
 });
 
 test('deleteEmails removes Postgres-backed emails without using the cache path', async () => {

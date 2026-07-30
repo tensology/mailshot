@@ -69,7 +69,8 @@ export const needsReadAloudPipeline = (email = {}) => (
     email.type === 'inbox'
     && !email.bin
     && !email.spam
-    && email.read_aloud_status !== 'ready'
+    && email.read_summary_status !== 'ready'
+    && !String(email.read_summary || '').trim()
 );
 
 export const shouldPrefetchEmailSummary = needsReadAloudPipeline;
@@ -164,7 +165,7 @@ const processReadAloudPipeline = async (email) => {
 
         let current = await safePersistEmailReadAloudFields(email, {
             read_summary_status: 'processing',
-            read_aloud_status: 'processing'
+            read_aloud_status: email.read_aloud_status || ''
         });
 
         let summary = getStoredEmailSummary(current);
@@ -191,19 +192,17 @@ const processReadAloudPipeline = async (email) => {
             });
         }
 
-        const { prefetchReadAloudAudioAwait } = await import('./read-aloud-service.js');
-        await prefetchReadAloudAudioAwait(current, settings, summary);
-
         await safePersistEmailReadAloudFields(current, {
             read_summary: summary,
             read_summary_status: 'ready',
-            read_aloud_status: 'ready',
+            read_aloud_status: current.read_aloud_status === 'ready' ? 'ready' : '',
             read_summary_at: current.read_summary_at || new Date()
         });
         logPipelineEvent('summary.pipeline.ready', {
             ...getEmailLogContext(current),
             duration_ms: Date.now() - startedAt,
-            summary_length: summary.length
+            summary_length: summary.length,
+            audio_prefetch: false
         });
     } catch (error) {
         failed = true;

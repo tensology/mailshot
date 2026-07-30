@@ -52,6 +52,45 @@ const serializeEmail = (email) => {
     };
 };
 
+const stripHtmlForPreview = (value = '') => String(value || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/p>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const buildEmailPreview = (email = {}, limit = 500) => {
+    const preview = stripHtmlForPreview(email.preview || email.body_html || email.body || '');
+    return preview.length > limit ? preview.slice(0, limit).trimEnd() : preview;
+};
+
+const serializeEmailListItem = (email) => {
+    const plain = serializeEmail(email);
+    if (!plain) return null;
+
+    const {
+        body,
+        body_html,
+        ...rest
+    } = plain;
+
+    return {
+        ...rest,
+        preview: buildEmailPreview(plain),
+        attachments: Array.isArray(plain.attachments)
+            ? plain.attachments.map(({ content, data, buffer, ...attachment }) => attachment)
+            : []
+    };
+};
+
 const removeReservedLabels = (labels = []) => (
     Array.isArray(labels) ? labels.filter((label) => !RESERVED_SYSTEM_LABELS.has(String(label).toLowerCase())) : []
 );
@@ -417,7 +456,7 @@ export const getEmails = async (request, response) => {
             const paginated = listEmails.slice(offset, offset + limit);
 
             return response.status(200).json({
-                emails: paginated.map(serializeEmail),
+                emails: paginated.map(serializeEmailListItem),
                 total,
                 page,
                 limit,
@@ -453,7 +492,7 @@ export const getEmails = async (request, response) => {
         const paginated = listEmails.slice(offset, offset + limit);
 
         response.status(200).json({
-            emails: paginated.map(serializeEmail),
+            emails: paginated.map(serializeEmailListItem),
             total,
             page,
             limit,
@@ -553,7 +592,7 @@ export const searchEmails = async (request, response) => {
         const paginated = listEmails.slice(offset, offset + limit);
 
         return response.status(200).json({
-            emails: paginated.map(serializeEmail),
+            emails: paginated.map(serializeEmailListItem),
             total,
             page,
             limit,

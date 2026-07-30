@@ -124,8 +124,8 @@ export const formatListPreview = ({ subject, body, body_html }, limit = 140) => 
     return truncateText(combined, limit);
 };
 
-export const formatBodyPreview = ({ body, body_html }) => {
-    const normalizedBody = stripHtml(body_html || body);
+export const formatBodyPreview = ({ body, body_html, preview }) => {
+    const normalizedBody = stripHtml(preview || body_html || body);
     return normalizedBody;
 };
 
