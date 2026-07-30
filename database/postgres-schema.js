@@ -37,6 +37,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS emails_message_id_unique_idx
 ON emails (message_id)
 WHERE message_id IS NOT NULL AND message_id <> '';
 
+CREATE INDEX IF NOT EXISTS emails_in_reply_to_idx
+ON emails (in_reply_to)
+WHERE in_reply_to <> '';
+
+CREATE INDEX IF NOT EXISTS emails_references_json_gin_idx
+ON emails USING GIN (references_json);
+
+CREATE INDEX IF NOT EXISTS emails_date_value_idx
+ON emails (date_value DESC);
+
+CREATE INDEX IF NOT EXISTS emails_thread_subject_idx
+ON emails (LOWER(REGEXP_REPLACE(subject, '^((re|fwd|fw):\\s*)+', '', 'i')));
+
 CREATE TABLE IF NOT EXISTS attachments (
     id TEXT PRIMARY KEY,
     email_id TEXT NOT NULL REFERENCES emails(id) ON DELETE CASCADE,
@@ -46,6 +59,9 @@ CREATE TABLE IF NOT EXISTS attachments (
     size BIGINT NOT NULL DEFAULT 0,
     storage_path TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS attachments_email_id_idx
+ON attachments (email_id);
 
 CREATE TABLE IF NOT EXISTS mailbox_ingest_jobs (
     id TEXT PRIMARY KEY,

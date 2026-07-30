@@ -2,12 +2,12 @@ import { emptyProfilePic } from '../constants/constant';
 import { parseSenderEmail, parseSenderName } from '../utils/emailFormatter';
 import QuotedContent from './common/QuotedContent';
 
-const ThreadMessage = ({ message }) => {
+const ThreadMessage = ({ message, isLatest = false }) => {
     const senderName = parseSenderName(message.from);
     const senderEmail = parseSenderEmail(message.from);
 
     return (
-        <article className="border-t border-slate-100 py-5 first:border-t-0">
+        <article className={`border-t py-5 first:border-t-0 ${isLatest ? 'rounded-xl border border-green-200 bg-green-50/35 px-3 shadow-sm shadow-green-100/60' : 'border-slate-100'}`}>
             <div className="mx-auto flex w-fit max-w-full gap-3">
                 <img
                     src={emptyProfilePic}
@@ -29,7 +29,12 @@ const ThreadMessage = ({ message }) => {
                             </p>
                         </div>
                         <time className="text-xs text-slate-500">
-                            {new Date(message.date).toLocaleString()}
+                            {isLatest && (
+                                <span className="mb-1 inline-flex rounded-full border border-green-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                                    Latest
+                                </span>
+                            )}
+                            <span className="block">{new Date(message.date).toLocaleString()}</span>
                         </time>
                     </div>
 

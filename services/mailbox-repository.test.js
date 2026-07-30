@@ -388,6 +388,67 @@ test('finds a single email by id', async () => {
     assert.equal(email.type, 'sent');
 });
 
+test('finds a thread from message ids and normalized subject without loading the full mailbox', async () => {
+    const calls = [];
+    const repository = createMailboxRepository({
+        pool: {
+            query: async (text, values) => {
+                calls.push({ text, values });
+                return {
+                    rows: [{
+                        id: 'email-10',
+                        message_id: '<msg-10>',
+                        type: 'inbox',
+                        subject: 'Re: Project update',
+                        body: '',
+                        body_html: '',
+                        from_address: 'sender@example.com',
+                        to_address: 'user@example.com',
+                        cc_address: '',
+                        bcc_address: '',
+                        date_value: '2026-06-21T10:10:00.000Z',
+                        name: 'Sender',
+                        image: '',
+                        read: false,
+                        starred: false,
+                        bin: false,
+                        archived: false,
+                        spam: false,
+                        in_inbox: true,
+                        labels: [],
+                        references_json: ['<root>'],
+                        in_reply_to: '<root>',
+                        read_summary: '',
+                        read_summary_status: '',
+                        read_summary_at: null,
+                        read_aloud_status: '',
+                        imap_mailbox: 'INBOX',
+                        imap_uid: '12',
+                        attachments: []
+                    }]
+                };
+            }
+        }
+    });
+
+    const thread = await repository.findThread({
+        messageId: '<msg-10>',
+        in_reply_to: '<msg-9>',
+        references: ['<root>'],
+        subject: 'Fwd: Re: Project update'
+    });
+
+    assert.equal(thread.length, 1);
+    assert.equal(thread[0]._id, 'email-10');
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].text, /WITH RECURSIVE related_ids/i);
+    assert.match(calls[0].text, /e\.in_reply_to = r\.message_id/i);
+    assert.match(calls[0].text, /e\.references_json \? r\.message_id/i);
+    assert.match(calls[0].text, /ORDER BY e\.date_value DESC/i);
+    assert.deepEqual(calls[0].values[0], ['<msg-10>', '<msg-9>', '<root>']);
+    assert.equal(calls[0].values[1], 'project update');
+});
+
 test('upserts draft mail by id when no message id exists', async () => {
     const calls = [];
     const repository = createMailboxRepository({

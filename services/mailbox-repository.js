@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { deleteAttachmentFile } from './attachments.js';
+import { normalizeThreadSubject } from '../utils/thread-subject.js';
 
 const normalizeArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -250,6 +251,48 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
             }
 
             return mapEmailRowToMailboxEmail(result.rows[0]);
+        },
+
+        async findThread(anchorEmail = {}) {
+            const relatedIds = [
+                anchorEmail.messageId || anchorEmail.message_id,
+                anchorEmail.in_reply_to,
+                ...(anchorEmail.references || anchorEmail.references_json || [])
+            ]
+                .map((value) => String(value || '').trim())
+                .filter(Boolean);
+            const subjectKey = normalizeThreadSubject(anchorEmail.subject);
+
+            if (!relatedIds.length && !subjectKey) {
+                return [];
+            }
+
+            const result = await pool.query(
+                `WITH RECURSIVE related_ids(message_id) AS (
+                    SELECT UNNEST($1::text[])
+                    UNION
+                    SELECT e.message_id
+                    FROM emails e
+                    JOIN related_ids r
+                      ON r.message_id <> ''
+                     AND (
+                        e.message_id = r.message_id
+                        OR e.in_reply_to = r.message_id
+                        OR e.references_json ? r.message_id
+                     )
+                    WHERE e.message_id IS NOT NULL AND e.message_id <> ''
+                )
+                ${EMAIL_SELECT}
+                WHERE (
+                    e.message_id IN (SELECT message_id FROM related_ids)
+                    OR LOWER(REGEXP_REPLACE(e.subject, '^((re|fwd|fw):\\s*)+', '', 'i')) = $2
+                )
+                GROUP BY e.id
+                ORDER BY e.date_value DESC`,
+                [relatedIds, subjectKey]
+            );
+
+            return result.rows.map(mapEmailRowToMailboxEmail);
         },
 
         async upsert(payload = {}) {

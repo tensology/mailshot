@@ -8,7 +8,7 @@
     "start": "node index.js",
     "dev": "NODE_ENV=development nodemon index.js",
     "debug": "NODE_ENV=development nodemon index.js",
-    "test": "node --test services/*.test.js database/*.test.js controller/*.test.js"
+    "test": "node --test services/*.test.js database/*.test.js controller/*.test.js utils/*.test.js"
   },
   "keywords": [],
   "author": "",

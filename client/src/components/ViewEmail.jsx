@@ -126,7 +126,9 @@ const ViewEmail = () => {
         }
     }, [getLabelsService.response]);
 
-    const primaryEmail = thread.find((message) => message._id === id) || thread[thread.length - 1] || null;
+    const sortedThread = [...thread].sort((left, right) => new Date(right.date) - new Date(left.date));
+    const latestEmailId = sortedThread[0]?._id || '';
+    const primaryEmail = sortedThread[0] || thread.find((message) => message._id === id) || null;
 
     useEffect(() => {
         if (primaryEmail?.labels) {
@@ -596,9 +598,9 @@ const ViewEmail = () => {
                     </div>
 
                     <div>
-                        {thread.map((message) => (
+                        {sortedThread.map((message) => (
                             <div key={message._id || message.messageId}>
-                                <ThreadMessage message={message} />
+                                <ThreadMessage message={message} isLatest={message._id === latestEmailId} />
                                 {renderMessageAttachments(message)}
                                 {renderMessageLinks(message)}
                             </div>

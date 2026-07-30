@@ -323,6 +323,7 @@ test('downloadAllAttachments returns a zip for Postgres-backed email attachments
 
 test('getEmailThread loads the Postgres-backed thread and marks it read', async () => {
     const updates = [];
+    let listCalled = false;
     __setMailboxStoreForTests({
         ready: true,
         repository: {
@@ -350,31 +351,7 @@ test('getEmailThread loads the Postgres-backed thread and marks it read', async 
                 in_reply_to: '<root>',
                 attachments: []
             }),
-            list: async () => ([
-                {
-                    _id: 'email-7',
-                    messageId: '<msg-7>',
-                    type: 'inbox',
-                    subject: 'Threaded',
-                    body: '',
-                    from: 'sender@example.com',
-                    to: 'user@example.com',
-                    cc: '',
-                    bcc: '',
-                    date: '2026-06-21T10:00:00.000Z',
-                    name: 'Sender',
-                    image: '',
-                    read: false,
-                    starred: false,
-                    bin: false,
-                    archived: false,
-                    spam: false,
-                    in_inbox: true,
-                    labels: [],
-                    references: ['<root>'],
-                    in_reply_to: '<root>',
-                    attachments: []
-                },
+            findThread: async () => ([
                 {
                     _id: 'email-8',
                     messageId: '<msg-8>',
@@ -398,8 +375,36 @@ test('getEmailThread loads the Postgres-backed thread and marks it read', async 
                     references: ['<msg-7>'],
                     in_reply_to: '<msg-7>',
                     attachments: []
+                },
+                {
+                    _id: 'email-7',
+                    messageId: '<msg-7>',
+                    type: 'inbox',
+                    subject: 'Threaded',
+                    body: '',
+                    from: 'sender@example.com',
+                    to: 'user@example.com',
+                    cc: '',
+                    bcc: '',
+                    date: '2026-06-21T10:00:00.000Z',
+                    name: 'Sender',
+                    image: '',
+                    read: false,
+                    starred: false,
+                    bin: false,
+                    archived: false,
+                    spam: false,
+                    in_inbox: true,
+                    labels: [],
+                    references: ['<root>'],
+                    in_reply_to: '<root>',
+                    attachments: []
                 }
             ]),
+            list: async () => {
+                listCalled = true;
+                return [];
+            },
             updateMany: async (ids, payload) => {
                 updates.push({ ids, payload });
                 return ids.length;
@@ -413,7 +418,9 @@ test('getEmailThread loads the Postgres-backed thread and marks it read', async 
 
     assert.equal(response.state.statusCode, 200);
     assert.equal(response.state.payload.length, 2);
-    assert.deepEqual(updates[0], { ids: ['email-7', 'email-8'], payload: { read: true } });
+    assert.equal(response.state.payload[0]._id, 'email-8');
+    assert.equal(listCalled, false);
+    assert.deepEqual(updates[0], { ids: ['email-8', 'email-7'], payload: { read: true } });
 });
 
 test('toggleReadEmail updates Postgres-backed read state', async () => {

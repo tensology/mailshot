@@ -78,4 +78,9 @@ test('bootstraps the mailbox schema with the required tables', async () => {
     assert.match(queries[0], /CREATE TABLE IF NOT EXISTS emails/i);
     assert.match(queries[0], /CREATE TABLE IF NOT EXISTS attachments/i);
     assert.match(queries[0], /CREATE TABLE IF NOT EXISTS mailbox_ingest_jobs/i);
+    assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_in_reply_to_idx/i);
+    assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_references_json_gin_idx/i);
+    assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_date_value_idx/i);
+    assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_thread_subject_idx/i);
+    assert.match(queries[0], /CREATE INDEX IF NOT EXISTS attachments_email_id_idx/i);
 });

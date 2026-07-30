@@ -609,37 +609,11 @@ const findDbThread = async (anchorEmail) => {
 };
 
 const findMailboxStoreThread = async (repository, anchorEmail) => {
-    const allEmails = await repository.list({});
-    const relatedIds = new Set(
-        [anchorEmail.messageId, anchorEmail.in_reply_to, ...(anchorEmail.references || [])].filter(Boolean)
-    );
-
-    let expanded = true;
-    while (expanded) {
-        expanded = false;
-        for (const item of allEmails) {
-            if (!item.messageId || relatedIds.has(item.messageId)) {
-                continue;
-            }
-
-            const references = item.references || [];
-            const matchesThread = relatedIds.has(item.in_reply_to)
-                || references.some((ref) => relatedIds.has(ref));
-
-            if (matchesThread) {
-                relatedIds.add(item.messageId);
-                references.forEach((ref) => relatedIds.add(ref));
-                expanded = true;
-            }
-        }
+    if (typeof repository.findThread === 'function') {
+        return repository.findThread(anchorEmail);
     }
 
-    const idThread = allEmails
-        .filter((item) => item.messageId && relatedIds.has(item.messageId))
-        .sort((left, right) => new Date(left.date) - new Date(right.date));
-
-    const subjectThread = findEmailsBySubject(allEmails, anchorEmail);
-    return mergeThreadEmails(anchorEmail, idThread, subjectThread);
+    return [anchorEmail];
 };
 
 export const getEmailThread = async (request, response) => {
