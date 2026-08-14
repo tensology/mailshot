@@ -51,8 +51,9 @@ export const writeEmailListCache = ({ activeTab, labelFilter, searchFilter, part
     }
 };
 
-export const markEmailReadInCache = (emailId) => {
+export const markEmailReadInCache = (emailId, read = true) => {
     const ids = new Set(Array.isArray(emailId) ? emailId : [emailId]);
+    const nextRead = Boolean(read);
     try {
         Object.keys(sessionStorage).forEach((key) => {
             if (!key.startsWith(CACHE_PREFIX)) {
@@ -71,7 +72,7 @@ export const markEmailReadInCache = (emailId) => {
 
             const nextEmails = parsed.emails.map((email) => (
                 ids.has(email._id) || (email.thread_ids || []).some((id) => ids.has(id))
-                    ? { ...email, read: true }
+                    ? { ...email, read: nextRead }
                     : email
             ));
 

@@ -25,6 +25,19 @@ export const getArchiveToggleAction = (activeTab = '') => {
     };
 };
 
+export const buildReadTogglePayload = ({
+    selectedEmails = [],
+    allMatchingSelected = false,
+    scope = null,
+    value
+} = {}) => {
+    const read = Boolean(value);
+    if (allMatchingSelected) {
+        return { scope, value: read };
+    }
+    return { ids: selectedEmails, value: read };
+};
+
 export const isDeleteKeyboardShortcut = (event) => {
     if (!event || (event.key !== 'Delete' && event.key !== 'Backspace')) {
         return false;

@@ -5,7 +5,8 @@ import {
     getArchiveToggleAction,
     getDeleteSelectionIds,
     hasActiveMailSelection,
-    isDeleteKeyboardShortcut
+    isDeleteKeyboardShortcut,
+    buildReadTogglePayload
 } from './mailActions.js';
 
 test('all matching selection counts as an active mail selection', () => {
@@ -56,4 +57,19 @@ test('archive row action switches to unarchive in the archived mailbox', () => {
         label: 'Unarchive',
         pastTense: 'unarchived'
     });
+});
+
+test('read toggle payload keeps value and uses scope for select-all matching', () => {
+    assert.deepEqual(buildReadTogglePayload({
+        selectedEmails: ['a', 'b'],
+        allMatchingSelected: false,
+        value: true
+    }), { ids: ['a', 'b'], value: true });
+
+    assert.deepEqual(buildReadTogglePayload({
+        selectedEmails: ['a'],
+        allMatchingSelected: true,
+        scope: { all: true, type: 'inbox' },
+        value: false
+    }), { scope: { all: true, type: 'inbox' }, value: false });
 });

@@ -8,6 +8,7 @@ import {
     FileText,
     Forward,
     Loader2,
+    Mail,
     Play,
     Reply,
     ReplyAll,
@@ -358,6 +359,20 @@ const ViewEmail = () => {
         navigate(backUrl);
     };
 
+    const markAsUnread = async () => {
+        const ids = getCurrentEmailSelectionIds();
+        const result = await toggleReadService.call({ ids, value: false });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+
+        markEmailReadInCache(ids, false);
+        requestMailboxCountsRefresh();
+        setActionNotice('Marked as unread');
+        navigate(backUrl);
+    };
+
     const openPrimaryReplyDraft = (mode) => {
         if (!primaryEmail) {
             return;
@@ -546,6 +561,9 @@ const ViewEmail = () => {
                 )}
                 <IconButton label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
                     <Trash2 className="h-5 w-5" />
+                </IconButton>
+                <IconButton label="Mark as unread" onClick={markAsUnread}>
+                    <Mail className="h-5 w-5" />
                 </IconButton>
                 {canToggleArchive && (
                     <IconButton label={archiveActionLabel} onClick={toggleArchive}>

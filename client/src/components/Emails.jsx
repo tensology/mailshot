@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Archive, OctagonAlert, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Archive, Mail, MailOpen, OctagonAlert, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -16,7 +16,8 @@ import {
     consumeActionNotice,
     requestMailboxCountsRefresh,
     restoreEmailsToListCache,
-    emitEmailsRestored
+    emitEmailsRestored,
+    markEmailReadInCache
 } from '../utils/emailListCache';
 import ConfirmDialog from './common/ConfirmDialog';
 import Button from './ui/Button';
@@ -30,7 +31,12 @@ import { formatAddressListLabel } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useAuth } from '../context/AuthContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
-import { getArchiveToggleAction, getDeleteSelectionIds, hasActiveMailSelection } from '../utils/mailActions';
+import {
+    buildReadTogglePayload,
+    getArchiveToggleAction,
+    getDeleteSelectionIds,
+    hasActiveMailSelection
+} from '../utils/mailActions';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -155,6 +161,7 @@ const Emails = () => {
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
     const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
+    const toggleReadService = useApi(API_URLS.toggleReadMail);
     const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
     const getSummarizeAllStatusService = useApi(API_URLS.getSummarizeAllStatus);
 
@@ -806,6 +813,50 @@ const Emails = () => {
         });
     };
 
+    const markSelectedReadState = async (read) => {
+        if (!hasSelection) {
+            return;
+        }
+
+        const countBeforeAction = selectionCount;
+        const idsSnapshot = allMatchingSelected ? [] : [...selectedEmails];
+        const payload = buildReadTogglePayload({
+            selectedEmails: idsSnapshot,
+            allMatchingSelected,
+            scope: buildBulkScope(),
+            value: read
+        });
+        const result = await toggleReadService.call(payload);
+        if (result.error) {
+            showActionToast(result.error, 'error');
+            return;
+        }
+
+        const count = Number(result.data?.count) || countBeforeAction;
+        if (!allMatchingSelected && idsSnapshot.length) {
+            markEmailReadInCache(idsSnapshot, read);
+            if (unreadFilter && read) {
+                setEmails((current) => current.filter((email) => !emailMatchesRemoval(email, idsSnapshot)));
+                setTotalEmails((current) => Math.max(0, current - count));
+            } else {
+                setEmails((current) => current.map((email) => (
+                    emailMatchesRemoval(email, idsSnapshot)
+                        ? { ...email, read }
+                        : email
+                )));
+            }
+        } else {
+            clearEmailListCache();
+            await fetchEmailList({ silent: true });
+        }
+
+        clearBulkSelection();
+        requestMailboxCountsRefresh();
+        showActionToast(
+            `${count} message${count === 1 ? '' : 's'} marked as ${read ? 'read' : 'unread'}`
+        );
+    };
+
     const archiveToggleAction = getArchiveToggleAction(activeTab);
     const canArchiveRows = activeTab === 'archived' || activeTab === 'inbox' || activeTab === 'starred' || Boolean(labelFilter);
 
@@ -1104,6 +1155,16 @@ const Emails = () => {
                         {hasSelection && type !== 'bin' && (
                             <IconButton label="Archive" onClick={archiveSelectedEmails}>
                                 <Archive className="h-4 w-4" />
+                            </IconButton>
+                        )}
+                        {hasSelection && (
+                            <IconButton label="Mark as read" onClick={() => markSelectedReadState(true)}>
+                                <MailOpen className="h-4 w-4" />
+                            </IconButton>
+                        )}
+                        {hasSelection && (
+                            <IconButton label="Mark as unread" onClick={() => markSelectedReadState(false)}>
+                                <Mail className="h-4 w-4" />
                             </IconButton>
                         )}
                         {hasSelection && type !== 'bin' && type !== 'spam' && (

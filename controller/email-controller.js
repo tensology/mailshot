@@ -902,27 +902,42 @@ export const toggleStarredEmail = async (request, response) => {
 
 export const toggleReadEmail = async (request, response) => {
     try {
-        const { id, value } = request.body;
+        const body = request.body || {};
+        const value = Boolean(body.value);
+        const defaultType = body.scope?.type || 'inbox';
+        const ids = body.id
+            ? [String(body.id)]
+            : await resolveBulkEmailSelection(body, defaultType);
+
+        if (!ids.length) {
+            return response.status(400).json('No emails selected');
+        }
+
         if (isMailboxStoreReady()) {
             const repository = getMailboxRepository();
-            await repository.updateMany([id], { read: value });
-            return response.status(200).json('Read state updated');
+            await repository.updateMany(ids, { read: value });
+            return response.status(200).json({ message: 'Read state updated', count: ids.length });
         }
 
-        const resolved = await findEmailRecord(id);
-
-        if (!resolved) {
-            return response.status(404).json('Email not found');
+        const dbIds = [];
+        for (const id of ids) {
+            const resolved = await findEmailRecord(id);
+            if (!resolved) {
+                continue;
+            }
+            if (resolved.source === 'cache') {
+                updateCachedEmail(id, { read: value });
+            } else {
+                dbIds.push(id);
+            }
         }
 
-        if (resolved.source === 'cache') {
-            updateCachedEmail(id, { read: value });
-            saveMailboxCacheToDisk();
-        } else {
-            await Email.updateOne({ _id: id }, { $set: { read: value }});
+        if (dbIds.length > 0 && isDbConnected()) {
+            await Email.updateMany({ _id: { $in: dbIds } }, { $set: { read: value } });
         }
 
-        response.status(200).json('Read state updated');
+        saveMailboxCacheToDisk();
+        response.status(200).json({ message: 'Read state updated', count: ids.length });
     } catch (error) {
         response.status(500).json(error.message);
     }
