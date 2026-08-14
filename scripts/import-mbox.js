@@ -5,10 +5,11 @@
  *   node scripts/import-mbox.js <path_to_mbox_file> [--dry-run]
  *
  * Persists to data/mailbox-cache.json when MongoDB is not available.
- * Restart mailshot-ui after import to load into the running app, or run while app is stopped.
+ * Restart the app after import to load into the running process, or run while the app is stopped.
  */
 import 'dotenv/config';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { simpleParser } from 'mailparser';
 import {
     iterateMboxMessages,
@@ -26,6 +27,11 @@ import {
 } from '../services/mail-sync.js';
 import { normalizeLabelToken } from '../services/label-store.js';
 import { upsertCachedContact } from '../services/contact-store.js';
+import {
+    getMailboxRepository,
+    initializeMailboxStore,
+    isMailboxStoreReady
+} from '../services/postgres-mailbox-store.js';
 
 const SYSTEM_LABELS = new Set([
     'Trash',
@@ -89,9 +95,7 @@ const getMailboxIdentityAddresses = () => {
     const candidates = [
         process.env.MAILBOX_USER,
         process.env.MAIL_USERNAME,
-        process.env.MAIL_FROM,
-        'paul@tensology.com',
-        'paul@mailshot.tensology.com'
+        process.env.MAIL_FROM
     ];
 
     return [...new Set(candidates.filter(Boolean).map((value) => normalizeAddress(value)))];
@@ -193,7 +197,12 @@ const importContactsFromPayload = (payload) => {
     });
 };
 
-async function importMbox(mboxFilePath, { dryRun = false } = {}) {
+async function importMbox(mboxFilePath, {
+    dryRun = false,
+    postgresRepository = null,
+    connectMongo = true,
+    loadDiskCache = true
+} = {}) {
     if (!fs.existsSync(mboxFilePath)) {
         throw new Error(`Mbox file not found: ${mboxFilePath}`);
     }
@@ -203,21 +212,37 @@ async function importMbox(mboxFilePath, { dryRun = false } = {}) {
     console.log(`Mailbox identities: ${mailboxIdentity.join(', ')}`);
     console.log(`Dry run: ${dryRun ? 'yes' : 'no'}`);
 
-    Connection();
+    let repository = postgresRepository;
+    if (!repository) {
+        const status = await initializeMailboxStore();
+        if (status.ready && isMailboxStoreReady()) {
+            repository = getMailboxRepository();
+        }
+    }
 
-    // Wait briefly for MongoDB connection attempt
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (connectMongo && !repository) {
+        Connection();
 
-    const dbConnected = isDbConnected();
+        // Wait briefly for MongoDB connection attempt
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    const dbConnected = !repository && isDbConnected();
     console.log(`MongoDB connected: ${dbConnected}`);
+    console.log(`Postgres connected: ${Boolean(repository)}`);
 
-    if (!dbConnected) {
+    if (!repository && !dbConnected && loadDiskCache) {
         const loaded = loadMailboxCacheFromDisk();
         console.log(`Loaded ${loaded} existing emails from disk cache`);
     }
 
     const knownMessageIds = new Set();
-    if (dbConnected) {
+    if (repository) {
+        const existing = await repository.list({});
+        existing.forEach((item) => {
+            if (item.messageId) knownMessageIds.add(item.messageId);
+        });
+    } else if (dbConnected) {
         const existing = await Email.find({}, { messageId: 1 }).lean();
         existing.forEach((doc) => {
             if (doc.messageId) knownMessageIds.add(doc.messageId);
@@ -266,7 +291,9 @@ async function importMbox(mboxFilePath, { dryRun = false } = {}) {
                 continue;
             }
 
-            if (dbConnected) {
+            if (repository) {
+                await repository.upsert(payload);
+            } else if (dbConnected) {
                 await Email.create(payload);
             } else {
                 upsertCachedEmail(payload);
@@ -279,7 +306,7 @@ async function importMbox(mboxFilePath, { dryRun = false } = {}) {
             typeCounts[payload.type] = (typeCounts[payload.type] || 0) + 1;
             if (payload.bin) typeCounts.bin += 1;
 
-            if (!dbConnected && importedCount % 200 === 0) {
+            if (!repository && !dbConnected && importedCount % 200 === 0) {
                 saveMailboxCacheToDisk();
                 console.log(`Progress: ${importedCount} imported, ${skippedCount} skipped...`);
             }
@@ -291,7 +318,7 @@ async function importMbox(mboxFilePath, { dryRun = false } = {}) {
         }
     }
 
-    if (!dryRun && !dbConnected) {
+    if (!dryRun && !repository && !dbConnected) {
         saveMailboxCacheToDisk();
     }
 
@@ -302,25 +329,31 @@ async function importMbox(mboxFilePath, { dryRun = false } = {}) {
     console.log(`Errors:    ${errorCount}`);
     console.log(`By type:   inbox=${typeCounts.inbox || 0}, sent=${typeCounts.sent || 0}, drafts=${typeCounts.drafts || 0}, in-bin=${typeCounts.bin || 0}`);
 
-    if (!dryRun && !dbConnected) {
-        console.log(`\nSaved to data/mailbox-cache.json — restart mailshot-ui to load in the app.`);
+    if (!dryRun && !repository && !dbConnected) {
+        console.log(`\nSaved to data/mailbox-cache.json — restart the app to load the imported mailbox.`);
     }
 
     return { importedCount, skippedCount, errorCount, typeCounts };
 }
 
-const args = process.argv.slice(2);
-const dryRun = args.includes('--dry-run');
-const mboxFilePath = args.find((arg) => !arg.startsWith('--'));
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 
-if (!mboxFilePath) {
-    console.error('Usage: node scripts/import-mbox.js <path_to_mbox_file> [--dry-run]');
-    process.exit(1);
+if (isDirectRun) {
+    const args = process.argv.slice(2);
+    const dryRun = args.includes('--dry-run');
+    const mboxFilePath = args.find((arg) => !arg.startsWith('--'));
+
+    if (!mboxFilePath) {
+        console.error('Usage: node scripts/import-mbox.js <path_to_mbox_file> [--dry-run]');
+        process.exit(1);
+    }
+
+    importMbox(mboxFilePath, { dryRun })
+        .then(() => process.exit(0))
+        .catch((error) => {
+            console.error('Import failed:', error.message);
+            process.exit(1);
+        });
 }
 
-importMbox(mboxFilePath, { dryRun })
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error('Import failed:', error.message);
-        process.exit(1);
-    });
+export { importMbox };

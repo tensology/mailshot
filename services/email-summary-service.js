@@ -8,6 +8,11 @@ import {
     updateCachedEmail
 } from './mail-sync.js';
 import { getMailboxRepository, isMailboxStoreReady } from './postgres-mailbox-store.js';
+import {
+    getEmailLogContext,
+    getErrorLogContext,
+    logPipelineEvent
+} from './pipeline-logger.js';
 
 const SUMMARY_QUEUE = [];
 const QUEUED_IDS = new Set();
@@ -48,11 +53,9 @@ export const buildSummaryPrompt = (email = {}) => {
     const body = truncate(stripHtml(email.body || email.body_html || ''));
 
     return [
-        'Create a spoken email brief for audio playback.',
-        'Aim for 6 to 10 concise sentences, roughly 60 to 90 seconds when read aloud.',
+        'Summarize this email for audio playback in 2 to 4 short sentences.',
         'Start with "This email is about..." or equivalent natural phrasing.',
-        'Mention the sender, the core point, important details, links or attachments, and any action/date/deadline if present.',
-        'Do not invent details, and end with a natural closing sentence instead of trailing off.',
+        'Mention the sender, the core point, and any action/date/deadline if present.',
         '',
         `From: ${from}`,
         `To: ${to}`,
@@ -66,8 +69,8 @@ export const needsReadAloudPipeline = (email = {}) => (
     email.type === 'inbox'
     && !email.bin
     && !email.spam
-    && email.read_aloud_status !== 'ready'
-    && email.read_aloud_status !== 'processing'
+    && email.read_summary_status !== 'ready'
+    && !String(email.read_summary || '').trim()
 );
 
 export const shouldPrefetchEmailSummary = needsReadAloudPipeline;
@@ -100,6 +103,23 @@ const persistEmailReadAloudFields = async (email, updates = {}) => {
     return { ...email, ...updates };
 };
 
+export const safePersistEmailReadAloudFields = async (
+    email,
+    updates = {},
+    persist = persistEmailReadAloudFields
+) => {
+    try {
+        return await persist(email, updates);
+    } catch (error) {
+        logPipelineEvent('summary.persist.failed', {
+            ...getEmailLogContext(email),
+            updates: Object.keys(updates || {}),
+            error: getErrorLogContext(error)
+        }, 'error');
+        return { ...email, ...updates };
+    }
+};
+
 const markBulkItemFinished = (failed = false) => {
     if (!bulkProgress.active) {
         return;
@@ -124,51 +144,88 @@ const processReadAloudPipeline = async (email) => {
 
     PROCESSING_IDS.add(emailId);
     let failed = false;
+    const startedAt = Date.now();
+    const logContext = getEmailLogContext(email);
 
     try {
+        logPipelineEvent('summary.pipeline.start', {
+            ...logContext,
+            queue_depth: SUMMARY_QUEUE.length,
+            processing_count: PROCESSING_IDS.size
+        });
+
         const settings = await getSettings();
         if (!hasSummaryProviderConfigured(settings)) {
+            logPipelineEvent('summary.pipeline.skipped', {
+                ...logContext,
+                reason: 'summary_provider_not_configured'
+            }, 'warn');
             return;
         }
 
-        let current = await persistEmailReadAloudFields(email, {
+        let current = await safePersistEmailReadAloudFields(email, {
             read_summary_status: 'processing',
-            read_aloud_status: 'processing'
+            read_aloud_status: email.read_aloud_status || ''
         });
 
         let summary = getStoredEmailSummary(current);
         if (!summary) {
+            logPipelineEvent('summary.generate.start', getEmailLogContext(current));
             summary = await summarizeEmailWithSettings({
                 settings,
-                prompt: buildSummaryPrompt(current)
+                prompt: buildSummaryPrompt(current),
+                trace: getEmailLogContext(current)
             });
-            current = await persistEmailReadAloudFields(current, {
+            logPipelineEvent('summary.generate.ready', {
+                ...getEmailLogContext(current),
+                summary_length: summary.length
+            });
+            current = await safePersistEmailReadAloudFields(current, {
                 read_summary: summary,
                 read_summary_status: 'ready',
                 read_summary_at: new Date()
             });
+        } else {
+            logPipelineEvent('summary.generate.cached', {
+                ...getEmailLogContext(current),
+                summary_length: summary.length
+            });
         }
 
-        const { prefetchReadAloudAudioAwait } = await import('./read-aloud-service.js');
-        await prefetchReadAloudAudioAwait(current, settings, summary);
-
-        await persistEmailReadAloudFields(current, {
+        await safePersistEmailReadAloudFields(current, {
             read_summary: summary,
             read_summary_status: 'ready',
-            read_aloud_status: 'ready',
+            read_aloud_status: current.read_aloud_status === 'ready' ? 'ready' : '',
             read_summary_at: current.read_summary_at || new Date()
+        });
+        logPipelineEvent('summary.pipeline.ready', {
+            ...getEmailLogContext(current),
+            duration_ms: Date.now() - startedAt,
+            summary_length: summary.length,
+            audio_prefetch: false
         });
     } catch (error) {
         failed = true;
-        await persistEmailReadAloudFields(email, {
+        await safePersistEmailReadAloudFields(email, {
             read_summary_status: 'error',
             read_aloud_status: 'error'
         });
-        console.error(`Read aloud pipeline failed for ${emailId}:`, error.message || error);
+        logPipelineEvent('summary.pipeline.failed', {
+            ...logContext,
+            duration_ms: Date.now() - startedAt,
+            error: getErrorLogContext(error)
+        }, 'error');
     } finally {
         PROCESSING_IDS.delete(emailId);
         QUEUED_IDS.delete(emailId);
         markBulkItemFinished(failed);
+        logPipelineEvent('summary.pipeline.finish', {
+            ...logContext,
+            failed,
+            duration_ms: Date.now() - startedAt,
+            queue_depth: SUMMARY_QUEUE.length,
+            processing_count: PROCESSING_IDS.size
+        }, failed ? 'warn' : 'info');
     }
 };
 
@@ -205,6 +262,10 @@ export const enqueueEmailSummary = (email) => {
 
     QUEUED_IDS.add(emailId);
     SUMMARY_QUEUE.push(email);
+    logPipelineEvent('summary.queue.added', {
+        ...getEmailLogContext(email),
+        queue_depth: SUMMARY_QUEUE.length
+    });
     schedulePump();
     return true;
 };
@@ -231,7 +292,7 @@ const loadReadAloudCandidates = async ({ limit = 0 } = {}) => {
             type: 'inbox',
             bin: false,
             spam: false,
-            read_aloud_status: { $nin: ['ready', 'processing'] }
+            read_aloud_status: { $ne: 'ready' }
         })
             .sort({ date: -1 });
 
@@ -288,6 +349,10 @@ export const startBulkReadAloudSummaries = async () => {
 
     bulkProgress.total = queued;
     bulkProgress.active = queued > 0;
+    logPipelineEvent('summary.bulk.queued', {
+        candidates: candidates.length,
+        queued
+    });
 
     if (queued === 0) {
         bulkProgress.finished_at = new Date().toISOString();
@@ -313,7 +378,10 @@ export const startEmailSummaryWorker = async () => {
     });
 
     if (queued > 0) {
-        console.log(`Queued ${queued} email summaries for background generation`);
+        logPipelineEvent('summary.worker.queued', {
+            candidates: candidates.length,
+            queued
+        });
     }
 };
 

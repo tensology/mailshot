@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+    getArchiveToggleAction,
     getDeleteSelectionIds,
     hasActiveMailSelection,
     isDeleteKeyboardShortcut
@@ -41,4 +42,18 @@ test('delete keyboard shortcut ignores editable targets', () => {
         key: 'Delete',
         target: { tagName: 'DIV', isContentEditable: true }
     }), false);
+});
+
+test('archive row action switches to unarchive in the archived mailbox', () => {
+    assert.deepEqual(getArchiveToggleAction('inbox'), {
+        archived: false,
+        label: 'Archive',
+        pastTense: 'archived'
+    });
+
+    assert.deepEqual(getArchiveToggleAction('archived'), {
+        archived: true,
+        label: 'Unarchive',
+        pastTense: 'unarchived'
+    });
 });

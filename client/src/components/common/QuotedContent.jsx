@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ChevronUp, MoreHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { splitPlainQuotedContent, splitHtmlQuotedContent } from '../../utils/quoteSplitter';
 import { formatEmailBody, extractHtmlBody } from '../../utils/emailFormatter';
+import { forceLinksToOpenInNewTab } from '../../utils/htmlLinks';
 import IconButton from '../ui/IconButton';
 
 const QuotedContent = ({ body, bodyHtml }) => {
@@ -17,10 +18,10 @@ const QuotedContent = ({ body, bodyHtml }) => {
     const hasQuote = hasHtmlQuote || hasPlainQuote;
 
     const mainHtml = htmlParts.main
-        ? DOMPurify.sanitize(htmlParts.main, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] })
+        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.main, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] }))
         : '';
     const quotedHtml = htmlParts.quoted
-        ? DOMPurify.sanitize(htmlParts.quoted, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] })
+        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.quoted, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] }))
         : '';
 
     const showHtml = mainHtml && mainHtml.replace(/<[^>]+>/g, '').trim();
@@ -34,20 +35,20 @@ const QuotedContent = ({ body, bodyHtml }) => {
             )}
 
             {hasQuote && (
-                <div className="mt-3">
+                <div className="mt-4">
                     {!expanded ? (
-                        <IconButton
-                            label="Show quoted text"
-                            size="sm"
-                            className="rounded-xl border border-slate-200"
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                             onClick={() => setExpanded(true)}
                         >
-                            <MoreHorizontal className="h-4 w-4" />
-                        </IconButton>
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            View folded message
+                        </button>
                     ) : (
-                        <div className="mt-2 border-l-2 border-slate-200 pl-3 text-slate-600">
+                        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-slate-600">
                             <IconButton
-                                label="Hide quoted text"
+                                label="Hide folded message"
                                 size="sm"
                                 className="mb-2 rounded-xl border border-slate-200 bg-white"
                                 onClick={() => setExpanded(false)}
@@ -64,7 +65,7 @@ const QuotedContent = ({ body, bodyHtml }) => {
                                 className="mt-3 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
                                 onClick={() => setExpanded(false)}
                             >
-                                Collapse quoted text
+                                Collapse folded message
                             </button>
                         </div>
                     )}

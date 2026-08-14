@@ -26,11 +26,11 @@ import MoveToLabelMenu from './MoveToLabelMenu';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { useCompose } from '../context/ComposeContext';
-import { parseSenderName } from '../utils/emailFormatter';
+import { formatAddressListLabel } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useAuth } from '../context/AuthContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
-import { getDeleteSelectionIds, hasActiveMailSelection } from '../utils/mailActions';
+import { getArchiveToggleAction, getDeleteSelectionIds, hasActiveMailSelection } from '../utils/mailActions';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
 const PAGE_SIZE = 50;
@@ -50,12 +50,12 @@ const emailMatchesRemoval = (email, idsToRemove) => {
 const getListSenderName = (email, activeTab) => {
     const isDraft = activeTab === 'drafts' || email.type === 'drafts';
     if (isDraft) {
-        return email.to ? parseSenderName(email.to) : '(no recipient)';
+        return email.to ? formatAddressListLabel(email.to) : '(no recipient)';
     }
     if (email.type === 'sent') {
-        return parseSenderName(email.to);
+        return formatAddressListLabel(email.to);
     }
-    return parseSenderName(email.from);
+    return formatAddressListLabel(email.from);
 };
 
 const normalizeEmailListResponse = (data) => {
@@ -153,6 +153,7 @@ const Emails = () => {
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
+    const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
     const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
     const getSummarizeAllStatusService = useApi(API_URLS.getSummarizeAllStatus);
@@ -350,6 +351,58 @@ const Emails = () => {
             }
         });
     }, [fetchEmailList, restoreEmailsFromBin, showActionToast, showUndoDelete]);
+
+    const offerArchiveUndo = useCallback(({
+        count,
+        ids = [],
+        action,
+        previousEmails,
+        previousTotal,
+        previousPage,
+        cacheParams,
+        bulkPayload = null
+    }) => {
+        const undoService = action?.archived ? archiveEmailsService : restoreArchivedEmailsService;
+        const message = count === 1
+            ? `Message ${action?.pastTense || 'archived'}`
+            : `${count} messages ${action?.pastTense || 'archived'}`;
+
+        showUndoDelete({
+            message,
+            restore: async () => {
+                const result = bulkPayload
+                    ? await undoService.call(bulkPayload)
+                    : await undoService.call(ids);
+
+                if (result.error) {
+                    showActionToast(result.error, 'error');
+                    throw new Error(result.error);
+                }
+
+                if (Array.isArray(previousEmails) && cacheParams) {
+                    setEmails(previousEmails);
+                    setTotalEmails(previousTotal);
+                    setPage(previousPage);
+                    writeEmailListCache(cacheParams, previousEmails);
+                } else {
+                    await fetchEmailList({ silent: true, pageOverride: previousPage || page });
+                }
+
+                clearBulkSelection();
+                clearEmailListCache();
+                requestMailboxCountsRefresh();
+                const undoLabel = action?.archived ? 'Unarchive undone' : 'Archive undone';
+                showActionToast(count === 1 ? undoLabel : `${undoLabel} for ${count} messages`);
+            }
+        });
+    }, [
+        archiveEmailsService,
+        fetchEmailList,
+        page,
+        restoreArchivedEmailsService,
+        showActionToast,
+        showUndoDelete
+    ]);
 
     useEffect(() => {
         const onEmailsRestored = (event) => {
@@ -600,10 +653,10 @@ const Emails = () => {
     const selectionCount = allMatchingSelected ? totalEmails : selectedEmails.length;
     const canSelectAllMatching = allSelected && !allMatchingSelected && totalEmails > emails.length;
     const isRefreshing = isFetching || isSyncing;
-    const senderColumnWidthCh = Math.max(
+    const senderColumnWidthCh = Math.min(30, Math.max(
         14,
         ...emails.map((email) => getListSenderName(email, activeTab).length)
-    ) + 1;
+    ) + 1);
 
     const selectAllEmails = (event) => {
         if (event.target.checked) {
@@ -731,17 +784,71 @@ const Emails = () => {
         if (!hasSelection) {
             return;
         }
-        const result = await archiveEmailsService.call(getBulkPayload());
+        const countBeforeAction = selectionCount;
+        const payload = getBulkPayload();
+        const previousPage = page;
+        const result = await archiveEmailsService.call(payload);
         if (result.error) {
             showActionToast(result.error, 'error');
             return;
         }
-        const count = Number(result.data?.count) || selectionCount;
+        const count = Number(result.data?.count) || countBeforeAction;
         clearBulkSelection();
         clearEmailListCache();
         setStarredEmail((prevState) => !prevState);
         requestMailboxCountsRefresh();
-        showActionToast(`${count} message${count === 1 ? '' : 's'} archived`);
+        offerArchiveUndo({
+            count,
+            ids: allMatchingSelected ? [] : [...selectedEmails],
+            action: getArchiveToggleAction(activeTab),
+            previousPage,
+            bulkPayload: allMatchingSelected ? payload : null
+        });
+    };
+
+    const archiveToggleAction = getArchiveToggleAction(activeTab);
+    const canArchiveRows = activeTab === 'archived' || activeTab === 'inbox' || activeTab === 'starred' || Boolean(labelFilter);
+
+    const toggleArchivedEmail = async (email) => {
+        if (!email?._id || !canArchiveRows) {
+            return;
+        }
+
+        const ids = getEmailSelectionIds(email);
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const previousEmails = emails;
+        const previousTotal = totalEmails;
+        const nextEmails = previousEmails.filter((row) => !emailMatchesRemoval(row, ids));
+        const removedRows = previousEmails.length - nextEmails.length;
+
+        setEmails(nextEmails);
+        setSelectedEmails((current) => current.filter((id) => !ids.includes(id)));
+        setTotalEmails(Math.max(0, previousTotal - removedRows));
+        removeEmailsFromListCache(ids);
+        writeEmailListCache(cacheParams, nextEmails);
+
+        const service = archiveToggleAction.archived ? restoreArchivedEmailsService : archiveEmailsService;
+        const result = await service.call(ids, '', { silent: true });
+        if (result.error) {
+            setEmails(previousEmails);
+            setTotalEmails(previousTotal);
+            writeEmailListCache(cacheParams, previousEmails);
+            showActionToast(result.error, 'error');
+            return;
+        }
+
+        const count = Number(result.data?.count) || ids.length;
+        clearEmailListCache();
+        requestMailboxCountsRefresh();
+        offerArchiveUndo({
+            count,
+            ids,
+            action: archiveToggleAction,
+            previousEmails,
+            previousTotal,
+            previousPage: page,
+            cacheParams
+        });
     };
 
     const requestDeleteSelectedEmails = () => {
@@ -1058,13 +1165,13 @@ const Emails = () => {
                         </div>
                     </div>
 
-                    <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:justify-end">
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-row lg:w-auto lg:justify-end">
                         {readSummaryEnabled && isSuperuser && activeTab === 'inbox' && (
                             <button
                                 type="button"
                                 onClick={handleSummarizeAll}
                                 disabled={summarizeAllActive || startSummarizeAllService.isLoading}
-                                className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 ${
+                                className={`inline-flex h-9 min-w-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 sm:shrink-0 ${
                                     summarizeAllActive
                                         ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                                         : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:text-emerald-700'
@@ -1079,7 +1186,7 @@ const Emails = () => {
                             type="button"
                             onClick={toggleUnreadFilter}
                             aria-pressed={unreadFilter}
-                            className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition ${
+                            className={`inline-flex h-9 min-w-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition sm:shrink-0 ${
                                 unreadFilter
                                     ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700'
@@ -1089,7 +1196,7 @@ const Emails = () => {
                         </button>
                         <form
                             onSubmit={submitSearch}
-                            className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:min-w-[18rem] lg:w-80"
+                            className="col-span-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:col-auto sm:min-h-10 sm:min-w-[18rem] lg:w-80"
                         >
                             <Search className="h-4 w-4 shrink-0 text-slate-400" />
                             <input
@@ -1097,7 +1204,7 @@ const Emails = () => {
                                 value={searchInput}
                                 onChange={(event) => setSearchInput(event.target.value)}
                                 placeholder={`Search ${labelFilter ? 'label' : 'mail'}`}
-                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                                className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                             />
                             {searchFilter && (
                                 <button
@@ -1143,6 +1250,9 @@ const Emails = () => {
                                 onKeyboardDelete={handleKeyboardDelete}
                                 onKeyboardNavigate={handleKeyboardNavigate}
                                 onOpenDraft={openDraftEmail}
+                                onArchiveToggle={canArchiveRows ? toggleArchivedEmail : null}
+                                archiveActionLabel={archiveToggleAction.label}
+                                isArchiveView={archiveToggleAction.archived}
                                 deleteDialogOpen={confirmDeleteOpen}
                             />
                         ))}

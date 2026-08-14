@@ -5,11 +5,12 @@ import { isDbConnected } from '../database/db.js';
 import { providerDefaults } from './ai-provider.js';
 import { isMailboxStoreReady, getMailboxPool } from './postgres-mailbox-store.js';
 import { createPostgresSettingsStore } from './postgres-metadata-store.js';
+import { decryptSecret, encryptSecret } from './secret-store.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'app-settings.json');
 const SETTINGS_KEY = 'global';
-export const SUPERUSER_EMAIL = String(process.env.MAILSHOT_SUPERUSER || 'paul@tensology.com').trim().toLowerCase();
+export const SUPERUSER_EMAIL = String(process.env.MAILSHOT_SUPERUSER || process.env.MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
 
 const defaultSettings = () => ({
     general: {
@@ -47,6 +48,11 @@ const defaultSettings = () => ({
     tts: {
         voice: process.env.KOKORO_VOICE || 'af_heart'
     },
+    tensology: {
+        enabled: false,
+        base_url: 'https://www.tensology.com',
+        api_key: ''
+    },
     autoresponder_log: []
 });
 
@@ -73,7 +79,7 @@ const getPostgresSettingsStore = () => {
 const normalizeEmail = (value = '') => {
     const raw = String(value || '').trim().toLowerCase();
     const email = (/<([^>]+)>/.exec(raw)?.[1] || raw).trim();
-    return email === 'port@tensology.com' ? SUPERUSER_EMAIL : email;
+    return email;
 };
 
 const normalizeSignatureEntries = (general = {}) => {
@@ -201,8 +207,23 @@ const mergeSettings = (value = {}) => {
             ...(value.tts || {}),
             voice: String(value.tts?.voice || defaultSettings().tts.voice || 'af_heart').trim() || 'af_heart'
         },
+        tensology: {
+            ...defaultSettings().tensology,
+            ...(value.tensology || {}),
+            enabled: Boolean(value.tensology?.enabled),
+            base_url: String(value.tensology?.base_url || 'https://www.tensology.com').replace(/\/$/, ''),
+            api_key: decryptSecret(value.tensology?.api_key || process.env.TENSOLOGY_API_KEY || '')
+        },
         autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : []
     };
+};
+
+const serializeSettings = (settings = {}) => {
+    const serialized = JSON.parse(JSON.stringify(settings));
+    if (serialized.tensology?.api_key) {
+        serialized.tensology.api_key = encryptSecret(serialized.tensology.api_key);
+    }
+    return serialized;
 };
 
 export const isSuperUser = (username = '') => String(username || '').trim().toLowerCase() === SUPERUSER_EMAIL;
@@ -226,7 +247,7 @@ export const saveSettingsToDisk = () => {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
         fs.writeFileSync(CACHE_FILE, JSON.stringify({
             saved_at: new Date().toISOString(),
-            settings: settingsCache
+            settings: serializeSettings(settingsCache)
         }));
         return true;
     } catch (error) {
@@ -255,9 +276,10 @@ export const getSettings = async () => {
 
 export const saveSettings = async (nextSettings = {}) => {
     settingsCache = mergeSettings(nextSettings);
+    const persistedSettings = serializeSettings(settingsCache);
     const postgresStore = getPostgresSettingsStore();
     if (postgresStore) {
-        settingsCache = mergeSettings(await postgresStore.save(settingsCache));
+        settingsCache = mergeSettings(await postgresStore.save(persistedSettings));
         saveSettingsToDisk();
         return settingsCache;
     }
@@ -265,7 +287,7 @@ export const saveSettings = async (nextSettings = {}) => {
     if (isDbConnected()) {
         await Setting.findOneAndUpdate(
             { key: SETTINGS_KEY },
-            { $set: { value: settingsCache }},
+            { $set: { value: persistedSettings }},
             { upsert: true, new: true }
         );
     }

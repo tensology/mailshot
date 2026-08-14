@@ -16,6 +16,7 @@ import {
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
 import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
+import { createZipArchive } from '../services/zip-archive.js';
 import { deleteCachedLabelBySlug } from '../services/label-store.js';
 import { compactEmailsBySubject, findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
 import {
@@ -48,6 +49,45 @@ const serializeEmail = (email) => {
     return {
         ...plain,
         _id: String(plain._id)
+    };
+};
+
+const stripHtmlForPreview = (value = '') => String(value || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/p>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const buildEmailPreview = (email = {}, limit = 500) => {
+    const preview = stripHtmlForPreview(email.preview || email.body_html || email.body || '');
+    return preview.length > limit ? preview.slice(0, limit).trimEnd() : preview;
+};
+
+const serializeEmailListItem = (email) => {
+    const plain = serializeEmail(email);
+    if (!plain) return null;
+
+    const {
+        body,
+        body_html,
+        ...rest
+    } = plain;
+
+    return {
+        ...rest,
+        preview: buildEmailPreview(plain),
+        attachments: Array.isArray(plain.attachments)
+            ? plain.attachments.map(({ content, data, buffer, ...attachment }) => attachment)
+            : []
     };
 };
 
@@ -263,6 +303,67 @@ const hasDraftContent = (payload = {}) => (
     ['to', 'cc', 'bcc', 'subject', 'body'].some((field) => String(payload[field] || '').trim())
 );
 
+export const parseForwardedAttachmentRefs = (value) => {
+    if (!value) {
+        return [];
+    }
+
+    try {
+        const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+        return (Array.isArray(parsed) ? parsed : [])
+            .map((item) => ({
+                emailId: String(item.emailId || item.email_id || '').trim(),
+                attachmentId: String(item.attachmentId || item.attachment_id || '').trim()
+            }))
+            .filter((item) => item.emailId && item.attachmentId);
+    } catch {
+        return [];
+    }
+};
+
+const findStoredEmail = async (emailId) => {
+    if (isMailboxStoreReady()) {
+        const repository = getMailboxRepository();
+        return repository.findById(emailId);
+    }
+
+    const resolved = await findEmailRecord(emailId);
+    return resolved?.email || null;
+};
+
+const copyForwardedAttachments = async (refs = []) => {
+    const copied = [];
+    const seen = new Set();
+
+    for (const ref of refs) {
+        const key = `${ref.emailId}:${ref.attachmentId}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+
+        const email = await findStoredEmail(ref.emailId);
+        const attachment = (email?.attachments || []).find((item) => (
+            String(item.attachment_id || '') === ref.attachmentId
+        ));
+        if (!attachment) {
+            continue;
+        }
+
+        const data = readAttachmentFile(attachment.storage_path);
+        if (!data) {
+            continue;
+        }
+
+        copied.push(saveAttachmentFromBuffer(data, {
+            filename: attachment.filename || 'attachment',
+            content_type: attachment.content_type || 'application/octet-stream'
+        }));
+    }
+
+    return copied;
+};
+
 const normalizeDraftPayload = (payload = {}) => {
     const now = new Date();
     const draftId = payload._id || payload.id || '';
@@ -355,7 +456,7 @@ export const getEmails = async (request, response) => {
             const paginated = listEmails.slice(offset, offset + limit);
 
             return response.status(200).json({
-                emails: paginated.map(serializeEmail),
+                emails: paginated.map(serializeEmailListItem),
                 total,
                 page,
                 limit,
@@ -391,7 +492,7 @@ export const getEmails = async (request, response) => {
         const paginated = listEmails.slice(offset, offset + limit);
 
         response.status(200).json({
-            emails: paginated.map(serializeEmail),
+            emails: paginated.map(serializeEmailListItem),
             total,
             page,
             limit,
@@ -491,7 +592,7 @@ export const searchEmails = async (request, response) => {
         const paginated = listEmails.slice(offset, offset + limit);
 
         return response.status(200).json({
-            emails: paginated.map(serializeEmail),
+            emails: paginated.map(serializeEmailListItem),
             total,
             page,
             limit,
@@ -547,37 +648,11 @@ const findDbThread = async (anchorEmail) => {
 };
 
 const findMailboxStoreThread = async (repository, anchorEmail) => {
-    const allEmails = await repository.list({});
-    const relatedIds = new Set(
-        [anchorEmail.messageId, anchorEmail.in_reply_to, ...(anchorEmail.references || [])].filter(Boolean)
-    );
-
-    let expanded = true;
-    while (expanded) {
-        expanded = false;
-        for (const item of allEmails) {
-            if (!item.messageId || relatedIds.has(item.messageId)) {
-                continue;
-            }
-
-            const references = item.references || [];
-            const matchesThread = relatedIds.has(item.in_reply_to)
-                || references.some((ref) => relatedIds.has(ref));
-
-            if (matchesThread) {
-                relatedIds.add(item.messageId);
-                references.forEach((ref) => relatedIds.add(ref));
-                expanded = true;
-            }
-        }
+    if (typeof repository.findThread === 'function') {
+        return repository.findThread(anchorEmail);
     }
 
-    const idThread = allEmails
-        .filter((item) => item.messageId && relatedIds.has(item.messageId))
-        .sort((left, right) => new Date(left.date) - new Date(right.date));
-
-    const subjectThread = findEmailsBySubject(allEmails, anchorEmail);
-    return mergeThreadEmails(anchorEmail, idThread, subjectThread);
+    return [anchorEmail];
 };
 
 export const getEmailThread = async (request, response) => {
@@ -665,12 +740,18 @@ export const getEmailById = async (request, response) => {
 
 export const downloadAttachment = async (request, response) => {
     try {
-        const resolved = await findEmailRecord(request.params.id);
-        if (!resolved) {
-            return response.status(404).json('Email not found');
+        let email = null;
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            email = await repository.findById(request.params.id);
+        } else {
+            const resolved = await findEmailRecord(request.params.id);
+            email = resolved?.email || null;
         }
 
-        const { email } = resolved;
+        if (!email) {
+            return response.status(404).json('Email not found');
+        }
 
         const attachment = (email.attachments || []).find((item) => item.attachment_id === request.params.attachmentId);
         if (!attachment) {
@@ -682,9 +763,46 @@ export const downloadAttachment = async (request, response) => {
             return response.status(404).json('Attachment file missing');
         }
 
+        const disposition = request.query?.disposition === 'inline' ? 'inline' : 'attachment';
         response.setHeader('Content-Type', attachment.content_type || 'application/octet-stream');
-        response.setHeader('Content-Disposition', `attachment; filename="${attachment.filename}"`);
+        response.setHeader('Content-Disposition', `${disposition}; filename="${attachment.filename}"`);
         response.send(fileBuffer);
+    } catch (error) {
+        response.status(500).json(error.message);
+    }
+};
+
+export const downloadAllAttachments = async (request, response) => {
+    try {
+        let email = null;
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            email = await repository.findById(request.params.id);
+        } else {
+            const resolved = await findEmailRecord(request.params.id);
+            email = resolved?.email || null;
+        }
+
+        if (!email) {
+            return response.status(404).json('Email not found');
+        }
+
+        const files = (email.attachments || [])
+            .map((attachment) => ({
+                filename: attachment.filename || 'attachment',
+                data: readAttachmentFile(attachment.storage_path)
+            }))
+            .filter((file) => file.data);
+
+        if (!files.length) {
+            return response.status(404).json('No attachments found');
+        }
+
+        const zip = createZipArchive(files);
+        const safeSubject = String(email.subject || 'attachments').replace(/[^\w .()[\]-]/g, '_').slice(0, 80) || 'attachments';
+        response.setHeader('Content-Type', 'application/zip');
+        response.setHeader('Content-Disposition', `attachment; filename="${safeSubject}.zip"`);
+        response.send(zip);
     } catch (error) {
         response.status(500).json(error.message);
     }
@@ -1051,12 +1169,68 @@ export const archiveEmails = async (request, response) => {
     }
 };
 
+export const restoreArchivedEmails = async (request, response) => {
+    try {
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            const ids = await resolveBulkEmailSelection(request.body, 'archived');
+            await repository.updateMany(ids, {
+                archived: false,
+                in_inbox: true,
+                spam: false,
+                bin: false
+            });
+            return response.status(200).json({ message: 'emails unarchived', count: ids.length });
+        }
+
+        const ids = await resolveBulkEmailSelection(request.body, 'archived');
+        const dbIds = [];
+
+        for (const id of ids) {
+            const resolved = await findEmailRecord(id);
+            if (!resolved) {
+                continue;
+            }
+            if (resolved.source === 'cache') {
+                updateCachedEmail(id, {
+                    archived: false,
+                    in_inbox: true,
+                    spam: false,
+                    bin: false,
+                    labels: removeReservedLabels(resolved.email.labels)
+                });
+            } else {
+                dbIds.push(id);
+            }
+        }
+
+        if (dbIds.length > 0 && isDbConnected()) {
+            await Email.updateMany(
+                { _id: { $in: dbIds }},
+                {
+                    $set: { archived: false, in_inbox: true, spam: false, bin: false },
+                    $pull: { labels: { $in: ['archived', 'archive', 'spam'] } }
+                }
+            );
+        }
+
+        saveMailboxCacheToDisk();
+        response.status(200).json({ message: 'emails unarchived', count: ids.length });
+    } catch (error) {
+        response.status(500).json(error.message);
+    }
+};
+
 export const sendEmail = async (request, response) => {
     try {
         const uploadedAttachments = (request.files || []).map((file) => saveAttachmentFromBuffer(file.buffer, {
             filename: file.originalname,
             content_type: file.mimetype
         }));
+        const forwardedAttachments = await copyForwardedAttachments(
+            parseForwardedAttachmentRefs(request.body.forwardedAttachments)
+        );
+        const allAttachments = [...uploadedAttachments, ...forwardedAttachments];
 
         const payload = {
             to: request.body.to,
@@ -1069,7 +1243,7 @@ export const sendEmail = async (request, response) => {
             references: request.body.references
                 ? String(request.body.references).split(',').map((item) => item.trim()).filter(Boolean)
                 : undefined,
-            attachments: uploadedAttachments
+            attachments: allAttachments
         };
 
         const info = await sendMail(payload);
@@ -1092,7 +1266,7 @@ export const sendEmail = async (request, response) => {
             in_reply_to: payload.inReplyTo || '',
             references: payload.references || [],
             labels: [],
-            attachments: uploadedAttachments
+            attachments: allAttachments
         };
 
         if (isMailboxStoreReady()) {

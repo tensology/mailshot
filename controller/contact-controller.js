@@ -7,6 +7,25 @@ import {
     updateCachedContact,
     deleteCachedContact
 } from '../services/contact-store.js';
+import { isMailboxStoreReady, getMailboxPool } from '../services/postgres-mailbox-store.js';
+import { createPostgresContactStore } from '../services/postgres-metadata-store.js';
+
+let postgresContactStore = null;
+
+const getPostgresContactStore = () => {
+    if (!isMailboxStoreReady()) {
+        return null;
+    }
+
+    if (!postgresContactStore) {
+        postgresContactStore = createPostgresContactStore({
+            pool: getMailboxPool(),
+            getCachedContacts
+        });
+    }
+
+    return postgresContactStore;
+};
 
 const serializeContact = (contact) => {
     if (!contact) {
@@ -22,6 +41,11 @@ const serializeContact = (contact) => {
 
 export const getContacts = async (_, response) => {
     try {
+        const postgresStore = getPostgresContactStore();
+        if (postgresStore) {
+            return response.status(200).json((await postgresStore.list()).map(serializeContact));
+        }
+
         if (!isDbConnected()) {
             return response.status(200).json(getCachedContacts().map(serializeContact));
         }
@@ -35,6 +59,15 @@ export const getContacts = async (_, response) => {
 
 export const getContactById = async (request, response) => {
     try {
+        const postgresStore = getPostgresContactStore();
+        if (postgresStore) {
+            const contact = await postgresStore.findById(request.params.id);
+            if (!contact) {
+                return response.status(404).json('Contact not found');
+            }
+            return response.status(200).json(serializeContact(contact));
+        }
+
         if (!isDbConnected()) {
             const contact = getCachedContactById(request.params.id);
             if (!contact) {
@@ -63,6 +96,18 @@ export const createContact = async (request, response) => {
             return response.status(400).json('Name and email are required');
         }
 
+        const postgresStore = getPostgresContactStore();
+        if (postgresStore) {
+            const contact = await postgresStore.create({
+                name,
+                email,
+                phone: request.body.phone || '',
+                company: request.body.company || '',
+                notes: request.body.notes || ''
+            });
+            return response.status(201).json(serializeContact(contact));
+        }
+
         if (!isDbConnected()) {
             const contact = createCachedContact(request.body);
             return response.status(201).json(serializeContact(contact));
@@ -84,6 +129,21 @@ export const createContact = async (request, response) => {
 
 export const updateContact = async (request, response) => {
     try {
+        const postgresStore = getPostgresContactStore();
+        if (postgresStore) {
+            const contact = await postgresStore.update(request.params.id, {
+                name: request.body.name,
+                email: request.body.email,
+                phone: request.body.phone,
+                company: request.body.company,
+                notes: request.body.notes
+            });
+            if (!contact) {
+                return response.status(404).json('Contact not found');
+            }
+            return response.status(200).json(serializeContact(contact));
+        }
+
         if (!isDbConnected()) {
             const contact = updateCachedContact(request.params.id, request.body);
             if (!contact) {
@@ -118,6 +178,15 @@ export const updateContact = async (request, response) => {
 
 export const deleteContact = async (request, response) => {
     try {
+        const postgresStore = getPostgresContactStore();
+        if (postgresStore) {
+            const removed = await postgresStore.delete(request.params.id);
+            if (!removed) {
+                return response.status(404).json('Contact not found');
+            }
+            return response.status(200).json('Contact deleted');
+        }
+
         if (!isDbConnected()) {
             const removed = deleteCachedContact(request.params.id);
             if (!removed) {

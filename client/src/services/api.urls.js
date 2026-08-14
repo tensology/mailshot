@@ -31,6 +31,16 @@ export const API_URLS = {
         method: 'PUT',
         pathBuilder: () => 'settings/tts'
     },
+    updateTensologySettings: {
+        endpoint: 'settings/tensology',
+        method: 'PUT',
+        pathBuilder: () => 'settings/tensology'
+    },
+    testTensologyConnection: {
+        endpoint: 'settings/tensology/test',
+        method: 'POST',
+        pathBuilder: () => 'settings/tensology/test'
+    },
     fetchAiModels: {
         endpoint: 'settings/ai/models',
         method: 'POST',
@@ -111,6 +121,10 @@ export const API_URLS = {
     },
     archiveEmails: {
         endpoint: 'archive',
+        method: 'POST'
+    },
+    restoreArchivedEmails: {
+        endpoint: 'archive/restore',
         method: 'POST'
     },
     markSpamEmails: {

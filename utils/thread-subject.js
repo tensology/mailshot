@@ -82,5 +82,5 @@ export const mergeThreadEmails = (anchorEmail, ...collections) => {
     add(anchorEmail);
     collections.flat().forEach(add);
 
-    return [...byId.values()].sort((left, right) => new Date(left.date) - new Date(right.date));
+    return [...byId.values()].sort((left, right) => new Date(right.date) - new Date(left.date));
 };

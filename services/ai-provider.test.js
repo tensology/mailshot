@@ -33,6 +33,12 @@ test('standard models keep a small max_tokens budget', () => {
     });
 });
 
+test('expanded retry gives standard models enough room after length truncation', () => {
+    assert.deepEqual(getCompletionRequestOptions('openrouter', 'tencent/hy3:free', { expanded: true }), {
+        max_tokens: 1800
+    });
+});
+
 test('extractSummary handles string and array chat completion content', () => {
     assert.equal(
         extractSummary('openai', {
@@ -58,11 +64,11 @@ test('resolveSummaryCredentials uses the main provider settings', () => {
     assert.deepEqual(resolveSummaryCredentials({
         ai: {
             provider: 'nvidia',
-            api_key: 'nvapi-test'
+            api_key: 'test-provider-key'
         }
     }), {
         provider: 'nvidia',
-        apiKey: 'nvapi-test'
+        apiKey: 'test-provider-key'
     });
 
     assert.deepEqual(resolveSummaryCredentials({
@@ -104,7 +110,7 @@ test('hasSummaryProviderConfigured checks summary credentials', () => {
         ai: {
             enabled: true,
             provider: 'nvidia',
-            api_key: 'nvapi-test'
+            api_key: 'test-provider-key'
         }
     }), true);
 });

@@ -7,8 +7,9 @@ import Button from './ui/Button';
 import IconButton from './ui/IconButton';
 import Input from './ui/Input';
 import Toast from './ui/Toast';
+import { MAIL_FROM } from '../config/env';
 
-const DEFAULT_EMAIL = 'paul@tensology.com';
+const DEFAULT_EMAIL = String(MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
 
 const emptySignature = (email = DEFAULT_EMAIL) => ({
     email,
@@ -51,6 +52,13 @@ const emptyAi = {
 
 const emptyTts = {
     voice: 'af_heart'
+};
+
+const emptyTensology = {
+    enabled: false,
+    base_url: 'https://www.tensology.com',
+    api_key: '',
+    api_key_set: false
 };
 
 const KOKORO_VOICES = [
@@ -163,7 +171,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
         }
 
         editorRef.current?.focus();
-        const imageHtml = `<img src="${url.replace(/"/g, '&quot;')}" alt="" style="max-width:240px;height:auto;display:block;margin-top:8px;" />`;
+        const imageHtml = `<img src="${url.replace(/"/g, '&quot;')}" alt="" style="height:auto;display:block;margin-top:8px;" />`;
         document.execCommand('insertHTML', false, imageHtml);
         syncEditor();
         setImageUrl('');
@@ -236,7 +244,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
             <div
                 ref={editorRef}
                 contentEditable
-                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:max-h-32 [&_img]:max-w-full [&_img]:rounded-md"
+                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:rounded-md"
                 onInput={syncEditor}
                 role="textbox"
                 aria-multiline="true"
@@ -254,6 +262,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const [showAddEmail, setShowAddEmail] = useState(false);
     const [ai, setAi] = useState(emptyAi);
     const [tts, setTts] = useState(emptyTts);
+    const [tensology, setTensology] = useState(emptyTensology);
     const [providers, setProviders] = useState(AI_PROVIDER_OPTIONS);
     const [models, setModels] = useState([]);
     const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -263,6 +272,8 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const updateGeneralService = useApi(API_URLS.updateGeneralSettings);
     const updateAiService = useApi(API_URLS.updateAiSettings);
     const updateTtsService = useApi(API_URLS.updateTtsSettings);
+    const updateTensologyService = useApi(API_URLS.updateTensologySettings);
+    const testTensologyService = useApi(API_URLS.testTensologyConnection);
     const fetchModelsService = useApi(API_URLS.fetchAiModels);
 
     useEffect(() => {
@@ -281,6 +292,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setProviders(mergedProviders);
             setAi(normalizeAiProvider(result.data?.ai, mergedProviders));
             setTts({ ...emptyTts, ...(result.data?.tts || {}) });
+            setTensology({ ...emptyTensology, ...(result.data?.tensology || {}), api_key: '' });
             setModels(result.data?.ai?.model ? [{ id: result.data.ai.model, name: result.data.ai.model }] : []);
             setModelsLoaded(Boolean(result.data?.ai?.model));
             setNewEmail('');
@@ -459,6 +471,25 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         setToast({ open: true, message: 'TTS voice saved', severity: 'success' });
     };
 
+    const saveTensology = async () => {
+        const result = await updateTensologyService.call(tensology);
+        if (result.error) {
+            setToast({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        setTensology({ ...emptyTensology, ...(result.data?.tensology || {}), api_key: '' });
+        setToast({ open: true, message: 'Tensology connection saved and verified', severity: 'success' });
+    };
+
+    const testTensology = async () => {
+        const result = await testTensologyService.call({});
+        setToast({
+            open: true,
+            message: result.error || `Connected as ${result.data?.identity?.connection || 'Mailshot'}`,
+            severity: result.error ? 'error' : 'success'
+        });
+    };
+
     return (
         <Dialog
             open={open}
@@ -498,6 +529,13 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 onClick={() => setActiveTab('tts')}
                             >
                                 TTS
+                            </button>
+                            <button
+                                type="button"
+                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'tensology' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                                onClick={() => setActiveTab('tensology')}
+                            >
+                                Tensology
                             </button>
                         </>
                     )}
@@ -702,6 +740,46 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             <Save className="h-4 w-4" />
                             Save voice
                         </Button>
+                    </div>
+                )}
+
+                {activeTab === 'tensology' && isSuperuser && (
+                    <div className="space-y-4">
+                        <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-5 text-blue-900">
+                            Connect Mailshot to the central Tensology API. Generate a Mailshot key in the Tensology admin and paste it here.
+                        </p>
+                        <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
+                            <input
+                                type="checkbox"
+                                checked={Boolean(tensology.enabled)}
+                                onChange={(event) => setTensology({ ...tensology, enabled: event.target.checked })}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Enable Tensology connection
+                        </label>
+                        <Input
+                            label="Tensology API URL"
+                            value={tensology.base_url}
+                            onChange={(event) => setTensology({ ...tensology, base_url: event.target.value })}
+                        />
+                        <Input
+                            label="Tensology API key"
+                            type="password"
+                            placeholder={tensology.api_key_set ? 'Key saved. Enter a new key to replace it.' : 'tns_mailshot_...'}
+                            value={tensology.api_key}
+                            onChange={(event) => setTensology({ ...tensology, api_key: event.target.value })}
+                        />
+                        <div className="flex gap-2">
+                            <Button onClick={saveTensology} disabled={updateTensologyService.isLoading}>
+                                <Save className="h-4 w-4" />
+                                Save and verify
+                            </Button>
+                            {tensology.api_key_set && (
+                                <Button onClick={testTensology} disabled={testTensologyService.isLoading} variant="secondary">
+                                    Test connection
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
