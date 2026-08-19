@@ -12,6 +12,7 @@ import {
 } from '../utils/emailFormatter';
 import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
+import { getEmailMailboxType } from '../utils/mailActions';
 
 const MARQUEE_SPEED_PX_PER_SECOND = 46;
 const DOUBLE_TAP_MS = 320;
@@ -129,7 +130,8 @@ const Email = ({
             markEmailReadInCache(email._id);
         }
         const queryString = searchParams.toString();
-        navigate(`${routes.emails.path}/${type || 'inbox'}/${email._id}${queryString ? `?${queryString}` : ''}`);
+        const mailboxType = getEmailMailboxType(email) || type || 'inbox';
+        navigate(`${routes.emails.path}/${mailboxType}/${email._id}${queryString ? `?${queryString}` : ''}`);
     };
 
     const openEmailFromKeyboard = (event) => {

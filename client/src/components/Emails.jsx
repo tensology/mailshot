@@ -35,7 +35,8 @@ import {
     buildReadTogglePayload,
     getArchiveToggleAction,
     getDeleteSelectionIds,
-    hasActiveMailSelection
+    hasActiveMailSelection,
+    resolveSearchMailboxType
 } from '../utils/mailActions';
 
 const SYNC_TYPES = new Set(['allmail', 'inbox', 'starred', 'bin']);
@@ -128,8 +129,22 @@ const Emails = () => {
     const searchFilter = searchParams.get('search') || '';
     const participantFilter = searchParams.get('participant') || '';
     const unreadFilter = searchParams.get('unread') === 'true';
+    const inboxOnlySearch = searchParams.get('inbox_only') === 'true';
     const [page, setPage] = useState(1);
-    const listCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+    const listMailboxType = resolveSearchMailboxType({
+        searchFilter,
+        inboxOnly: inboxOnlySearch,
+        activeTab
+    });
+    const listCacheParams = {
+        activeTab: listMailboxType,
+        labelFilter,
+        searchFilter,
+        participantFilter,
+        unreadFilter,
+        inboxOnly: inboxOnlySearch,
+        page
+    };
 
     const [starredEmail, setStarredEmail] = useState(false);
     const [selectedEmails, setSelectedEmails] = useState([]);
@@ -185,7 +200,15 @@ const Emails = () => {
     const fetchEmailList = useCallback(async ({ silent = false, pageOverride, requestId } = {}) => {
         const activeRequestId = requestId ?? ++listRequestId.current;
         const listPage = pageOverride ?? page;
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page: listPage };
+        const cacheParams = {
+            activeTab: listMailboxType,
+            labelFilter,
+            searchFilter,
+            participantFilter,
+            unreadFilter,
+            inboxOnly: inboxOnlySearch,
+            page: listPage
+        };
         if (!silent) {
             setIsFetching(true);
         }
@@ -198,7 +221,7 @@ const Emails = () => {
             ...(participantFilter ? { participant: participantFilter } : {}),
             ...(unreadFilter ? { unread: 'true' } : {})
         };
-        const fetchResult = await getEmailsService.call(query, activeTab, { silent: true });
+        const fetchResult = await getEmailsService.call(query, listMailboxType, { silent: true });
 
         if (!silent) {
             setIsFetching(false);
@@ -224,7 +247,7 @@ const Emails = () => {
         writeEmailListCache(cacheParams, normalized.emails);
         setHasCache(true);
         return true;
-    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, getEmailsService, page]);
+    }, [listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnlySearch, getEmailsService, page]);
 
     const runMailboxSync = useCallback(async ({ silent = true, listPage, listRequestId: listRequestIdOverride } = {}) => {
         if (searchFilter || participantFilter || unreadFilter || !SYNC_TYPES.has(activeTab)) {
@@ -302,7 +325,7 @@ const Emails = () => {
         });
 
         await Promise.all([fetchPromise, syncPromise]);
-    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, fetchEmailList, runMailboxSync]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnlySearch, listCacheParams, fetchEmailList, runMailboxSync]);
 
     const showSyncNotice = useCallback((message) => {
         setSyncNotice(message);
@@ -505,7 +528,7 @@ const Emails = () => {
     useEffect(() => {
         loadEmails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, starredEmail, page]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnlySearch, starredEmail, page]);
 
     useEffect(() => {
         if (pendingFocusEmailId.current && emails.length > 0) {
@@ -561,10 +584,10 @@ const Emails = () => {
         setPage(1);
         setTotalEmails(0);
         setTotalPages(1);
-    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter]);
+    }, [activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnlySearch]);
 
     const listTitle = searchFilter
-        ? `Search: ${searchFilter}`
+        ? (inboxOnlySearch ? `Inbox search: ${searchFilter}` : `Search all mail: ${searchFilter}`)
         : participantFilter
             ? `Mail with ${participantFilter}`
             : labelFilter
@@ -596,7 +619,11 @@ const Emails = () => {
 
     const clearSearch = () => {
         setSearchInput('');
-        updateListSearchParams({ search: '' });
+        updateListSearchParams({ search: '', inbox_only: '' });
+    };
+
+    const toggleInboxOnlySearch = () => {
+        updateListSearchParams({ inbox_only: inboxOnlySearch ? '' : 'true' });
     };
 
     const toggleUnreadFilter = () => {
@@ -722,7 +749,7 @@ const Emails = () => {
 
     const buildBulkScope = () => ({
         all: true,
-        type: activeTab,
+        type: listMailboxType,
         label: labelFilter,
         search: searchFilter,
         participant: participantFilter,
@@ -795,7 +822,7 @@ const Emails = () => {
         const payload = getBulkPayload();
         const previousPage = page;
         const idsToRemove = allMatchingSelected ? [] : [...selectedEmails];
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly: inboxOnlySearch, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
 
@@ -907,7 +934,7 @@ const Emails = () => {
         }
 
         const ids = getEmailSelectionIds(email);
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly: inboxOnlySearch, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
         const nextEmails = previousEmails.filter((row) => !emailMatchesRemoval(row, ids));
@@ -975,7 +1002,7 @@ const Emails = () => {
         }
 
         const idsToRemove = [...selectedEmails];
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly: inboxOnlySearch, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
         const removedRows = previousEmails.filter((email) => emailMatchesRemoval(email, idsToRemove));
@@ -1006,7 +1033,7 @@ const Emails = () => {
             return;
         }
 
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly: inboxOnlySearch, page };
         const previousEmails = emails;
         const shouldRemoveFromView = activeTab === 'inbox' || activeTab === 'bin' || labelFilter;
 
@@ -1095,7 +1122,7 @@ const Emails = () => {
 
         const idsToRemove = [...idsForDelete];
         const isPermanentDelete = type === 'bin';
-        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly: inboxOnlySearch, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
         const previousPage = page;
@@ -1108,7 +1135,7 @@ const Emails = () => {
         const nextTotal = Math.max(0, previousTotal - removedRows.length);
         const nextTotalPages = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
         const nextPage = Math.min(page, nextTotalPages);
-        const nextCacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page: nextPage };
+        const nextCacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly: inboxOnlySearch, page: nextPage };
 
         setConfirmDeleteOpen(false);
         setDeleteTargetIds([]);
@@ -1296,6 +1323,15 @@ const Emails = () => {
                         >
                             Unread only
                         </button>
+                        <label className="inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 sm:shrink-0">
+                            <input
+                                type="checkbox"
+                                checked={inboxOnlySearch}
+                                onChange={toggleInboxOnlySearch}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Inbox only
+                        </label>
                         <form
                             onSubmit={submitSearch}
                             className="col-span-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:col-auto sm:min-h-10 sm:min-w-[18rem] lg:w-80"
@@ -1305,7 +1341,7 @@ const Emails = () => {
                                 type="search"
                                 value={searchInput}
                                 onChange={(event) => setSearchInput(event.target.value)}
-                                placeholder={`Search ${labelFilter ? 'label' : 'mail'}`}
+                                placeholder={inboxOnlySearch ? 'Search inbox' : 'Search all mail'}
                                 className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                             />
                             {searchFilter && (

@@ -38,6 +38,35 @@ export const buildReadTogglePayload = ({
     return { ids: selectedEmails, value: read };
 };
 
+/** When searching, default to everywhere (incl. trash); optional inbox-only toggle. */
+export const resolveSearchMailboxType = ({
+    searchFilter = '',
+    inboxOnly = false,
+    activeTab = 'inbox'
+} = {}) => {
+    if (!String(searchFilter || '').trim()) {
+        return activeTab || 'inbox';
+    }
+    return inboxOnly ? 'inbox' : 'everywhere';
+};
+
+/** Best mailbox route for opening a message from mixed search results. */
+export const getEmailMailboxType = (email = {}) => {
+    if (email.bin) {
+        return 'bin';
+    }
+    if (email.spam) {
+        return 'spam';
+    }
+    if (email.archived) {
+        return 'archived';
+    }
+    if (email.type === 'drafts' || email.type === 'sent') {
+        return email.type;
+    }
+    return 'inbox';
+};
+
 export const isDeleteKeyboardShortcut = (event) => {
     if (!event || (event.key !== 'Delete' && event.key !== 'Backspace')) {
         return false;

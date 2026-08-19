@@ -390,6 +390,15 @@ export const buildEmailFilter = (type, query = {}) => {
         }
         return filter;
     }
+    if (type === 'everywhere') {
+        // Global search: no mailbox exclusions (includes bin / spam / archived).
+        return {
+            ...unreadFilter,
+            ...searchFilter,
+            ...participantFilter,
+            ...(query.label ? { label: query.label } : {})
+        };
+    }
     if (type === 'inbox') {
         return {
             type: 'inbox',

@@ -6,7 +6,9 @@ import {
     getDeleteSelectionIds,
     hasActiveMailSelection,
     isDeleteKeyboardShortcut,
-    buildReadTogglePayload
+    buildReadTogglePayload,
+    resolveSearchMailboxType,
+    getEmailMailboxType
 } from './mailActions.js';
 
 test('all matching selection counts as an active mail selection', () => {
@@ -72,4 +74,30 @@ test('read toggle payload keeps value and uses scope for select-all matching', (
         scope: { all: true, type: 'inbox' },
         value: false
     }), { scope: { all: true, type: 'inbox' }, value: false });
+});
+
+test('search defaults to everywhere and can narrow to inbox only', () => {
+    assert.equal(resolveSearchMailboxType({
+        searchFilter: 'invoice',
+        inboxOnly: false,
+        activeTab: 'inbox'
+    }), 'everywhere');
+    assert.equal(resolveSearchMailboxType({
+        searchFilter: 'invoice',
+        inboxOnly: true,
+        activeTab: 'sent'
+    }), 'inbox');
+    assert.equal(resolveSearchMailboxType({
+        searchFilter: '',
+        inboxOnly: false,
+        activeTab: 'starred'
+    }), 'starred');
+});
+
+test('email mailbox type follows bin/spam/archive before generic type', () => {
+    assert.equal(getEmailMailboxType({ bin: true, type: 'inbox' }), 'bin');
+    assert.equal(getEmailMailboxType({ spam: true, type: 'inbox' }), 'spam');
+    assert.equal(getEmailMailboxType({ archived: true, type: 'inbox' }), 'archived');
+    assert.equal(getEmailMailboxType({ type: 'sent' }), 'sent');
+    assert.equal(getEmailMailboxType({ type: 'inbox' }), 'inbox');
 });
