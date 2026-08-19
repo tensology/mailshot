@@ -6,13 +6,13 @@ const hasLegacyCacheIds = (emails = []) => {
     return emails.some((email) => LEGACY_CACHE_ID_PATTERN.test(String(email?._id || '')));
 };
 
-const buildCacheKey = ({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly, page }) => {
-    return `${activeTab}|${labelFilter || ''}|${searchFilter || ''}|${participantFilter || ''}|${unreadFilter ? 'unread' : ''}|${inboxOnly ? 'inbox_only' : ''}|${page || 1}`;
+const buildCacheKey = ({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly, page }) => {
+    return `${activeTab}|${labelFilter || ''}|${searchFilter || ''}|${participantFilter || ''}|${unreadFilter ? 'unread' : ''}|${sectionOnly ? 'section_only' : ''}|${page || 1}`;
 };
 
-export const readEmailListCache = ({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly, page }) => {
+export const readEmailListCache = ({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly, page }) => {
     try {
-        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly, page });
+        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly, page });
         const raw = sessionStorage.getItem(key);
         if (!raw) {
             return null;
@@ -39,9 +39,9 @@ export const readEmailListCache = ({ activeTab, labelFilter, searchFilter, parti
     }
 };
 
-export const writeEmailListCache = ({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly, page }, emails) => {
+export const writeEmailListCache = ({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly, page }, emails) => {
     try {
-        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, inboxOnly, page });
+        const key = CACHE_PREFIX + buildCacheKey({ activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly, page });
         sessionStorage.setItem(key, JSON.stringify({
             saved_at: Date.now(),
             emails: Array.isArray(emails) ? emails : []

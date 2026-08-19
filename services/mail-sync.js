@@ -300,7 +300,15 @@ const matchesFilter = (item, filter = {}) => {
         if (!hasLabel) return false;
     }
     if (filter.search) {
-        const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
+        const haystack = [
+            item.subject,
+            item.body,
+            item.body_html,
+            item.from,
+            item.to,
+            item.cc,
+            ...(item.attachments || []).map((attachment) => attachment.filename)
+        ].join(' ').toLowerCase();
         if (!haystack.includes(filter.search.toLowerCase())) return false;
     }
     if (filter.participant) {

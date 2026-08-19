@@ -141,7 +141,15 @@ const filterDbEmailsInMemory = (emails = [], filter = {}) => {
     if (filter.search) {
         const search = String(filter.search).toLowerCase();
         result = result.filter((item) => {
-            const haystack = [item.subject, item.body, item.from, item.to].join(' ').toLowerCase();
+            const haystack = [
+                item.subject,
+                item.body,
+                item.body_html,
+                item.from,
+                item.to,
+                item.cc,
+                ...(item.attachments || []).map((attachment) => attachment.filename)
+            ].join(' ').toLowerCase();
             return haystack.includes(search);
         });
     }

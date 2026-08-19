@@ -157,7 +157,15 @@ const buildWhereClause = (filter = {}) => {
     }
 
     if (filter.search) {
-        conditions.push(`LOWER(CONCAT_WS(' ', e.subject, e.body, e.from_address, e.to_address, e.cc_address)) LIKE $${index}`);
+        conditions.push(`(
+            LOWER(CONCAT_WS(' ', e.subject, e.body, e.body_html, e.from_address, e.to_address, e.cc_address)) LIKE $${index}
+            OR EXISTS (
+                SELECT 1
+                FROM attachments a_search
+                WHERE a_search.email_id = e.id
+                  AND LOWER(COALESCE(a_search.filename, '')) LIKE $${index}
+            )
+        )`);
         values.push(`%${String(filter.search).toLowerCase()}%`);
         index += 1;
     }
@@ -228,7 +236,15 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
             const searchTerm = `%${String(query).toLowerCase()}%`;
             const result = await pool.query(
                 `${EMAIL_SELECT}
-                 WHERE LOWER(CONCAT_WS(' ', e.subject, e.body, e.from_address, e.to_address, e.cc_address)) LIKE $1
+                 WHERE (
+                    LOWER(CONCAT_WS(' ', e.subject, e.body, e.body_html, e.from_address, e.to_address, e.cc_address)) LIKE $1
+                    OR EXISTS (
+                        SELECT 1
+                        FROM attachments a_search
+                        WHERE a_search.email_id = e.id
+                          AND LOWER(COALESCE(a_search.filename, '')) LIKE $1
+                    )
+                 )
                  GROUP BY e.id
                  ORDER BY e.date_value DESC`,
                 [searchTerm]

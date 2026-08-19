@@ -392,8 +392,28 @@ test('searches mailbox content with a case-insensitive query', async () => {
 
     await repository.search('travel invoice');
 
-    assert.match(calls[0].text, /LOWER\(CONCAT_WS\(' ', e\.subject, e\.body, e\.from_address, e\.to_address, e\.cc_address\)\) LIKE \$1/i);
+    assert.match(calls[0].text, /e\.body_html/i);
+    assert.match(calls[0].text, /FROM attachments a_search/i);
+    assert.match(calls[0].text, /a_search\.filename/i);
     assert.equal(calls[0].values[0], '%travel invoice%');
+});
+
+test('list search also matches attachment filenames', async () => {
+    const calls = [];
+    const repository = createMailboxRepository({
+        pool: {
+            query: async (text, values) => {
+                calls.push({ text, values });
+                return { rows: [] };
+            }
+        }
+    });
+
+    await repository.list({ search: 'I0717' });
+
+    assert.match(calls[0].text, /FROM attachments a_search/i);
+    assert.match(calls[0].text, /a_search\.filename/i);
+    assert.equal(calls[0].values.at(-1), '%i0717%');
 });
 
 test('finds a single email by id', async () => {

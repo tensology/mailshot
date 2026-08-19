@@ -8,7 +8,8 @@ import {
     isDeleteKeyboardShortcut,
     buildReadTogglePayload,
     resolveSearchMailboxType,
-    getEmailMailboxType
+    getEmailMailboxType,
+    getSectionOnlySearchLabel
 } from './mailActions.js';
 
 test('all matching selection counts as an active mail selection', () => {
@@ -76,22 +77,33 @@ test('read toggle payload keeps value and uses scope for select-all matching', (
     }), { scope: { all: true, type: 'inbox' }, value: false });
 });
 
-test('search defaults to everywhere and can narrow to inbox only', () => {
+test('search defaults to everywhere and can narrow to the open section', () => {
     assert.equal(resolveSearchMailboxType({
         searchFilter: 'invoice',
-        inboxOnly: false,
+        sectionOnly: false,
         activeTab: 'inbox'
     }), 'everywhere');
     assert.equal(resolveSearchMailboxType({
         searchFilter: 'invoice',
-        inboxOnly: true,
+        sectionOnly: true,
         activeTab: 'sent'
-    }), 'inbox');
+    }), 'sent');
+    assert.equal(resolveSearchMailboxType({
+        searchFilter: 'invoice',
+        sectionOnly: true,
+        activeTab: 'bin'
+    }), 'bin');
     assert.equal(resolveSearchMailboxType({
         searchFilter: '',
-        inboxOnly: false,
+        sectionOnly: false,
         activeTab: 'starred'
     }), 'starred');
+});
+
+test('section-only search label follows the open mailbox name', () => {
+    assert.equal(getSectionOnlySearchLabel('sent', { sent: 'Sent' }), 'Sent only');
+    assert.equal(getSectionOnlySearchLabel('bin', { bin: 'Bin' }), 'Bin only');
+    assert.equal(getSectionOnlySearchLabel('inbox', { inbox: 'Inbox' }), 'Inbox only');
 });
 
 test('email mailbox type follows bin/spam/archive before generic type', () => {

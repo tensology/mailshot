@@ -38,16 +38,21 @@ export const buildReadTogglePayload = ({
     return { ids: selectedEmails, value: read };
 };
 
-/** When searching, default to everywhere (incl. trash); optional inbox-only toggle. */
+/** When searching, default to everywhere; optional toggle limits to the open section. */
 export const resolveSearchMailboxType = ({
     searchFilter = '',
-    inboxOnly = false,
+    sectionOnly = false,
     activeTab = 'inbox'
 } = {}) => {
     if (!String(searchFilter || '').trim()) {
         return activeTab || 'inbox';
     }
-    return inboxOnly ? 'inbox' : 'everywhere';
+    return sectionOnly ? (activeTab || 'inbox') : 'everywhere';
+};
+
+export const getSectionOnlySearchLabel = (activeTab = 'inbox', tabTitles = {}) => {
+    const sectionName = tabTitles[activeTab] || 'Section';
+    return `${sectionName} only`;
 };
 
 /** Best mailbox route for opening a message from mixed search results. */
