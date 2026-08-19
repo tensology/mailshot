@@ -9,7 +9,8 @@ import {
     buildReadTogglePayload,
     resolveSearchMailboxType,
     getEmailMailboxType,
-    getSectionOnlySearchLabel
+    getSectionOnlySearchLabel,
+    getThreadSelectionIds
 } from './mailActions.js';
 
 test('all matching selection counts as an active mail selection', () => {
@@ -112,4 +113,22 @@ test('email mailbox type follows bin/spam/archive before generic type', () => {
     assert.equal(getEmailMailboxType({ archived: true, type: 'inbox' }), 'archived');
     assert.equal(getEmailMailboxType({ type: 'sent' }), 'sent');
     assert.equal(getEmailMailboxType({ type: 'inbox' }), 'inbox');
+});
+
+test('thread selection uses every message id in the open conversation', () => {
+    assert.deepEqual(getThreadSelectionIds({
+        thread: [{ _id: 'a' }, { _id: 'b' }, { _id: 'a' }],
+        primaryEmail: { _id: 'a' }
+    }), ['a', 'b']);
+
+    assert.deepEqual(getThreadSelectionIds({
+        thread: [],
+        primaryEmail: { _id: 'one', thread_ids: ['one', 'two'] }
+    }), ['one', 'two']);
+
+    assert.deepEqual(getThreadSelectionIds({
+        thread: [],
+        primaryEmail: null,
+        fallbackId: 'solo'
+    }), ['solo']);
 });

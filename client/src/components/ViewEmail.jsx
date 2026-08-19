@@ -46,7 +46,7 @@ import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { formatEmailBody } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
-import { isDeleteKeyboardShortcut } from '../utils/mailActions';
+import { isDeleteKeyboardShortcut, getThreadSelectionIds } from '../utils/mailActions';
 import { getVisibleAttachments } from '../utils/attachments';
 import { getEmbeddableLinks } from '../utils/linkPreviews';
 
@@ -265,11 +265,11 @@ const ViewEmail = () => {
         }
     };
 
-    const getCurrentEmailSelectionIds = () => (
-        Array.isArray(primaryEmail.thread_ids) && primaryEmail.thread_ids.length > 0
-            ? primaryEmail.thread_ids
-            : [primaryEmail._id]
-    );
+    const getCurrentEmailSelectionIds = () => getThreadSelectionIds({
+        thread,
+        primaryEmail,
+        fallbackId: id
+    });
 
     const moveToLabel = (labelSlug, ids, error) => {
         if (error) {
@@ -282,7 +282,7 @@ const ViewEmail = () => {
         ));
 
         if (type === 'inbox' || type === 'bin') {
-            removeEmailsFromListCache(getCurrentEmailSelectionIds());
+            removeEmailsFromListCache(ids?.length ? ids : getCurrentEmailSelectionIds());
             navigate(backUrl);
         }
     };
@@ -299,9 +299,7 @@ const ViewEmail = () => {
     };
 
     const deleteEmail = async () => {
-        const idsToDelete = Array.isArray(primaryEmail.thread_ids) && primaryEmail.thread_ids.length
-            ? primaryEmail.thread_ids
-            : [primaryEmail._id];
+        const idsToDelete = getCurrentEmailSelectionIds();
         const isPermanentDelete = type === 'bin';
         const restoredEmails = thread.length ? [...thread] : [{ ...primaryEmail }];
 

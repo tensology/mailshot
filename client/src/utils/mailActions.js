@@ -72,6 +72,27 @@ export const getEmailMailboxType = (email = {}) => {
     return 'inbox';
 };
 
+/** IDs to act on from an open conversation (archive / label / delete). */
+export const getThreadSelectionIds = ({
+    thread = [],
+    primaryEmail = null,
+    fallbackId = ''
+} = {}) => {
+    const fromThread = (Array.isArray(thread) ? thread : [])
+        .map((message) => String(message?._id || ''))
+        .filter(Boolean);
+    if (fromThread.length) {
+        return [...new Set(fromThread)];
+    }
+
+    if (Array.isArray(primaryEmail?.thread_ids) && primaryEmail.thread_ids.length) {
+        return primaryEmail.thread_ids.map(String).filter(Boolean);
+    }
+
+    const id = primaryEmail?._id || fallbackId;
+    return id ? [String(id)] : [];
+};
+
 export const isDeleteKeyboardShortcut = (event) => {
     if (!event || (event.key !== 'Delete' && event.key !== 'Backspace')) {
         return false;
