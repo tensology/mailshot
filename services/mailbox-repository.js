@@ -253,6 +253,27 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
             return mapEmailRowToMailboxEmail(result.rows[0]);
         },
 
+        async findByMessageId(messageId) {
+            const needle = String(messageId || '').trim();
+            if (!needle) {
+                return null;
+            }
+
+            const result = await pool.query(
+                `${EMAIL_SELECT}
+                 WHERE e.message_id = $1
+                 GROUP BY e.id
+                 LIMIT 1`,
+                [needle]
+            );
+
+            if (!result.rows[0]) {
+                return null;
+            }
+
+            return mapEmailRowToMailboxEmail(result.rows[0]);
+        },
+
         async findThread(anchorEmail = {}) {
             const relatedIds = [
                 anchorEmail.messageId || anchorEmail.message_id,
@@ -323,13 +344,7 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     name = EXCLUDED.name,
                     image = EXCLUDED.image,
                     read = emails.read OR EXCLUDED.read,
-                    labels = EXCLUDED.labels,
                     references_json = EXCLUDED.references_json,
-                    starred = EXCLUDED.starred,
-                    bin = EXCLUDED.bin,
-                    archived = EXCLUDED.archived,
-                    spam = EXCLUDED.spam,
-                    in_inbox = EXCLUDED.in_inbox,
                     in_reply_to = EXCLUDED.in_reply_to,
                     read_summary = EXCLUDED.read_summary,
                     read_summary_status = EXCLUDED.read_summary_status,
@@ -337,6 +352,13 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     read_aloud_status = EXCLUDED.read_aloud_status,
                     imap_mailbox = EXCLUDED.imap_mailbox,
                     imap_uid = EXCLUDED.imap_uid,
+                    -- Keep mailbox taxonomy set by the UI (archive/bin/spam/star).
+                    starred = emails.starred,
+                    bin = emails.bin,
+                    archived = emails.archived,
+                    spam = emails.spam,
+                    in_inbox = emails.in_inbox,
+                    labels = emails.labels,
                     updated_at = NOW()
                 RETURNING *`,
                 [

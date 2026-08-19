@@ -623,6 +623,22 @@ const syncOnce = async () => {
 
                         if (isMailboxStoreReady()) {
                             const repository = getMailboxRepository();
+                            const existing = await repository.findByMessageId(messageId);
+                            if (existing) {
+                                if (existing.bin) {
+                                    skipped++;
+                                    continue;
+                                }
+                                await repository.updateMany([existing._id], {
+                                    body: payload.body,
+                                    body_html: payload.body_html,
+                                    subject: payload.subject,
+                                    read: Boolean(existing.read || payload.read)
+                                });
+                                skipped++;
+                                continue;
+                            }
+
                             const labelState = await applyLabelRule(payload);
                             const importedEmail = {
                                 ...payload,

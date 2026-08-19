@@ -794,22 +794,63 @@ const Emails = () => {
         const countBeforeAction = selectionCount;
         const payload = getBulkPayload();
         const previousPage = page;
+        const idsToRemove = allMatchingSelected ? [] : [...selectedEmails];
+        const cacheParams = { activeTab, labelFilter, searchFilter, participantFilter, unreadFilter, page };
+        const previousEmails = emails;
+        const previousTotal = totalEmails;
+
+        if (allMatchingSelected) {
+            const result = await archiveEmailsService.call(payload);
+            if (result.error) {
+                showActionToast(result.error, 'error');
+                return;
+            }
+            const count = Number(result.data?.count) || countBeforeAction;
+            clearBulkSelection();
+            clearEmailListCache();
+            setEmails([]);
+            setTotalEmails(0);
+            setTotalPages(1);
+            setPage(1);
+            requestMailboxCountsRefresh();
+            offerArchiveUndo({
+                count,
+                ids: [],
+                action: getArchiveToggleAction(activeTab),
+                previousPage,
+                bulkPayload: payload
+            });
+            return;
+        }
+
+        const nextEmails = previousEmails.filter((row) => !emailMatchesRemoval(row, idsToRemove));
+        const removedRows = previousEmails.length - nextEmails.length;
+        setEmails(nextEmails);
+        setTotalEmails(Math.max(0, previousTotal - removedRows));
+        clearBulkSelection();
+        removeEmailsFromListCache(idsToRemove);
+        writeEmailListCache(cacheParams, nextEmails);
+
         const result = await archiveEmailsService.call(payload);
         if (result.error) {
+            setEmails(previousEmails);
+            setTotalEmails(previousTotal);
+            writeEmailListCache(cacheParams, previousEmails);
             showActionToast(result.error, 'error');
             return;
         }
+
         const count = Number(result.data?.count) || countBeforeAction;
-        clearBulkSelection();
         clearEmailListCache();
-        setStarredEmail((prevState) => !prevState);
         requestMailboxCountsRefresh();
         offerArchiveUndo({
             count,
-            ids: allMatchingSelected ? [] : [...selectedEmails],
+            ids: idsToRemove,
             action: getArchiveToggleAction(activeTab),
+            previousEmails,
+            previousTotal,
             previousPage,
-            bulkPayload: allMatchingSelected ? payload : null
+            cacheParams
         });
     };
 

@@ -233,6 +233,59 @@ test('upserts imported mail and persists JSON fields', async () => {
     assert.equal(calls[0].values[14], '["ops"]');
     assert.equal(calls[0].values[15], '["<root>"]');
     assert.deepEqual(deletedPaths, ['/tmp/old-ticket.pdf']);
+    // Sync re-imports must not wipe UI archive/bin state.
+    assert.match(calls[0].text, /archived = emails\.archived/i);
+    assert.match(calls[0].text, /in_inbox = emails\.in_inbox/i);
+});
+
+test('finds an email by message id', async () => {
+    const calls = [];
+    const repository = createMailboxRepository({
+        pool: {
+            query: async (text, values) => {
+                calls.push({ text, values });
+                return {
+                    rows: [{
+                        id: 'email-9',
+                        message_id: '<msg-9>',
+                        type: 'inbox',
+                        subject: 'Found',
+                        body: '',
+                        body_html: '',
+                        from_address: 'a@b.c',
+                        to_address: 'd@e.f',
+                        cc_address: '',
+                        bcc_address: '',
+                        date_value: '2026-06-21T10:00:00.000Z',
+                        name: '',
+                        image: '',
+                        read: false,
+                        starred: false,
+                        bin: false,
+                        archived: true,
+                        spam: false,
+                        in_inbox: false,
+                        labels: [],
+                        references_json: [],
+                        in_reply_to: '',
+                        read_summary: '',
+                        read_summary_status: '',
+                        read_summary_at: null,
+                        read_aloud_status: '',
+                        imap_mailbox: 'INBOX',
+                        imap_uid: '',
+                        attachments: []
+                    }]
+                };
+            }
+        }
+    });
+
+    const email = await repository.findByMessageId('<msg-9>');
+    assert.equal(email._id, 'email-9');
+    assert.equal(email.archived, true);
+    assert.match(calls[0].text, /message_id = \$1/i);
+    assert.equal(calls[0].values[0], '<msg-9>');
 });
 
 test('counts unread mail by mailbox type', async () => {
