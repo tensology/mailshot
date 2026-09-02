@@ -15,7 +15,7 @@ import {
     saveMailboxCacheToDisk
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
-import { readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
+import { deleteAttachmentFile, readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
 import { createZipArchive } from '../services/zip-archive.js';
 import { deleteCachedLabelBySlug } from '../services/label-store.js';
 import { compactEmailsBySubject, findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
@@ -366,7 +366,27 @@ const findStoredEmail = async (emailId) => {
     return resolved?.email || null;
 };
 
-const copyForwardedAttachments = async (refs = []) => {
+export const createSendAttachmentOwnership = ({ deleteFile = deleteAttachmentFile } = {}) => {
+    const owned = [];
+    let cleaned = false;
+    return {
+        trackCreated(attachment) {
+            owned.push(attachment);
+            return attachment;
+        },
+        cleanup() {
+            if (cleaned) return;
+            cleaned = true;
+            owned.forEach((attachment) => deleteFile(attachment.storage_path));
+        }
+    };
+};
+
+export const copyForwardedAttachments = async (refs = [], ownership, {
+    findEmail = findStoredEmail,
+    readFile = readAttachmentFile,
+    saveFile = saveAttachmentFromBuffer
+} = {}) => {
     const copied = [];
     const seen = new Set();
 
@@ -377,7 +397,7 @@ const copyForwardedAttachments = async (refs = []) => {
         }
         seen.add(key);
 
-        const email = await findStoredEmail(ref.emailId);
+        const email = await findEmail(ref.emailId);
         const attachment = (email?.attachments || []).find((item) => (
             String(item.attachment_id || '') === ref.attachmentId
         ));
@@ -385,15 +405,16 @@ const copyForwardedAttachments = async (refs = []) => {
             continue;
         }
 
-        const data = readAttachmentFile(attachment.storage_path);
+        const data = readFile(attachment.storage_path);
         if (!data) {
-            continue;
+            throw new Error(`Attachment file missing: ${attachment.filename || 'attachment'}`);
         }
 
-        copied.push(saveAttachmentFromBuffer(data, {
+        const copy = saveFile(data, {
             filename: attachment.filename || 'attachment',
             content_type: attachment.content_type || 'application/octet-stream'
-        }));
+        });
+        copied.push(ownership ? ownership.trackCreated(copy) : copy);
     }
 
     return copied;
@@ -401,12 +422,59 @@ const copyForwardedAttachments = async (refs = []) => {
 
 const parseBoolean = (value) => value === true || value === 'true';
 
-const getUploadedAttachments = (files = []) => (
-    files.map((file) => saveAttachmentFromBuffer(file.buffer, {
+export const createUploadedAttachments = (files = [], ownership, {
+    saveFile = saveAttachmentFromBuffer
+} = {}) => (
+    files.map((file) => {
+        const attachment = saveFile(file.buffer, {
         filename: file.originalname,
         content_type: file.mimetype
-    }))
+        });
+        return ownership ? ownership.trackCreated(attachment) : attachment;
+    })
 );
+
+export const createRetainedAttachmentSendPlan = (attachments = [], {
+    copyFiles = true,
+    readFile = readAttachmentFile,
+    saveFile = saveAttachmentFromBuffer,
+    deleteFile = deleteAttachmentFile,
+    ownership = createSendAttachmentOwnership({ deleteFile })
+} = {}) => {
+    if (!copyFiles) {
+        return { attachments, cleanup: () => {} };
+    }
+
+    const copies = [];
+    const cleanup = ownership.cleanup;
+
+    try {
+        attachments.forEach((attachment) => {
+            const data = readFile(attachment.storage_path);
+            if (!data) {
+                throw new Error(`Attachment file missing: ${attachment.filename || 'attachment'}`);
+            }
+            copies.push(ownership.trackCreated(saveFile(data, {
+                filename: attachment.filename || 'attachment',
+                content_type: attachment.content_type || 'application/octet-stream'
+            })));
+        });
+    } catch (error) {
+        cleanup();
+        throw error;
+    }
+
+    return { attachments: copies, cleanup };
+};
+
+export const runWithCleanupOnFailure = async (action, cleanup) => {
+    try {
+        return await action();
+    } catch (error) {
+        cleanup();
+        throw error;
+    }
+};
 
 const getRetainedAttachments = (existingEmail, retainedIds = [], selectionSpecified = false) => {
     const existingAttachments = Array.isArray(existingEmail?.attachments) ? existingEmail.attachments : [];
@@ -1312,21 +1380,26 @@ export const restoreArchivedEmails = async (request, response) => {
 };
 
 export const sendEmail = async (request, response) => {
+    const attachmentOwnership = createSendAttachmentOwnership();
     try {
+        const mailboxStoreReady = isMailboxStoreReady();
         const draftId = request.body.draftId || '';
         const draftRecord = draftId ? await findStoredEmail(draftId) : null;
         const retainedSelectionSpecified = Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
         const retainedAttachmentIds = parseJsonArray(request.body.retained_attachments);
-        const savedAttachments = getRetainedAttachments(
-            draftRecord,
-            retainedAttachmentIds,
-            retainedSelectionSpecified
-        );
-        const uploadedAttachments = getUploadedAttachments(request.files || []);
-        const forwardedAttachments = await copyForwardedAttachments(
-            parseForwardedAttachmentRefs(request.body.forwardedAttachments)
-        );
-        const outgoingAttachments = [...savedAttachments, ...uploadedAttachments, ...forwardedAttachments];
+        const outgoingAttachments = await runWithCleanupOnFailure(async () => {
+            const retained = createRetainedAttachmentSendPlan(getRetainedAttachments(
+                draftRecord,
+                retainedAttachmentIds,
+                retainedSelectionSpecified
+            ), { copyFiles: mailboxStoreReady, ownership: attachmentOwnership });
+            const uploaded = createUploadedAttachments(request.files || [], attachmentOwnership);
+            const forwarded = await copyForwardedAttachments(
+                parseForwardedAttachmentRefs(request.body.forwardedAttachments),
+                attachmentOwnership
+            );
+            return [...retained.attachments, ...uploaded, ...forwarded];
+        }, attachmentOwnership.cleanup);
 
         const payload = {
             to: request.body.to,
@@ -1342,7 +1415,10 @@ export const sendEmail = async (request, response) => {
             attachments: outgoingAttachments
         };
 
-        const info = await sendMail(payload);
+        const info = await runWithCleanupOnFailure(
+            () => sendMail(payload),
+            attachmentOwnership.cleanup
+        );
 
         const savedMail = {
             to: payload.to,
@@ -1365,24 +1441,34 @@ export const sendEmail = async (request, response) => {
             attachments: outgoingAttachments
         };
 
-        if (isMailboxStoreReady()) {
+        if (mailboxStoreReady) {
             const repository = getMailboxRepository();
-            const email = await repository.upsert(savedMail);
+            const email = await runWithCleanupOnFailure(
+                () => repository.upsert(savedMail),
+                attachmentOwnership.cleanup
+            );
             return response.status(200).json(serializeEmail(email));
         }
 
         if (isDbConnected()) {
             const email = new Email(savedMail);
-            await email.save();
+            await runWithCleanupOnFailure(
+                () => email.save(),
+                attachmentOwnership.cleanup
+            );
             return response.status(200).json(serializeEmail(email));
         }
 
-        const cached = upsertCachedEmail({
-            ...savedMail,
-            _id: buildStableSentId(info.messageId)
-        });
+        const cached = await runWithCleanupOnFailure(
+            () => upsertCachedEmail({
+                ...savedMail,
+                _id: buildStableSentId(info.messageId)
+            }),
+            attachmentOwnership.cleanup
+        );
         return response.status(200).json(serializeEmail(cached));
     } catch (error) {
+        attachmentOwnership.cleanup();
         response.status(500).json(error.message);
     }
 };

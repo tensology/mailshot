@@ -9,7 +9,7 @@ const buildDeterministicEmailId = (messageId = '') => (
     `email-${crypto.createHash('sha1').update(String(messageId)).digest('hex').slice(0, 24)}`
 );
 
-const replaceAttachments = async (queryable, emailId, attachments = [], deleteAttachmentFileFn = deleteAttachmentFile) => {
+const replaceAttachments = async (queryable, emailId, attachments = []) => {
     const existingResult = await queryable.query(
         'SELECT storage_path FROM attachments WHERE email_id = $1',
         [emailId]
@@ -47,11 +47,7 @@ const replaceAttachments = async (queryable, emailId, attachments = [], deleteAt
         );
     }
 
-    for (const storagePath of existingPaths) {
-        if (!nextPaths.has(storagePath)) {
-            deleteAttachmentFileFn(storagePath);
-        }
-    }
+    return existingPaths.filter((storagePath) => !nextPaths.has(storagePath));
 };
 
 const normalizeEmailPayload = (payload = {}) => ({
@@ -202,7 +198,7 @@ LEFT JOIN attachments a ON a.email_id = e.id
 `;
 
 export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteAttachmentFile }) => {
-    if (!pool?.query) {
+    if (!pool?.query && !pool?.connect) {
         throw new Error('A Postgres pool with query(text, values) is required.');
     }
 
@@ -334,7 +330,12 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
 
         async upsert(payload = {}) {
             const email = normalizeEmailPayload(payload);
-            const result = await pool.query(
+            const client = typeof pool.connect === 'function' ? await pool.connect() : pool;
+            let replacedPaths = [];
+            let result;
+            try {
+                await client.query('BEGIN');
+                result = await client.query(
                 `INSERT INTO emails (
                     id, message_id, type, subject, body, body_html, from_address, to_address,
                     cc_address, bcc_address, date_value, name, image, read, labels, references_json,
@@ -409,8 +410,22 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                 ]
             );
 
-            await replaceAttachments(pool, result.rows[0].id, payload.attachments || [], deleteAttachmentFileFn);
+                replacedPaths = await replaceAttachments(client, result.rows[0].id, payload.attachments || []);
+                await client.query('COMMIT');
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release?.();
+            }
 
+            replacedPaths.forEach((storagePath) => {
+                try {
+                    deleteAttachmentFileFn(storagePath);
+                } catch (error) {
+                    console.error(`Failed to delete replaced attachment file ${storagePath}:`, error.message || error);
+                }
+            });
             return mapEmailRowToMailboxEmail({
                 ...result.rows[0],
                 attachments: normalizeArray(payload.attachments || result.rows[0]?.attachments)

@@ -224,18 +224,85 @@ test('upserts imported mail and persists JSON fields', async () => {
     });
 
     assert.equal(email._id, 'email-2');
-    assert.equal(calls.length, 4);
-    assert.match(calls[0].text, /INSERT INTO emails/i);
-    assert.match(calls[1].text, /SELECT storage_path FROM attachments/i);
-    assert.match(calls[2].text, /DELETE FROM attachments/i);
-    assert.match(calls[3].text, /INSERT INTO attachments/i);
-    assert.match(calls[0].text, /ON CONFLICT \(id\)/i);
-    assert.equal(calls[0].values[14], '["ops"]');
-    assert.equal(calls[0].values[15], '["<root>"]');
+    assert.equal(calls.length, 6);
+    assert.equal(calls[0].text, 'BEGIN');
+    assert.match(calls[1].text, /INSERT INTO emails/i);
+    assert.match(calls[2].text, /SELECT storage_path FROM attachments/i);
+    assert.match(calls[3].text, /DELETE FROM attachments/i);
+    assert.match(calls[4].text, /INSERT INTO attachments/i);
+    assert.equal(calls[5].text, 'COMMIT');
+    assert.match(calls[1].text, /ON CONFLICT \(id\)/i);
+    assert.equal(calls[1].values[14], '["ops"]');
+    assert.equal(calls[1].values[15], '["<root>"]');
     assert.deepEqual(deletedPaths, ['/tmp/old-ticket.pdf']);
     // Sync re-imports must not wipe UI archive/bin state.
-    assert.match(calls[0].text, /archived = emails\.archived/i);
-    assert.match(calls[0].text, /in_inbox = emails\.in_inbox/i);
+    assert.match(calls[1].text, /archived = emails\.archived/i);
+    assert.match(calls[1].text, /in_inbox = emails\.in_inbox/i);
+});
+
+test('upsert rolls back email and attachment rows together when attachment persistence fails', async () => {
+    const calls = [];
+    const deletedPaths = [];
+    const client = {
+        query: async (text) => {
+            calls.push(text);
+            if (/INSERT INTO emails/i.test(text)) {
+                return { rows: [{ id: 'email-rollback', attachments: [] }] };
+            }
+            if (/SELECT storage_path FROM attachments/i.test(text)) {
+                return { rows: [{ storage_path: '/old/file.pdf' }] };
+            }
+            if (/INSERT INTO attachments/i.test(text)) {
+                throw new Error('attachment insert failed');
+            }
+            return { rows: [], rowCount: 1 };
+        },
+        release: () => calls.push('RELEASE')
+    };
+    const repository = createMailboxRepository({
+        pool: { connect: async () => client },
+        deleteAttachmentFileFn: (storagePath) => deletedPaths.push(storagePath)
+    });
+
+    await assert.rejects(repository.upsert({
+        id: 'email-rollback',
+        attachments: [{ attachment_id: 'attachment', storage_path: '/new/file.pdf' }]
+    }), /attachment insert failed/);
+
+    assert.equal(calls[0], 'BEGIN');
+    assert.equal(calls.at(-2), 'ROLLBACK');
+    assert.equal(calls.at(-1), 'RELEASE');
+    assert.equal(calls.includes('COMMIT'), false);
+    assert.deepEqual(deletedPaths, []);
+});
+
+test('upsert commits email and attachment rows before deleting replaced files', async () => {
+    const events = [];
+    const client = {
+        query: async (text) => {
+            events.push(text);
+            if (/INSERT INTO emails/i.test(text)) {
+                return { rows: [{ id: 'email-commit', attachments: [] }] };
+            }
+            if (/SELECT storage_path FROM attachments/i.test(text)) {
+                return { rows: [{ storage_path: '/old/file.pdf' }] };
+            }
+            return { rows: [], rowCount: 1 };
+        },
+        release: () => events.push('RELEASE')
+    };
+    const repository = createMailboxRepository({
+        pool: { connect: async () => client },
+        deleteAttachmentFileFn: (storagePath) => events.push(`DELETE_FILE:${storagePath}`)
+    });
+
+    await repository.upsert({
+        id: 'email-commit',
+        attachments: [{ attachment_id: 'attachment', storage_path: '/new/file.pdf' }]
+    });
+
+    assert.ok(events.indexOf('COMMIT') < events.indexOf('DELETE_FILE:/old/file.pdf'));
+    assert.ok(events.indexOf('RELEASE') < events.indexOf('DELETE_FILE:/old/file.pdf'));
 });
 
 test('finds an email by message id', async () => {
@@ -574,5 +641,7 @@ test('upserts draft mail by id when no message id exists', async () => {
         in_inbox: false
     });
 
-    assert.match(calls[0].text, /ON CONFLICT \(id\)/i);
+    assert.equal(calls[0].text, 'BEGIN');
+    assert.match(calls[1].text, /ON CONFLICT \(id\)/i);
+    assert.equal(calls.at(-1).text, 'COMMIT');
 });

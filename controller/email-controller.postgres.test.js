@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import {
     getEmails,
@@ -14,6 +15,11 @@ import {
     restoreArchivedEmails,
     deleteEmails,
     parseForwardedAttachmentRefs,
+    createRetainedAttachmentSendPlan,
+    createSendAttachmentOwnership,
+    createUploadedAttachments,
+    copyForwardedAttachments,
+    runWithCleanupOnFailure,
     __setMailboxStoreForTests
 } from './email-controller.js';
 
@@ -57,6 +63,134 @@ test('parseForwardedAttachmentRefs accepts valid forwarded attachment metadata o
     ]);
 
     assert.deepEqual(parseForwardedAttachmentRefs('not json'), []);
+});
+
+test('retained draft attachments are copied before the sent record reuses them', () => {
+    const sourcePath = new URL('../package.json', import.meta.url).pathname;
+    const source = {
+        attachment_id: 'draft-attachment',
+        filename: 'notice.pdf',
+        content_type: 'application/pdf',
+        size: fs.statSync(sourcePath).size,
+        storage_path: sourcePath
+    };
+    const plan = createRetainedAttachmentSendPlan([source]);
+    const [copied] = plan.attachments;
+
+    try {
+        assert.notEqual(copied.attachment_id, source.attachment_id);
+        assert.notEqual(copied.storage_path, source.storage_path);
+        assert.equal(copied.filename, source.filename);
+        assert.equal(copied.content_type, source.content_type);
+        assert.deepEqual(fs.readFileSync(copied.storage_path), fs.readFileSync(source.storage_path));
+    } finally {
+        plan.cleanup();
+    }
+});
+
+test('legacy retained attachments keep their existing file ownership without copying', () => {
+    const source = { attachment_id: 'legacy', storage_path: '/legacy/file.pdf' };
+    let saveCalled = false;
+    const plan = createRetainedAttachmentSendPlan([source], {
+        copyFiles: false,
+        saveFile: () => {
+            saveCalled = true;
+        }
+    });
+
+    assert.equal(plan.attachments[0], source);
+    assert.equal(saveCalled, false);
+    plan.cleanup();
+});
+
+test('a later retained attachment read failure removes copies already created', () => {
+    const deleted = [];
+    let readCount = 0;
+
+    assert.throws(() => createRetainedAttachmentSendPlan([
+        { filename: 'first.pdf', storage_path: '/source/first.pdf' },
+        { filename: 'missing.pdf', storage_path: '/source/missing.pdf' }
+    ], {
+        readFile: () => (++readCount === 1 ? Buffer.from('first') : null),
+        saveFile: () => ({
+            attachment_id: 'copy-1',
+            filename: 'first.pdf',
+            storage_path: '/copies/first.pdf'
+        }),
+        deleteFile: (storagePath) => deleted.push(storagePath)
+    }), /Attachment file missing: missing\.pdf/);
+
+    assert.deepEqual(deleted, ['/copies/first.pdf']);
+});
+
+test('failed send or persistence actions clean retained copies idempotently', async () => {
+    let cleanupCount = 0;
+    await assert.rejects(
+        runWithCleanupOnFailure(async () => {
+            throw new Error('SMTP unavailable');
+        }, () => { cleanupCount += 1; }),
+        /SMTP unavailable/
+    );
+    assert.equal(cleanupCount, 1);
+
+    const result = await runWithCleanupOnFailure(
+        async () => ({ messageId: 'sent' }),
+        () => { cleanupCount += 1; }
+    );
+    assert.deepEqual(result, { messageId: 'sent' });
+    assert.equal(cleanupCount, 1);
+
+    await assert.rejects(
+        runWithCleanupOnFailure(async () => {
+            throw new Error('sent record persistence failed');
+        }, () => { cleanupCount += 1; }),
+        /sent record persistence failed/
+    );
+    assert.equal(cleanupCount, 2);
+});
+
+test('uploaded attachments join the send ownership cleanup set', () => {
+    const deleted = [];
+    const ownership = createSendAttachmentOwnership({
+        deleteFile: (storagePath) => deleted.push(storagePath)
+    });
+    const attachments = createUploadedAttachments([
+        { buffer: Buffer.from('upload'), originalname: 'upload.pdf', mimetype: 'application/pdf' }
+    ], ownership, {
+        saveFile: () => ({ attachment_id: 'upload-1', storage_path: '/owned/upload.pdf' })
+    });
+
+    assert.equal(attachments[0].attachment_id, 'upload-1');
+    ownership.cleanup();
+    assert.deepEqual(deleted, ['/owned/upload.pdf']);
+});
+
+test('partial forwarded copy failure cleans all earlier send-owned files', async () => {
+    const deleted = [];
+    const ownership = createSendAttachmentOwnership({
+        deleteFile: (storagePath) => deleted.push(storagePath)
+    });
+    let readCount = 0;
+
+    await assert.rejects(runWithCleanupOnFailure(
+        () => copyForwardedAttachments([
+            { emailId: 'email-1', attachmentId: 'attachment-1' },
+            { emailId: 'email-2', attachmentId: 'attachment-2' }
+        ], ownership, {
+            findEmail: async (emailId) => ({
+                attachments: [{
+                    attachment_id: emailId === 'email-1' ? 'attachment-1' : 'attachment-2',
+                    filename: `${emailId}.pdf`,
+                    storage_path: `/source/${emailId}.pdf`
+                }]
+            }),
+            readFile: () => (++readCount === 1 ? Buffer.from('first') : null),
+            saveFile: () => ({ attachment_id: 'copy-1', storage_path: '/owned/forwarded.pdf' })
+        }),
+        ownership.cleanup
+    ), /Attachment file missing/);
+
+    assert.deepEqual(deleted, ['/owned/forwarded.pdf']);
 });
 
 test('getEmails serves Postgres-backed mailbox data when the mailbox store is ready', async () => {
