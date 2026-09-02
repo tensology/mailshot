@@ -80,7 +80,7 @@ routes.use(requireAuth);
 
 routes.post('/save', saveSendEmails);
 routes.post('/send', upload.array('attachments', 10), sendEmail);
-routes.post('/save-draft', saveDraftEmail);
+routes.post('/save-draft', upload.array('attachments', 10), saveDraftEmail);
 routes.get('/emails/search', searchEmails);
 routes.get('/email/:id/attachments.zip', downloadAllAttachments);
 routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);

@@ -329,6 +329,21 @@ export const parseForwardedAttachmentRefs = (value) => {
     }
 };
 
+const parseJsonArray = (value) => {
+    if (Array.isArray(value)) {
+        return value;
+    }
+    if (!value) {
+        return [];
+    }
+    try {
+        const parsed = JSON.parse(String(value));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
 const findStoredEmail = async (emailId) => {
     if (isMailboxStoreReady()) {
         const repository = getMailboxRepository();
@@ -372,6 +387,25 @@ const copyForwardedAttachments = async (refs = []) => {
     return copied;
 };
 
+const parseBoolean = (value) => value === true || value === 'true';
+
+const getUploadedAttachments = (files = []) => (
+    files.map((file) => saveAttachmentFromBuffer(file.buffer, {
+        filename: file.originalname,
+        content_type: file.mimetype
+    }))
+);
+
+const getRetainedAttachments = (existingEmail, retainedIds = [], selectionSpecified = false) => {
+    const existingAttachments = Array.isArray(existingEmail?.attachments) ? existingEmail.attachments : [];
+    if (!selectionSpecified) {
+        return existingAttachments;
+    }
+
+    const retained = new Set(retainedIds.map((id) => String(id)));
+    return existingAttachments.filter((attachment) => retained.has(String(attachment.attachment_id)));
+};
+
 const normalizeDraftPayload = (payload = {}) => {
     const now = new Date();
     const draftId = payload._id || payload.id || '';
@@ -388,7 +422,7 @@ const normalizeDraftPayload = (payload = {}) => {
         date: payload.date || now,
         image: payload.image || '',
         name: String(payload.name || process.env.MAILBOX_USER || process.env.MAIL_FROM || ''),
-        starred: Boolean(payload.starred),
+        starred: parseBoolean(payload.starred),
         bin: false,
         archived: false,
         spam: false,
@@ -398,25 +432,42 @@ const normalizeDraftPayload = (payload = {}) => {
         labels: [],
         attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
         in_reply_to: payload.in_reply_to || payload.inReplyTo || '',
-        references: Array.isArray(payload.references) ? payload.references : []
+        references: Array.isArray(payload.references) ? payload.references : parseJsonArray(payload.references)
     };
 };
 
 export const saveDraftEmail = async (request, response) => {
     try {
-        if (!hasDraftContent(request.body)) {
+        const retainedSelectionSpecified = Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
+        const retainedAttachmentIds = parseJsonArray(request.body.retained_attachments);
+        const uploadedFiles = request.files || [];
+        if (!hasDraftContent(request.body) && !retainedAttachmentIds.length && !uploadedFiles.length) {
             return response.status(200).json(null);
         }
 
         const payload = normalizeDraftPayload(request.body);
+        const draftId = payload._id;
         if (isMailboxStoreReady()) {
             const repository = getMailboxRepository();
+            const existing = draftId ? await repository.findById(draftId) : null;
+            payload.attachments = [
+                ...getRetainedAttachments(existing, retainedAttachmentIds, retainedSelectionSpecified),
+                ...getUploadedAttachments(uploadedFiles)
+            ];
             const saved = await repository.upsert(payload);
             return response.status(200).json(serializeEmail(saved));
         }
 
-        const draftId = payload._id;
         const existing = draftId ? await findEmailRecord(draftId) : null;
+        const retainedAttachments = getRetainedAttachments(
+            existing?.email || existing,
+            retainedAttachmentIds,
+            retainedSelectionSpecified
+        );
+        payload.attachments = [
+            ...retainedAttachments,
+            ...getUploadedAttachments(uploadedFiles)
+        ];
         const { _id: ignoredDraftId, ...draftUpdates } = payload;
         let savedDraft;
 
@@ -1246,14 +1297,20 @@ export const restoreArchivedEmails = async (request, response) => {
 
 export const sendEmail = async (request, response) => {
     try {
-        const uploadedAttachments = (request.files || []).map((file) => saveAttachmentFromBuffer(file.buffer, {
-            filename: file.originalname,
-            content_type: file.mimetype
-        }));
+        const draftId = request.body.draftId || '';
+        const draftRecord = draftId ? await findStoredEmail(draftId) : null;
+        const retainedSelectionSpecified = Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
+        const retainedAttachmentIds = parseJsonArray(request.body.retained_attachments);
+        const savedAttachments = getRetainedAttachments(
+            draftRecord,
+            retainedAttachmentIds,
+            retainedSelectionSpecified
+        );
+        const uploadedAttachments = getUploadedAttachments(request.files || []);
         const forwardedAttachments = await copyForwardedAttachments(
             parseForwardedAttachmentRefs(request.body.forwardedAttachments)
         );
-        const allAttachments = [...uploadedAttachments, ...forwardedAttachments];
+        const outgoingAttachments = [...savedAttachments, ...uploadedAttachments, ...forwardedAttachments];
 
         const payload = {
             to: request.body.to,
@@ -1266,7 +1323,7 @@ export const sendEmail = async (request, response) => {
             references: request.body.references
                 ? String(request.body.references).split(',').map((item) => item.trim()).filter(Boolean)
                 : undefined,
-            attachments: allAttachments
+            attachments: outgoingAttachments
         };
 
         const info = await sendMail(payload);
@@ -1289,7 +1346,7 @@ export const sendEmail = async (request, response) => {
             in_reply_to: payload.inReplyTo || '',
             references: payload.references || [],
             labels: [],
-            attachments: allAttachments
+            attachments: outgoingAttachments
         };
 
         if (isMailboxStoreReady()) {

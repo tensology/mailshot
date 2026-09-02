@@ -57,7 +57,8 @@ export const API_URLS = {
     },
     saveDraftEmails: {
         endpoint: 'save-draft',
-        method: 'POST'
+        method: 'POST',
+        isMultipart: true
     },
     getEmailFromType: {
         endpoint: 'emails',

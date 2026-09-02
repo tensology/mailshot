@@ -55,6 +55,12 @@ const emailMatchesRemoval = (email, idsToRemove) => {
     return threadIds.some((id) => idsToRemove.includes(id));
 };
 
+const htmlToPlainText = (html = '') => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    return (container.innerText || container.textContent || '').trim();
+};
+
 const getListSenderName = (email, activeTab) => {
     const isDraft = activeTab === 'drafts' || email.type === 'drafts';
     if (isDraft) {
@@ -171,6 +177,7 @@ const Emails = () => {
     const [availableLabels, setAvailableLabels] = useState([]);
 
     const getEmailsService = useApi(API_URLS.getEmailFromType);
+    const getEmailByIdService = useApi(API_URLS.getEmailById);
     const getLabelsService = useApi(API_URLS.getLabels);
     const syncMailboxService = useApi(API_URLS.syncMailbox);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
@@ -806,19 +813,28 @@ const Emails = () => {
         }
     };
 
-    const openDraftEmail = (email) => {
+    const openDraftEmail = async (email) => {
+        const result = await getEmailByIdService.call({}, email._id, { silent: true });
+        if (result.error || !result.data) {
+            showActionToast(result.error || 'Could not load this draft', 'error');
+            return;
+        }
+
+        const fullEmail = result.data;
         openComposeDraft({
-            _id: email._id,
-            to: email.to || '',
-            cc: email.cc || '',
-            bcc: email.bcc || '',
-            subject: email.subject || '',
-            body: email.body || '',
-            in_reply_to: email.in_reply_to || '',
-            references: Array.isArray(email.references) ? email.references : [],
-            show_cc: Boolean(email.cc),
-            show_bcc: Boolean(email.bcc),
-            title: email.subject ? `Draft: ${email.subject}` : 'Draft'
+            _id: fullEmail._id,
+            to: fullEmail.to || '',
+            cc: fullEmail.cc || '',
+            bcc: fullEmail.bcc || '',
+            subject: fullEmail.subject || '',
+            body: fullEmail.body || htmlToPlainText(fullEmail.body_html || ''),
+            body_html: fullEmail.body_html || '',
+            in_reply_to: fullEmail.in_reply_to || '',
+            references: Array.isArray(fullEmail.references) ? fullEmail.references : [],
+            attachments: Array.isArray(fullEmail.attachments) ? fullEmail.attachments : [],
+            show_cc: Boolean(fullEmail.cc),
+            show_bcc: Boolean(fullEmail.bcc),
+            title: fullEmail.subject ? `Draft: ${fullEmail.subject}` : 'Draft'
         });
     };
 
