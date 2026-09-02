@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify';
 import { Download, FileText, Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
-import { API_URL, MAIL_FROM, MAILBOX_USER } from '../config/env';
+import { MAIL_FROM, MAILBOX_USER } from '../config/env';
 import { useCompose } from '../context/ComposeContext';
 import { useLayout } from '../context/LayoutContext';
 import {
@@ -24,6 +24,7 @@ import {
     resolveCapturedAttachmentIntent
 } from '../utils/attachmentEvents';
 import { createDraftSaveQueue } from '../utils/draftSaveQueue';
+import { downloadAttachment } from '../utils/downloadAttachment';
 
 const getWindowClass = (composeState, isMobile) => {
     if (composeState === 'minimized') {
@@ -160,6 +161,7 @@ const ComposeWindow = ({ item, index, onSent }) => {
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const getContactsService = useApi(API_URLS.getContacts);
     const getSettingsService = useApi(API_URLS.getSettings);
+    const downloadAttachmentService = useApi(API_URLS.downloadAttachment);
     const [contactOptions, setContactOptions] = useState([]);
     const [signatureOptions, setSignatureOptions] = useState([]);
     const [selectedSignatureEmail, setSelectedSignatureEmail] = useState('');
@@ -216,7 +218,13 @@ const ComposeWindow = ({ item, index, onSent }) => {
             let signatures = [];
             const settingsResult = await getSettingsService.call({}, '', { silent: true });
             if (!settingsResult.error) {
-                signatures = normalizeSignatureOptions(settingsResult.data?.general || {}, MAIL_FROM || 'paul@tensology.com');
+                signatures = normalizeSignatureOptions(
+                    settingsResult.data?.general || {},
+                    MAIL_FROM || 'paul@tensology.com'
+                ).map((entry) => {
+                    const html = sanitizeComposeHtml(entry.html);
+                    return { ...entry, html, text: htmlToPlainText(html) };
+                });
             }
 
             const selectedSignature = signatures.find((entry) => entry.html && baseHtml.trim().endsWith(entry.html))
@@ -646,6 +654,17 @@ const ComposeWindow = ({ item, index, onSent }) => {
         replaceNewAttachments((current) => current.filter((_, itemIndex) => itemIndex !== targetIndex));
     };
 
+    const downloadSavedAttachment = async (attachment) => {
+        const result = await downloadAttachment({
+            call: downloadAttachmentService.call,
+            path: `${draftIdRef.current}/attachments/${attachment.attachment_id}`,
+            filename: attachment.filename || 'attachment'
+        });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+        }
+    };
+
     const isMinimized = composeState === 'minimized';
     const windowClass = getWindowClass(composeState, isMobile);
     const desktopOffset = isMinimized ? index * 19 : index * 36;
@@ -821,15 +840,14 @@ const ComposeWindow = ({ item, index, onSent }) => {
                                             <p className="truncate text-xs font-medium text-slate-700">{attachment.filename}</p>
                                             <p className="text-[11px] text-slate-500">{formatFileSize(attachment.size)}</p>
                                         </div>
-                                        <a
-                                            href={`${API_URL}/email/${draftIdRef.current}/attachments/${attachment.attachment_id}`}
-                                            target="_blank"
-                                            rel="noreferrer"
+                                        <button
+                                            type="button"
+                                            onClick={() => downloadSavedAttachment(attachment)}
                                             className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-blue-600"
                                             aria-label={`Download ${attachment.filename}`}
                                         >
                                             <Download className="h-4 w-4" />
-                                        </a>
+                                        </button>
                                         <button
                                             type="button"
                                             className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-red-600"

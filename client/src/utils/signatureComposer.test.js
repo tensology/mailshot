@@ -35,6 +35,15 @@ test('adds breathing room before an empty-body signature', () => {
     assert.equal(applySignatureHtml('', signature), '<br><br><img src="https://example.com/signature.png" alt="">');
 });
 
+test('collapses duplicate trailing signatures to exactly one copy', () => {
+    const signature = '<p>Paul</p><img src="https://example.com/signature.png" alt="">';
+    const duplicated = `<p>Hello</p><br>${signature}<br>${signature}`;
+    const html = applySignatureHtml(duplicated, signature);
+
+    assert.equal(html, `<p>Hello</p><br>${signature}`);
+    assert.equal(htmlToPlainText(html), 'Hello\nPaul');
+});
+
 test('removes legacy forced signature image sizing', () => {
     assert.equal(
         normalizeSignatureHtml('<img src="x" style="max-width:240px;width:100%;height:auto;display:block;">'),

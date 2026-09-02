@@ -19,8 +19,6 @@ import {
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
-import { API_URL } from '../config/env';
-import { getAuthToken } from '../context/AuthContext';
 import {
     markEmailReadInCache,
     requestMailboxCountsRefresh,
@@ -49,6 +47,11 @@ import { useUndoDelete } from '../context/UndoDeleteContext';
 import { isDeleteKeyboardShortcut, getThreadSelectionIds } from '../utils/mailActions';
 import { getVisibleAttachments } from '../utils/attachments';
 import { getEmbeddableLinks } from '../utils/linkPreviews';
+import {
+    downloadAttachment,
+    isSafeAttachmentPreviewType,
+    loadAttachmentPreview
+} from '../utils/downloadAttachment';
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -61,6 +64,7 @@ const ViewEmail = () => {
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
+    const downloadAttachmentService = useApi(API_URLS.downloadAttachment);
     const { showUndoDelete } = useUndoDelete();
     const {
         enabled: readSummaryEnabled,
@@ -78,6 +82,12 @@ const ViewEmail = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const backUrl = `/emails/${type || 'inbox'}${location.search || ''}`;
+
+    useEffect(() => () => {
+        if (previewItem?.objectUrl) {
+            URL.revokeObjectURL(previewItem.objectUrl);
+        }
+    }, [previewItem]);
 
     useEffect(() => {
         if (!id) {
@@ -177,30 +187,19 @@ const ViewEmail = () => {
     }
 
     const subject = primaryEmail?.subject || '(no subject)';
-    const authToken = getAuthToken();
     const isArchivedView = type === 'archived';
     const canToggleArchive = !['bin', 'spam', 'sent', 'drafts'].includes(type || '');
     const archiveActionLabel = isArchivedView ? 'Unarchive' : 'Archive';
     const ArchiveIcon = isArchivedView ? ArchiveRestore : Archive;
-    const buildAttachmentUrl = (emailId, attachmentId, options = {}) => {
-        const params = new URLSearchParams();
-        if (authToken) {
-            params.set('auth_token', authToken);
+    const downloadMessageAttachment = async (path, filename) => {
+        const result = await downloadAttachment({
+            call: downloadAttachmentService.call,
+            path,
+            filename
+        });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
         }
-        if (options.inline) {
-            params.set('disposition', 'inline');
-        }
-
-        const query = params.toString();
-        return `${API_URL}/email/${emailId}/attachments/${attachmentId}${query ? `?${query}` : ''}`;
-    };
-    const buildDownloadAllUrl = (emailId) => {
-        const params = new URLSearchParams();
-        if (authToken) {
-            params.set('auth_token', authToken);
-        }
-        const query = params.toString();
-        return `${API_URL}/email/${emailId}/attachments.zip${query ? `?${query}` : ''}`;
     };
 
     const openReplyDraft = (message, plainBody, mode) => {
@@ -219,7 +218,7 @@ const ViewEmail = () => {
                 size: Number(attachment.size || 0),
                 type: attachment.content_type || 'application/octet-stream',
                 content_type: attachment.content_type || 'application/octet-stream',
-                url: buildAttachmentUrl(message._id, attachment.attachment_id, { inline: true })
+                url: ''
             })).filter((attachment) => attachment.emailId && attachment.attachmentId);
 
             openComposeDraft({
@@ -411,32 +410,41 @@ const ViewEmail = () => {
                         </p>
                     </div>
                     {messageAttachments.length > 1 && (
-                        <a
-                            href={buildDownloadAllUrl(message._id)}
-                            download
+                        <button
+                            type="button"
+                            onClick={() => downloadMessageAttachment(`${message._id}/attachments.zip`, `${message.subject || 'attachments'}.zip`)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
                             <Download className="h-3.5 w-3.5" />
                             Download all
-                        </a>
+                        </button>
                     )}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
                     {messageAttachments.map((attachment) => {
                         const contentType = String(attachment.content_type || '').toLowerCase();
                         const filename = attachment.filename || 'attachment';
-                        const isPdf = contentType.includes('pdf') || filename.toLowerCase().endsWith('.pdf');
-                        const isImage = contentType.startsWith('image/');
+                        const isPdf = contentType === 'application/pdf';
+                        const isImage = contentType.startsWith('image/') && contentType !== 'image/svg+xml';
                         const isVideo = contentType.startsWith('video/');
-                        const canPreview = isPdf || isImage || isVideo;
-                        const downloadUrl = buildAttachmentUrl(attachment.emailId, attachment.attachment_id);
-                        const previewUrl = `${buildAttachmentUrl(attachment.emailId, attachment.attachment_id, { inline: true })}#page=1&toolbar=0&navpanes=0&scrollbar=0`;
-                        const inlineUrl = buildAttachmentUrl(attachment.emailId, attachment.attachment_id, { inline: true });
-                        const openPreview = () => canPreview && setPreviewItem({
-                            kind: isPdf ? 'pdf' : isImage ? 'image' : 'video',
-                            title: filename,
-                            url: inlineUrl
-                        });
+                        const canPreview = isSafeAttachmentPreviewType(contentType) && (isPdf || isImage || isVideo);
+                        const openPreview = async () => {
+                            if (!canPreview) return;
+                            const result = await loadAttachmentPreview({
+                                call: downloadAttachmentService.call,
+                                path: `${attachment.emailId}/attachments/${attachment.attachment_id}`
+                            });
+                            if (result.error) {
+                                setSnackbar({ open: true, message: result.error, severity: 'error' });
+                                return;
+                            }
+                            setPreviewItem({
+                                kind: isPdf ? 'pdf' : isImage ? 'image' : 'video',
+                                title: filename,
+                                url: result.data,
+                                objectUrl: result.data
+                            });
+                        };
 
                         return (
                             <article
@@ -451,20 +459,7 @@ const ViewEmail = () => {
                                     className="flex h-24 w-full items-center justify-center bg-slate-100 disabled:cursor-default"
                                     aria-label={canPreview ? `Preview ${filename}` : filename}
                                 >
-                                    {isPdf ? (
-                                        <object
-                                            data={previewUrl}
-                                            type="application/pdf"
-                                            className="pointer-events-none h-full w-full bg-white"
-                                            aria-label={`Preview of ${filename}`}
-                                        >
-                                            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-500">
-                                                <FileText className="h-6 w-6" />
-                                            </div>
-                                        </object>
-                                    ) : isImage ? (
-                                        <img src={inlineUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                    ) : isVideo ? (
+                                    {isVideo ? (
                                         <div className="flex flex-col items-center gap-1 text-slate-500">
                                             <Play className="h-7 w-7" />
                                             <span className="text-[11px]">Video</span>
@@ -485,24 +480,24 @@ const ViewEmail = () => {
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <a
-                                            href={downloadUrl}
-                                            download={filename}
+                                        <button
+                                            type="button"
+                                            onClick={() => downloadMessageAttachment(`${attachment.emailId}/attachments/${attachment.attachment_id}`, filename)}
                                             className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
                                         >
                                             <Download className="h-3.5 w-3.5" />
                                             Download
-                                        </a>
-                                        <a
-                                            href={buildAttachmentUrl(attachment.emailId, attachment.attachment_id, { inline: true })}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={!canPreview}
+                                            onClick={openPreview}
                                             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50"
-                                            aria-label={`Open ${filename}`}
-                                            title={`Open ${filename}`}
+                                            aria-label={canPreview ? `Preview ${filename}` : `No preview for ${filename}`}
+                                            title={canPreview ? `Preview ${filename}` : 'Preview unavailable'}
                                         >
                                             <ExternalLink className="h-4 w-4" />
-                                        </a>
+                                        </button>
                                     </div>
                                 </div>
                             </article>

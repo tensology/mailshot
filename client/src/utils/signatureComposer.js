@@ -66,13 +66,21 @@ export const normalizeSignatureOptions = (general = {}, fallbackEmail = 'paul@te
 };
 
 export const removeTrailingSignatureHtml = (bodyHtml = '', signatureHtml = '') => {
-    const body = trimHtml(bodyHtml);
+    let body = trimHtml(bodyHtml);
     const signature = trimHtml(signatureHtml);
-    if (!body || !signature || !body.endsWith(signature)) {
+    if (!body || !signature) {
         return bodyHtml;
     }
 
-    return body.slice(0, body.length - signature.length).replace(/(?:<br\s*\/?>|\s)+$/gi, '');
+    let found = false;
+    while (body.endsWith(signature)) {
+        found = true;
+        body = body
+            .slice(0, body.length - signature.length)
+            .replace(/(?:<br\s*\/?>|\s)+$/gi, '');
+    }
+
+    return found ? body : bodyHtml;
 };
 
 export const applySignatureHtml = (bodyHtml = '', nextSignatureHtml = '', previousSignatureHtml = '') => {
@@ -81,9 +89,6 @@ export const applySignatureHtml = (bodyHtml = '', nextSignatureHtml = '', previo
     if (!next) {
         return withoutPrevious;
     }
-    if (removeTrailingSignatureHtml(withoutPrevious, next) !== withoutPrevious) {
-        return withoutPrevious;
-    }
-    const body = trimHtml(withoutPrevious);
+    const body = trimHtml(removeTrailingSignatureHtml(withoutPrevious, next));
     return `${body}${body ? '<br>' : '<br><br>'}${next}`;
 };

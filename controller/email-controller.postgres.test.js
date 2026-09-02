@@ -260,6 +260,7 @@ test('downloadAttachment serves attachments for Postgres-backed email ids', asyn
 
     assert.equal(response.state.statusCode, 200);
     assert.equal(response.state.headers['Content-Type'], 'application/pdf');
+    assert.equal(response.state.headers['X-Content-Type-Options'], 'nosniff');
     assert.equal(response.state.headers['Content-Disposition'], 'attachment; filename="statement.pdf"');
     assert.ok(Buffer.isBuffer(response.state.payload));
 });
@@ -295,6 +296,32 @@ test('downloadAttachment can serve PDF attachments inline for previews', async (
     assert.equal(response.state.statusCode, 200);
     assert.equal(response.state.headers['Content-Disposition'], 'inline; filename="statement.pdf"');
     assert.ok(Buffer.isBuffer(response.state.payload));
+});
+
+test('downloadAttachment forces active content to download even when inline is requested', async () => {
+    __setMailboxStoreForTests({
+        ready: true,
+        repository: {
+            findById: async () => ({
+                _id: 'email-unsafe',
+                attachments: [{
+                    attachment_id: 'attachment-html',
+                    filename: 'message.html',
+                    content_type: 'text/html',
+                    storage_path: new URL('../package.json', import.meta.url).pathname
+                }]
+            })
+        }
+    });
+
+    const response = createResponse();
+    await downloadAttachment({
+        params: { id: 'email-unsafe', attachmentId: 'attachment-html' },
+        query: { disposition: 'inline' }
+    }, response);
+
+    assert.equal(response.state.headers['Content-Disposition'], 'attachment; filename="message.html"');
+    assert.equal(response.state.headers['X-Content-Type-Options'], 'nosniff');
 });
 
 test('downloadAllAttachments returns a zip for Postgres-backed email attachments', async () => {

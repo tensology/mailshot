@@ -40,6 +40,18 @@ import {
 const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived', 'everywhere']);
 const COUNT_MAIL_TYPES = ['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived'];
 const RESERVED_SYSTEM_LABELS = new Set(['archived', 'archive', 'spam']);
+const SAFE_INLINE_ATTACHMENT_TYPES = new Set([
+    'application/pdf',
+    'image/bmp',
+    'image/gif',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'video/mp4',
+    'video/ogg',
+    'video/quicktime',
+    'video/webm'
+]);
 let cachedTaxonomyRecalibrated = false;
 let dbTaxonomyRecalibrated = false;
 
@@ -822,8 +834,12 @@ export const downloadAttachment = async (request, response) => {
             return response.status(404).json('Attachment file missing');
         }
 
-        const disposition = request.query?.disposition === 'inline' ? 'inline' : 'attachment';
-        response.setHeader('Content-Type', attachment.content_type || 'application/octet-stream');
+        const contentType = String(attachment.content_type || 'application/octet-stream').toLowerCase().split(';', 1)[0].trim();
+        const disposition = request.query?.disposition === 'inline' && SAFE_INLINE_ATTACHMENT_TYPES.has(contentType)
+            ? 'inline'
+            : 'attachment';
+        response.setHeader('Content-Type', contentType);
+        response.setHeader('X-Content-Type-Options', 'nosniff');
         response.setHeader('Content-Disposition', `${disposition}; filename="${attachment.filename}"`);
         response.send(fileBuffer);
     } catch (error) {
