@@ -532,7 +532,7 @@ export const saveDraftEmail = async (request, response) => {
             const existing = draftId ? await repository.findById(draftId) : null;
             payload.attachments = [
                 ...getRetainedAttachments(existing, retainedAttachmentIds, retainedSelectionSpecified),
-                ...getUploadedAttachments(uploadedFiles)
+                ...createUploadedAttachments(uploadedFiles)
             ];
             const saved = await repository.upsert(payload);
             return response.status(200).json(serializeEmail(saved));
@@ -546,7 +546,7 @@ export const saveDraftEmail = async (request, response) => {
         );
         payload.attachments = [
             ...retainedAttachments,
-            ...getUploadedAttachments(uploadedFiles)
+            ...createUploadedAttachments(uploadedFiles)
         ];
         const { _id: ignoredDraftId, ...draftUpdates } = payload;
         let savedDraft;

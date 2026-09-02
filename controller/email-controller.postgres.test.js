@@ -14,6 +14,7 @@ import {
     archiveEmails,
     restoreArchivedEmails,
     deleteEmails,
+    saveDraftEmail,
     parseForwardedAttachmentRefs,
     createRetainedAttachmentSendPlan,
     createSendAttachmentOwnership,
@@ -163,6 +164,46 @@ test('uploaded attachments join the send ownership cleanup set', () => {
     assert.equal(attachments[0].attachment_id, 'upload-1');
     ownership.cleanup();
     assert.deepEqual(deleted, ['/owned/upload.pdf']);
+});
+
+test('saving a draft persists newly uploaded attachments', async () => {
+    let savedPayload = null;
+    __setMailboxStoreForTests({
+        ready: true,
+        repository: {
+            findById: async () => null,
+            upsert: async (payload) => {
+                savedPayload = payload;
+                return { ...payload, _id: 'draft-upload-test' };
+            }
+        }
+    });
+    const response = createResponse();
+
+    await saveDraftEmail({
+        body: {
+            to: 'paul@example.com',
+            subject: 'Draft upload regression',
+            body: 'Body',
+            retained_attachments: '[]'
+        },
+        files: [{
+            buffer: Buffer.from('draft attachment'),
+            originalname: 'draft.txt',
+            mimetype: 'text/plain'
+        }]
+    }, response);
+
+    const [attachment] = savedPayload?.attachments || [];
+    try {
+        assert.equal(response.state.statusCode, 200);
+        assert.equal(attachment.filename, 'draft.txt');
+        assert.equal(fs.readFileSync(attachment.storage_path, 'utf8'), 'draft attachment');
+    } finally {
+        if (attachment?.storage_path && fs.existsSync(attachment.storage_path)) {
+            fs.unlinkSync(attachment.storage_path);
+        }
+    }
 });
 
 test('partial forwarded copy failure cleans all earlier send-owned files', async () => {
