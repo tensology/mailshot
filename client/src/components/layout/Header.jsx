@@ -45,7 +45,7 @@ const Header = () => {
     }, [accountMenuOpen]);
 
     return (
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur">
             <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
                 <IconButton label="Open menu" onClick={toggleSidebar}>
                     <Menu className="h-5 w-5" />
