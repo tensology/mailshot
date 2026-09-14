@@ -1,9 +1,24 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Forward, Loader2, Reply, ReplyAll, Trash2, Volume2 } from 'lucide-react';
+import {
+    Archive,
+    ArchiveRestore,
+    ArrowLeft,
+    Download,
+    ExternalLink,
+    FileText,
+    Forward,
+    Loader2,
+    Mail,
+    Play,
+    Reply,
+    ReplyAll,
+    Trash2,
+    Volume2,
+    X
+} from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
-import { API_URL } from '../config/env';
 import {
     markEmailReadInCache,
     requestMailboxCountsRefresh,
@@ -29,7 +44,14 @@ import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { formatEmailBody } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
-import { isDeleteKeyboardShortcut } from '../utils/mailActions';
+import { isDeleteKeyboardShortcut, getThreadSelectionIds } from '../utils/mailActions';
+import { getVisibleAttachments } from '../utils/attachments';
+import { getEmbeddableLinks } from '../utils/linkPreviews';
+import {
+    downloadAttachment,
+    isSafeAttachmentPreviewType,
+    loadAttachmentPreview
+} from '../utils/downloadAttachment';
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -37,9 +59,12 @@ const ViewEmail = () => {
     const getLabelsService = useApi(API_URLS.getLabels);
     const updateEmailLabelsService = useApi(API_URLS.updateEmailLabels);
     const toggleReadService = useApi(API_URLS.toggleReadMail);
+    const archiveEmailsService = useApi(API_URLS.archiveEmails);
+    const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
+    const downloadAttachmentService = useApi(API_URLS.downloadAttachment);
     const { showUndoDelete } = useUndoDelete();
     const {
         enabled: readSummaryEnabled,
@@ -52,10 +77,17 @@ const ViewEmail = () => {
     const [thread, setThread] = useState([]);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [loadError, setLoadError] = useState('');
+    const [previewItem, setPreviewItem] = useState(null);
     const { type, id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
     const backUrl = `/emails/${type || 'inbox'}${location.search || ''}`;
+
+    useEffect(() => () => {
+        if (previewItem?.objectUrl) {
+            URL.revokeObjectURL(previewItem.objectUrl);
+        }
+    }, [previewItem]);
 
     useEffect(() => {
         if (!id) {
@@ -105,7 +137,9 @@ const ViewEmail = () => {
         }
     }, [getLabelsService.response]);
 
-    const primaryEmail = thread.find((message) => message._id === id) || thread[thread.length - 1] || null;
+    const sortedThread = [...thread].sort((left, right) => new Date(right.date) - new Date(left.date));
+    const latestEmailId = sortedThread[0]?._id || '';
+    const primaryEmail = sortedThread[0] || thread.find((message) => message._id === id) || null;
 
     useEffect(() => {
         if (primaryEmail?.labels) {
@@ -153,6 +187,20 @@ const ViewEmail = () => {
     }
 
     const subject = primaryEmail?.subject || '(no subject)';
+    const isArchivedView = type === 'archived';
+    const canToggleArchive = !['bin', 'spam', 'sent', 'drafts'].includes(type || '');
+    const archiveActionLabel = isArchivedView ? 'Unarchive' : 'Archive';
+    const ArchiveIcon = isArchivedView ? ArchiveRestore : Archive;
+    const downloadMessageAttachment = async (path, filename) => {
+        const result = await downloadAttachment({
+            call: downloadAttachmentService.call,
+            path,
+            filename
+        });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+        }
+    };
 
     const openReplyDraft = (message, plainBody, mode) => {
         const replySubject = (message.subject || '').startsWith('Re:')
@@ -161,10 +209,23 @@ const ViewEmail = () => {
         const references = [...(message.references || []), message.messageId].filter(Boolean);
 
         if (mode === 'forward') {
+            const forwardedAttachments = getVisibleAttachments(message).map((attachment) => ({
+                source: 'forwarded',
+                emailId: String(message._id || ''),
+                attachmentId: String(attachment.attachment_id || ''),
+                name: attachment.filename || 'attachment',
+                filename: attachment.filename || 'attachment',
+                size: Number(attachment.size || 0),
+                type: attachment.content_type || 'application/octet-stream',
+                content_type: attachment.content_type || 'application/octet-stream',
+                url: ''
+            })).filter((attachment) => attachment.emailId && attachment.attachmentId);
+
             openComposeDraft({
                 to: '',
                 subject: (message.subject || '').startsWith('Fwd:') ? message.subject : `Fwd: ${message.subject || '(no subject)'}`,
                 body: buildForwardBody(message, plainBody),
+                forwarded_attachments: forwardedAttachments,
                 title: 'Forward'
             });
             return;
@@ -203,11 +264,11 @@ const ViewEmail = () => {
         }
     };
 
-    const getCurrentEmailSelectionIds = () => (
-        Array.isArray(primaryEmail.thread_ids) && primaryEmail.thread_ids.length > 0
-            ? primaryEmail.thread_ids
-            : [primaryEmail._id]
-    );
+    const getCurrentEmailSelectionIds = () => getThreadSelectionIds({
+        thread,
+        primaryEmail,
+        fallbackId: id
+    });
 
     const moveToLabel = (labelSlug, ids, error) => {
         if (error) {
@@ -220,7 +281,7 @@ const ViewEmail = () => {
         ));
 
         if (type === 'inbox' || type === 'bin') {
-            removeEmailsFromListCache(getCurrentEmailSelectionIds());
+            removeEmailsFromListCache(ids?.length ? ids : getCurrentEmailSelectionIds());
             navigate(backUrl);
         }
     };
@@ -237,9 +298,7 @@ const ViewEmail = () => {
     };
 
     const deleteEmail = async () => {
-        const idsToDelete = Array.isArray(primaryEmail.thread_ids) && primaryEmail.thread_ids.length
-            ? primaryEmail.thread_ids
-            : [primaryEmail._id];
+        const idsToDelete = getCurrentEmailSelectionIds();
         const isPermanentDelete = type === 'bin';
         const restoredEmails = thread.length ? [...thread] : [{ ...primaryEmail }];
 
@@ -282,6 +341,35 @@ const ViewEmail = () => {
         navigate(backUrl);
     };
 
+    const toggleArchive = async () => {
+        const ids = getCurrentEmailSelectionIds();
+        const service = isArchivedView ? restoreArchivedEmailsService : archiveEmailsService;
+        const result = await service.call(ids);
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+
+        removeEmailsFromListCache(ids);
+        requestMailboxCountsRefresh();
+        setActionNotice(`Message ${isArchivedView ? 'unarchived' : 'archived'}`);
+        navigate(backUrl);
+    };
+
+    const markAsUnread = async () => {
+        const ids = getCurrentEmailSelectionIds();
+        const result = await toggleReadService.call({ ids, value: false });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+
+        markEmailReadInCache(ids, false);
+        requestMailboxCountsRefresh();
+        setActionNotice('Marked as unread');
+        navigate(backUrl);
+    };
+
     const openPrimaryReplyDraft = (mode) => {
         if (!primaryEmail) {
             return;
@@ -306,27 +394,186 @@ const ViewEmail = () => {
 
     const readSummaryLoading = readSummaryPendingEmailId === primaryEmail._id;
     const readAloudReady = primaryEmail.read_aloud_status === 'ready';
+    const renderMessageAttachments = (message) => {
+        const messageAttachments = getVisibleAttachments(message);
+        if (!messageAttachments.length) {
+            return null;
+        }
+
+        return (
+            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-xl sm:border">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h2 className="text-sm font-semibold text-slate-900">Attachments</h2>
+                        <p className="text-xs text-slate-500">
+                            {messageAttachments.length} file{messageAttachments.length === 1 ? '' : 's'}
+                        </p>
+                    </div>
+                    {messageAttachments.length > 1 && (
+                        <button
+                            type="button"
+                            onClick={() => downloadMessageAttachment(`${message._id}/attachments.zip`, `${message.subject || 'attachments'}.zip`)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                            Download all
+                        </button>
+                    )}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                    {messageAttachments.map((attachment) => {
+                        const contentType = String(attachment.content_type || '').toLowerCase();
+                        const filename = attachment.filename || 'attachment';
+                        const isPdf = contentType === 'application/pdf';
+                        const isImage = contentType.startsWith('image/') && contentType !== 'image/svg+xml';
+                        const isVideo = contentType.startsWith('video/');
+                        const canPreview = isSafeAttachmentPreviewType(contentType) && (isPdf || isImage || isVideo);
+                        const openPreview = async () => {
+                            if (!canPreview) return;
+                            const result = await loadAttachmentPreview({
+                                call: downloadAttachmentService.call,
+                                path: `${attachment.emailId}/attachments/${attachment.attachment_id}`
+                            });
+                            if (result.error) {
+                                setSnackbar({ open: true, message: result.error, severity: 'error' });
+                                return;
+                            }
+                            setPreviewItem({
+                                kind: isPdf ? 'pdf' : isImage ? 'image' : 'video',
+                                title: filename,
+                                url: result.data,
+                                objectUrl: result.data
+                            });
+                        };
+
+                        return (
+                            <article
+                                key={`${attachment.emailId}-${attachment.attachment_id}`}
+                                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                                onDoubleClick={openPreview}
+                            >
+                                <button
+                                    type="button"
+                                    disabled={!canPreview}
+                                    onClick={openPreview}
+                                    className="flex h-24 w-full items-center justify-center bg-slate-100 disabled:cursor-default"
+                                    aria-label={canPreview ? `Preview ${filename}` : filename}
+                                >
+                                    {isVideo ? (
+                                        <div className="flex flex-col items-center gap-1 text-slate-500">
+                                            <Play className="h-7 w-7" />
+                                            <span className="text-[11px]">Video</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-1 text-slate-500">
+                                            <FileText className="h-7 w-7" />
+                                        </div>
+                                    )}
+                                </button>
+                                <div className="space-y-2 p-2.5">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-xs font-semibold text-slate-800" title={filename}>
+                                            {filename}
+                                        </p>
+                                        <p className="text-[11px] text-slate-500">
+                                            {attachment.size ? `${Math.round(Number(attachment.size) / 1024)} KB` : contentType || 'File'}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => downloadMessageAttachment(`${attachment.emailId}/attachments/${attachment.attachment_id}`, filename)}
+                                            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+                                        >
+                                            <Download className="h-3.5 w-3.5" />
+                                            Download
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={!canPreview}
+                                            onClick={openPreview}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+                                            aria-label={canPreview ? `Preview ${filename}` : `No preview for ${filename}`}
+                                            title={canPreview ? `Preview ${filename}` : 'Preview unavailable'}
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </article>
+                        );
+                    })}
+                </div>
+            </footer>
+        );
+    };
+    const renderMessageLinks = (message) => {
+        const messageLinks = getEmbeddableLinks(message);
+        if (!messageLinks.length) {
+            return null;
+        }
+
+        return (
+            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-xl sm:border">
+                <h2 className="mb-3 text-sm font-semibold text-slate-900">Linked media</h2>
+                <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                    {messageLinks.map((link) => (
+                        <button
+                            key={link.url}
+                            type="button"
+                            onClick={() => setPreviewItem({
+                                kind: 'embed',
+                                title: link.label,
+                                url: link.embedUrl,
+                                sourceUrl: link.url
+                            })}
+                            className="flex h-24 flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+                        >
+                            {link.type === 'youtube' ? <Play className="h-7 w-7 text-red-600" /> : <ExternalLink className="h-7 w-7 text-blue-600" />}
+                            <span className="text-xs font-semibold">{link.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </footer>
+        );
+    };
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-white">
-            <div className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
-                <IconButton label="Back" onClick={() => navigate(backUrl)}>
-                    <ArrowLeft className="h-5 w-5" />
-                </IconButton>
-                {labels.length > 0 && primaryEmail && (
-                    <MoveToLabelMenu
-                        emailIds={getCurrentEmailSelectionIds()}
-                        labels={labels}
-                        onMoved={moveToLabel}
-                        onMoveConfirmed={confirmMoveToLabel}
-                    />
-                )}
-                <IconButton label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
-                    <Trash2 className="h-5 w-5" />
-                </IconButton>
-                <div className="ml-auto flex items-center gap-1">
+            <div
+                role="toolbar"
+                aria-label="Email actions"
+                className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-1 border-b border-slate-100 bg-white/95 px-2 py-1.5 backdrop-blur sm:px-4 lg:py-2"
+            >
+                <div className="flex shrink-0 items-center gap-1">
+                    <IconButton size="touch" label="Back" onClick={() => navigate(backUrl)}>
+                        <ArrowLeft className="h-5 w-5" />
+                    </IconButton>
+                    {labels.length > 0 && primaryEmail && (
+                        <MoveToLabelMenu
+                            emailIds={getCurrentEmailSelectionIds()}
+                            labels={labels}
+                            onMoved={moveToLabel}
+                            onMoveConfirmed={confirmMoveToLabel}
+                            buttonSize="touch"
+                        />
+                    )}
+                    <IconButton size="touch" label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
+                        <Trash2 className="h-5 w-5" />
+                    </IconButton>
+                    <IconButton size="touch" label="Mark as unread" onClick={markAsUnread}>
+                        <Mail className="h-5 w-5" />
+                    </IconButton>
+                    {canToggleArchive && (
+                        <IconButton size="touch" label={archiveActionLabel} onClick={toggleArchive}>
+                            <ArchiveIcon className="h-5 w-5" />
+                        </IconButton>
+                    )}
+                </div>
+                <div className="ml-auto flex shrink-0 items-center gap-1">
                     {readSummaryEnabled && (
                         <IconButton
+                            size="touch"
                             label={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read Summary'}
                             onClick={startCurrentReadSummary}
                             disabled={readSummaryLoading}
@@ -335,13 +582,13 @@ const ViewEmail = () => {
                             {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
                         </IconButton>
                     )}
-                    <IconButton label="Reply" onClick={() => openPrimaryReplyDraft('reply')}>
+                    <IconButton size="touch" label="Reply" onClick={() => openPrimaryReplyDraft('reply')}>
                         <Reply className="h-5 w-5" />
                     </IconButton>
-                    <IconButton label="Reply all" onClick={() => openPrimaryReplyDraft('reply-all')}>
+                    <IconButton size="touch" label="Reply all" onClick={() => openPrimaryReplyDraft('reply-all')}>
                         <ReplyAll className="h-5 w-5" />
                     </IconButton>
-                    <IconButton label="Forward" onClick={() => openPrimaryReplyDraft('forward')}>
+                    <IconButton size="touch" label="Forward" onClick={() => openPrimaryReplyDraft('forward')}>
                         <Forward className="h-5 w-5" />
                     </IconButton>
                 </div>
@@ -369,32 +616,44 @@ const ViewEmail = () => {
                         ))}
                     </div>
 
-                    {Array.isArray(primaryEmail.attachments) && primaryEmail.attachments.length > 0 && (
-                        <div className="mb-4 flex flex-wrap justify-center gap-2">
-                            {primaryEmail.attachments.map((attachment) => (
-                                <a
-                                    key={attachment.attachment_id}
-                                    href={`${API_URL}/email/${primaryEmail._id}/attachments/${attachment.attachment_id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    {attachment.filename}
-                                </a>
-                            ))}
-                        </div>
-                    )}
-
                     <div>
-                        {thread.map((message) => (
-                            <ThreadMessage
-                                key={message._id || message.messageId}
-                                message={message}
-                            />
+                        {sortedThread.map((message) => (
+                            <div key={message._id || message.messageId}>
+                                <ThreadMessage message={message} isLatest={message._id === latestEmailId} />
+                                {renderMessageAttachments(message)}
+                                {renderMessageLinks(message)}
+                            </div>
                         ))}
                     </div>
                 </div>
             </div>
+
+            {previewItem && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4" onClick={() => setPreviewItem(null)}>
+                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-slate-900">{previewItem.title}</p>
+                                {previewItem.sourceUrl && <p className="truncate text-xs text-slate-500">{previewItem.sourceUrl}</p>}
+                            </div>
+                            {previewItem.sourceUrl && (
+                                <a href={previewItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                    Open source
+                                </a>
+                            )}
+                            <IconButton label="Close preview" size="sm" onClick={() => setPreviewItem(null)}>
+                                <X className="h-4 w-4" />
+                            </IconButton>
+                        </div>
+                        <div className="min-h-0 flex-1 bg-slate-100">
+                            {previewItem.kind === 'image' && <img src={previewItem.url} alt="" className="h-full w-full object-contain" />}
+                            {previewItem.kind === 'video' && <video src={previewItem.url} controls autoPlay className="h-full w-full bg-black" />}
+                            {previewItem.kind === 'pdf' && <object data={`${previewItem.url}#page=1`} type="application/pdf" className="h-full w-full bg-white" />}
+                            {previewItem.kind === 'embed' && <iframe src={previewItem.url} title={previewItem.title} className="h-full w-full border-0 bg-white" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <ConfirmDialog
                 open={confirmDeleteOpen}
