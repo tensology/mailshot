@@ -10,9 +10,9 @@ const Main = () => {
 
     return (
         <LayoutProvider>
-            <div className="flex min-h-[100dvh] flex-col bg-slate-50">
+            <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-50">
                 <Header />
-                <div className="flex min-h-0 flex-1">
+                <div className="flex min-h-0 flex-1 overflow-hidden">
                     <Sidebar onSent={() => setRefreshKey((value) => value + 1)} />
                     <main className="min-w-0 flex-1 overflow-hidden">
                         <Suspense fallback={<SuspenseLoader />}>

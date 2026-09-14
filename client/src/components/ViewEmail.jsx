@@ -540,7 +540,7 @@ const ViewEmail = () => {
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-white">
-            <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
+            <div className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
                 <IconButton label="Back" onClick={() => navigate(backUrl)}>
                     <ArrowLeft className="h-5 w-5" />
                 </IconButton>
