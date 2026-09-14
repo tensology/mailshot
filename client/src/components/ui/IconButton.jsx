@@ -5,7 +5,11 @@ const IconButton = ({
     size = 'md',
     ...props
 }) => {
-    const sizeClass = size === 'sm' ? 'h-8 w-8' : 'h-10 w-10';
+    const sizeClass = {
+        sm: 'h-8 w-8',
+        md: 'h-10 w-10',
+        touch: 'h-11 w-11 lg:h-10 lg:w-10'
+    }[size] || 'h-10 w-10';
 
     return (
         <button

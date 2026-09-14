@@ -540,32 +540,40 @@ const ViewEmail = () => {
 
     return (
         <div className="flex h-full min-h-0 flex-col bg-white">
-            <div className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-2 backdrop-blur sm:px-4">
-                <IconButton label="Back" onClick={() => navigate(backUrl)}>
-                    <ArrowLeft className="h-5 w-5" />
-                </IconButton>
-                {labels.length > 0 && primaryEmail && (
-                    <MoveToLabelMenu
-                        emailIds={getCurrentEmailSelectionIds()}
-                        labels={labels}
-                        onMoved={moveToLabel}
-                        onMoveConfirmed={confirmMoveToLabel}
-                    />
-                )}
-                <IconButton label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
-                    <Trash2 className="h-5 w-5" />
-                </IconButton>
-                <IconButton label="Mark as unread" onClick={markAsUnread}>
-                    <Mail className="h-5 w-5" />
-                </IconButton>
-                {canToggleArchive && (
-                    <IconButton label={archiveActionLabel} onClick={toggleArchive}>
-                        <ArchiveIcon className="h-5 w-5" />
+            <div
+                role="toolbar"
+                aria-label="Email actions"
+                className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-1 border-b border-slate-100 bg-white/95 px-2 py-1.5 backdrop-blur sm:px-4 lg:py-2"
+            >
+                <div className="flex shrink-0 items-center gap-1">
+                    <IconButton size="touch" label="Back" onClick={() => navigate(backUrl)}>
+                        <ArrowLeft className="h-5 w-5" />
                     </IconButton>
-                )}
-                <div className="ml-auto flex items-center gap-1">
+                    {labels.length > 0 && primaryEmail && (
+                        <MoveToLabelMenu
+                            emailIds={getCurrentEmailSelectionIds()}
+                            labels={labels}
+                            onMoved={moveToLabel}
+                            onMoveConfirmed={confirmMoveToLabel}
+                            buttonSize="touch"
+                        />
+                    )}
+                    <IconButton size="touch" label="Delete" onClick={() => setConfirmDeleteOpen(true)}>
+                        <Trash2 className="h-5 w-5" />
+                    </IconButton>
+                    <IconButton size="touch" label="Mark as unread" onClick={markAsUnread}>
+                        <Mail className="h-5 w-5" />
+                    </IconButton>
+                    {canToggleArchive && (
+                        <IconButton size="touch" label={archiveActionLabel} onClick={toggleArchive}>
+                            <ArchiveIcon className="h-5 w-5" />
+                        </IconButton>
+                    )}
+                </div>
+                <div className="ml-auto flex shrink-0 items-center gap-1">
                     {readSummaryEnabled && (
                         <IconButton
+                            size="touch"
                             label={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read Summary'}
                             onClick={startCurrentReadSummary}
                             disabled={readSummaryLoading}
@@ -574,13 +582,13 @@ const ViewEmail = () => {
                             {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
                         </IconButton>
                     )}
-                    <IconButton label="Reply" onClick={() => openPrimaryReplyDraft('reply')}>
+                    <IconButton size="touch" label="Reply" onClick={() => openPrimaryReplyDraft('reply')}>
                         <Reply className="h-5 w-5" />
                     </IconButton>
-                    <IconButton label="Reply all" onClick={() => openPrimaryReplyDraft('reply-all')}>
+                    <IconButton size="touch" label="Reply all" onClick={() => openPrimaryReplyDraft('reply-all')}>
                         <ReplyAll className="h-5 w-5" />
                     </IconButton>
-                    <IconButton label="Forward" onClick={() => openPrimaryReplyDraft('forward')}>
+                    <IconButton size="touch" label="Forward" onClick={() => openPrimaryReplyDraft('forward')}>
                         <Forward className="h-5 w-5" />
                     </IconButton>
                 </div>

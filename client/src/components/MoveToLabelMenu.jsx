@@ -15,7 +15,8 @@ const MoveToLabelMenu = ({
     onMoved,
     onMoveConfirmed,
     disabled = false,
-    buttonLabel = 'Move to'
+    buttonLabel = 'Move to',
+    buttonSize = 'md'
 }) => {
     const [open, setOpen] = useState(false);
     const [pendingRule, setPendingRule] = useState(null);
@@ -112,9 +113,10 @@ const MoveToLabelMenu = ({
 
     return (
         <>
-            <div className="relative" ref={menuRef}>
+            <div className="relative shrink-0" ref={menuRef}>
                 <IconButton
                     label={buttonLabel}
+                    size={buttonSize}
                     disabled={disabled || !hasSelection}
                     onClick={() => setOpen((value) => !value)}
                 >
