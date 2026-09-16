@@ -25,6 +25,11 @@ import {
 } from '../utils/attachmentEvents';
 import { createDraftSaveQueue } from '../utils/draftSaveQueue';
 import { downloadAttachment } from '../utils/downloadAttachment';
+import {
+    cleanContactName,
+    filterContactSuggestions
+} from '../utils/contactSuggestions';
+import RecipientField from './RecipientField';
 
 const getWindowClass = (composeState, isMobile) => {
     if (composeState === 'minimized') {
@@ -149,8 +154,11 @@ const ComposeWindow = ({ item, index, onSent }) => {
     const [data, setData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '', html: '' });
     const [toRecipients, setToRecipients] = useState([]);
     const [toInput, setToInput] = useState('');
+    const [toSuggestOpen, setToSuggestOpen] = useState(false);
+    const [toActiveIndex, setToActiveIndex] = useState(0);
     const [showCc, setShowCc] = useState(false);
     const [showBcc, setShowBcc] = useState(false);
+    const toFieldRef = useRef(null);
     const [savedAttachments, setSavedAttachments] = useState([]);
     const [newAttachments, setNewAttachments] = useState([]);
     const [forwardedAttachments, setForwardedAttachments] = useState([]);
@@ -179,7 +187,7 @@ const ComposeWindow = ({ item, index, onSent }) => {
     if (!saveQueueRef.current) {
         saveQueueRef.current = createDraftSaveQueue();
     }
-    const contactListId = `compose-contact-suggestions-${composeId}`;
+    const toSuggestions = toSuggestOpen ? filterContactSuggestions(contactOptions, toInput) : [];
 
     const replaceSavedAttachments = useCallback((nextValue) => {
         const next = typeof nextValue === 'function'
@@ -328,6 +336,8 @@ const ComposeWindow = ({ item, index, onSent }) => {
 
         if (!value.includes(',')) {
             setToInput(value);
+            setToSuggestOpen(Boolean(value.trim()));
+            setToActiveIndex(0);
             return;
         }
 
@@ -336,20 +346,66 @@ const ComposeWindow = ({ item, index, onSent }) => {
         const remainder = parts[parts.length - 1] || '';
         setToRecipients((current) => uniqueRecipients([...current, ...additions]));
         setToInput(remainder.trimStart());
+        setToSuggestOpen(Boolean(remainder.trim()));
+        setToActiveIndex(0);
     };
 
     const finalizeToInput = () => {
         const value = toInput.trim();
         if (!value) {
+            setToSuggestOpen(false);
             return;
         }
 
         hasUserEditedRef.current = true;
         setToRecipients((current) => uniqueRecipients([...current, value]));
         setToInput('');
+        setToSuggestOpen(false);
+    };
+
+    const chooseToSuggestion = (contact) => {
+        const email = String(contact?.email || '').trim();
+        if (!email) {
+            return;
+        }
+
+        hasUserEditedRef.current = true;
+        setToRecipients((current) => uniqueRecipients([...current, email]));
+        setToInput('');
+        setToSuggestOpen(false);
+        setToActiveIndex(0);
     };
 
     const onToKeyDown = (event) => {
+        if (toSuggestions.length) {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setToSuggestOpen(true);
+                setToActiveIndex((current) => (current + 1) % toSuggestions.length);
+                return;
+            }
+
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setToSuggestOpen(true);
+                setToActiveIndex((current) => (
+                    (current - 1 + toSuggestions.length) % toSuggestions.length
+                ));
+                return;
+            }
+
+            if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                chooseToSuggestion(toSuggestions[toActiveIndex] || toSuggestions[0]);
+                return;
+            }
+
+            if (event.key === 'Escape') {
+                setToSuggestOpen(false);
+                return;
+            }
+        }
+
         if (event.key === 'Enter' || event.key === 'Tab') {
             if (toInput.trim()) {
                 event.preventDefault();
@@ -364,6 +420,21 @@ const ComposeWindow = ({ item, index, onSent }) => {
         }
     };
 
+    useEffect(() => {
+        if (!toSuggestOpen) {
+            return undefined;
+        }
+
+        const onPointerDown = (event) => {
+            if (toFieldRef.current && !toFieldRef.current.contains(event.target)) {
+                setToSuggestOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', onPointerDown);
+        return () => document.removeEventListener('mousedown', onPointerDown);
+    }, [toSuggestOpen]);
+
     const removeToRecipient = (recipient) => {
         hasUserEditedRef.current = true;
         setToRecipients((current) => current.filter((item) => item !== recipient));
@@ -373,6 +444,8 @@ const ComposeWindow = ({ item, index, onSent }) => {
         setData({ to: '', cc: '', bcc: '', subject: '', body: '', html: '' });
         setToRecipients([]);
         setToInput('');
+        setToSuggestOpen(false);
+        setToActiveIndex(0);
         setShowCc(false);
         setShowBcc(false);
         replaceSavedAttachments([]);
@@ -737,7 +810,7 @@ const ComposeWindow = ({ item, index, onSent }) => {
                     <div className="space-y-0 border-b border-slate-100">
                         <div className="flex items-start gap-2 px-3 py-2">
                             <span className="w-8 text-xs text-slate-500">To</span>
-                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                            <div ref={toFieldRef} className="relative flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                                 {toRecipients.map((recipient) => (
                                     <span
                                         key={recipient}
@@ -756,13 +829,53 @@ const ComposeWindow = ({ item, index, onSent }) => {
                                 ))}
                                 <input
                                     name="to"
-                                    list={contactListId}
                                     value={toInput}
                                     onChange={updateToInput}
+                                    onFocus={() => setToSuggestOpen(Boolean(toInput.trim()))}
                                     onBlur={finalizeToInput}
                                     onKeyDown={onToKeyDown}
+                                    autoComplete="off"
+                                    role="combobox"
+                                    aria-expanded={toSuggestions.length > 0}
+                                    aria-autocomplete="list"
                                     className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none"
                                 />
+                                {toSuggestions.length > 0 && (
+                                    <ul
+                                        role="listbox"
+                                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                                    >
+                                        {toSuggestions.map((contact, index) => {
+                                            const displayName = cleanContactName(contact.name);
+                                            const isActive = index === toActiveIndex;
+                                            return (
+                                                <li key={contact._id || contact.email}>
+                                                    <button
+                                                        type="button"
+                                                        role="option"
+                                                        aria-selected={isActive}
+                                                        className={`flex w-full flex-col items-start px-3 py-2 text-left text-sm ${
+                                                            isActive
+                                                                ? 'bg-blue-50 text-blue-900'
+                                                                : 'text-slate-800 hover:bg-slate-50'
+                                                        }`}
+                                                        onMouseDown={(event) => event.preventDefault()}
+                                                        onClick={() => chooseToSuggestion(contact)}
+                                                    >
+                                                        <span className="font-medium">
+                                                            {displayName || contact.email}
+                                                        </span>
+                                                        {displayName ? (
+                                                            <span className="text-xs text-slate-500">
+                                                                {contact.email}
+                                                            </span>
+                                                        ) : null}
+                                                    </button>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                )}
                             </div>
                             <div className="flex gap-1 text-xs text-slate-500">
                                 {!showCc && (
@@ -775,14 +888,24 @@ const ComposeWindow = ({ item, index, onSent }) => {
                         </div>
                         {showCc && (
                             <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
-                                <span className="w-8 text-xs text-slate-500">Cc</span>
-                                <input name="cc" value={data.cc} onChange={onValueChange} className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+                                <RecipientField
+                                    name="cc"
+                                    label="Cc"
+                                    value={data.cc}
+                                    onChange={onValueChange}
+                                    contacts={contactOptions}
+                                />
                             </div>
                         )}
                         {showBcc && (
                             <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
-                                <span className="w-8 text-xs text-slate-500">Bcc</span>
-                                <input name="bcc" value={data.bcc} onChange={onValueChange} className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+                                <RecipientField
+                                    name="bcc"
+                                    label="Bcc"
+                                    value={data.bcc}
+                                    onChange={onValueChange}
+                                    contacts={contactOptions}
+                                />
                             </div>
                         )}
                         <div className="border-t border-slate-100 px-3 py-2">
@@ -795,12 +918,6 @@ const ComposeWindow = ({ item, index, onSent }) => {
                             />
                         </div>
                     </div>
-
-                    <datalist id={contactListId}>
-                        {contactOptions.map((contact) => (
-                            <option key={contact._id} value={contact.email}>{contact.name}</option>
-                        ))}
-                    </datalist>
 
                     <ComposeBodyEditor
                         ref={bodyRef}
