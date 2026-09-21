@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
 import {
     getEmails,
@@ -23,6 +24,19 @@ import {
     runWithCleanupOnFailure,
     __setMailboxStoreForTests
 } from './email-controller.js';
+import { ATTACHMENTS_DIR } from '../services/attachments.js';
+
+const createJailedFixture = (name = 'fixture.bin', contents = 'fixture-bytes') => {
+    fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
+    const storagePath = path.join(ATTACHMENTS_DIR, `test-${Date.now()}-${name}`);
+    fs.writeFileSync(storagePath, contents);
+    return storagePath;
+};
+
+const assertContentDisposition = (header, disposition, filename) => {
+    assert.match(String(header || ''), new RegExp(`^${disposition};`));
+    assert.match(String(header || ''), new RegExp(`filename="${filename}"`));
+};
 
 const createResponse = () => {
     const state = {
@@ -67,7 +81,7 @@ test('parseForwardedAttachmentRefs accepts valid forwarded attachment metadata o
 });
 
 test('retained draft attachments are copied before the sent record reuses them', () => {
-    const sourcePath = new URL('../package.json', import.meta.url).pathname;
+    const sourcePath = createJailedFixture('notice.pdf', 'notice-body');
     const source = {
         attachment_id: 'draft-attachment',
         filename: 'notice.pdf',
@@ -86,6 +100,7 @@ test('retained draft attachments are copied before the sent record reuses them',
         assert.deepEqual(fs.readFileSync(copied.storage_path), fs.readFileSync(source.storage_path));
     } finally {
         plan.cleanup();
+        fs.unlinkSync(sourcePath);
     }
 });
 
@@ -409,6 +424,7 @@ test('getEmailById marks the Postgres-backed email as read', async () => {
 });
 
 test('downloadAttachment serves attachments for Postgres-backed email ids', async () => {
+    const storagePath = createJailedFixture('statement.pdf', 'pdf-bytes');
     __setMailboxStoreForTests({
         ready: true,
         repository: {
@@ -418,7 +434,7 @@ test('downloadAttachment serves attachments for Postgres-backed email ids', asyn
                     attachment_id: 'attachment-1',
                     filename: 'statement.pdf',
                     content_type: 'application/pdf',
-                    storage_path: new URL('../package.json', import.meta.url).pathname
+                    storage_path: storagePath
                 }]
             })
         }
@@ -426,21 +442,26 @@ test('downloadAttachment serves attachments for Postgres-backed email ids', asyn
 
     const response = createResponse();
 
-    await downloadAttachment({
-        params: {
-            id: 'email-5',
-            attachmentId: 'attachment-1'
-        }
-    }, response);
+    try {
+        await downloadAttachment({
+            params: {
+                id: 'email-5',
+                attachmentId: 'attachment-1'
+            }
+        }, response);
 
-    assert.equal(response.state.statusCode, 200);
-    assert.equal(response.state.headers['Content-Type'], 'application/pdf');
-    assert.equal(response.state.headers['X-Content-Type-Options'], 'nosniff');
-    assert.equal(response.state.headers['Content-Disposition'], 'attachment; filename="statement.pdf"');
-    assert.ok(Buffer.isBuffer(response.state.payload));
+        assert.equal(response.state.statusCode, 200);
+        assert.equal(response.state.headers['Content-Type'], 'application/pdf');
+        assert.equal(response.state.headers['X-Content-Type-Options'], 'nosniff');
+        assertContentDisposition(response.state.headers['Content-Disposition'], 'attachment', 'statement.pdf');
+        assert.ok(Buffer.isBuffer(response.state.payload));
+    } finally {
+        fs.unlinkSync(storagePath);
+    }
 });
 
 test('downloadAttachment can serve PDF attachments inline for previews', async () => {
+    const storagePath = createJailedFixture('statement-inline.pdf', 'pdf-bytes');
     __setMailboxStoreForTests({
         ready: true,
         repository: {
@@ -450,7 +471,7 @@ test('downloadAttachment can serve PDF attachments inline for previews', async (
                     attachment_id: 'attachment-1',
                     filename: 'statement.pdf',
                     content_type: 'application/pdf',
-                    storage_path: new URL('../package.json', import.meta.url).pathname
+                    storage_path: storagePath
                 }]
             })
         }
@@ -458,22 +479,27 @@ test('downloadAttachment can serve PDF attachments inline for previews', async (
 
     const response = createResponse();
 
-    await downloadAttachment({
-        params: {
-            id: 'email-5',
-            attachmentId: 'attachment-1'
-        },
-        query: {
-            disposition: 'inline'
-        }
-    }, response);
+    try {
+        await downloadAttachment({
+            params: {
+                id: 'email-5',
+                attachmentId: 'attachment-1'
+            },
+            query: {
+                disposition: 'inline'
+            }
+        }, response);
 
-    assert.equal(response.state.statusCode, 200);
-    assert.equal(response.state.headers['Content-Disposition'], 'inline; filename="statement.pdf"');
-    assert.ok(Buffer.isBuffer(response.state.payload));
+        assert.equal(response.state.statusCode, 200);
+        assertContentDisposition(response.state.headers['Content-Disposition'], 'inline', 'statement.pdf');
+        assert.ok(Buffer.isBuffer(response.state.payload));
+    } finally {
+        fs.unlinkSync(storagePath);
+    }
 });
 
 test('downloadAttachment forces active content to download even when inline is requested', async () => {
+    const storagePath = createJailedFixture('message.html', '<p>hi</p>');
     __setMailboxStoreForTests({
         ready: true,
         repository: {
@@ -483,23 +509,28 @@ test('downloadAttachment forces active content to download even when inline is r
                     attachment_id: 'attachment-html',
                     filename: 'message.html',
                     content_type: 'text/html',
-                    storage_path: new URL('../package.json', import.meta.url).pathname
+                    storage_path: storagePath
                 }]
             })
         }
     });
 
     const response = createResponse();
-    await downloadAttachment({
-        params: { id: 'email-unsafe', attachmentId: 'attachment-html' },
-        query: { disposition: 'inline' }
-    }, response);
+    try {
+        await downloadAttachment({
+            params: { id: 'email-unsafe', attachmentId: 'attachment-html' },
+            query: { disposition: 'inline' }
+        }, response);
 
-    assert.equal(response.state.headers['Content-Disposition'], 'attachment; filename="message.html"');
-    assert.equal(response.state.headers['X-Content-Type-Options'], 'nosniff');
+        assertContentDisposition(response.state.headers['Content-Disposition'], 'attachment', 'message.html');
+        assert.equal(response.state.headers['X-Content-Type-Options'], 'nosniff');
+    } finally {
+        fs.unlinkSync(storagePath);
+    }
 });
 
 test('downloadAllAttachments returns a zip for Postgres-backed email attachments', async () => {
+    const storagePath = createJailedFixture('statement-zip.pdf', 'pdf-bytes');
     __setMailboxStoreForTests({
         ready: true,
         repository: {
@@ -510,22 +541,25 @@ test('downloadAllAttachments returns a zip for Postgres-backed email attachments
                     attachment_id: 'attachment-1',
                     filename: 'statement.pdf',
                     content_type: 'application/pdf',
-                    storage_path: new URL('../package.json', import.meta.url).pathname
+                    storage_path: storagePath
                 }]
             })
         }
     });
 
     const response = createResponse();
+    try {
+        await downloadAllAttachments({
+            params: { id: 'email-5' }
+        }, response);
 
-    await downloadAllAttachments({
-        params: { id: 'email-5' }
-    }, response);
-
-    assert.equal(response.state.statusCode, 200);
-    assert.equal(response.state.headers['Content-Type'], 'application/zip');
-    assert.equal(response.state.headers['Content-Disposition'], 'attachment; filename="Payment notification.zip"');
-    assert.equal(response.state.payload.readUInt32LE(0), 0x04034b50);
+        assert.equal(response.state.statusCode, 200);
+        assert.equal(response.state.headers['Content-Type'], 'application/zip');
+        assertContentDisposition(response.state.headers['Content-Disposition'], 'attachment', 'Payment notification.zip');
+        assert.equal(response.state.payload.readUInt32LE(0), 0x04034b50);
+    } finally {
+        fs.unlinkSync(storagePath);
+    }
 });
 
 test('getEmailThread loads the Postgres-backed thread and marks it read', async () => {

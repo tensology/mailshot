@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import Connection from './database/db.js';
 import routes from './routes/route.js';
 import integrationRoutes from './routes/integration-route.js';
@@ -22,6 +23,28 @@ const APP_MODE = process.env.APP_MODE || process.env.NODE_ENV || 'production';
 const isDevelopment = APP_MODE === 'development';
 
 const app = express();
+
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+            mediaSrc: ["'self'", 'blob:'],
+            connectSrc: ["'self'", ...String(process.env.MAILSHOT_ALLOWED_ORIGINS || 'https://mailshot.tensology.com')
+                .split(',')
+                .map((value) => value.trim())
+                .filter(Boolean)],
+            objectSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"]
+        }
+    },
+    crossOriginEmbedderPolicy: false
+}));
 
 const allowedOrigins = String(process.env.MAILSHOT_ALLOWED_ORIGINS || 'https://mailshot.tensology.com')
     .split(',').map((value) => value.trim()).filter(Boolean);

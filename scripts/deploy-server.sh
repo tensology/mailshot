@@ -38,6 +38,13 @@ fi
 # Rebuilt artifacts may differ locally; reset only tracked build output, never secrets.
 git checkout -- client/build 2>/dev/null || true
 
+# Keep one previous client build tarball for manual rollback (one-site: no release farm).
+ROLLBACK_DIR="$APP_DIR/storage/deploy-rollback"
+mkdir -p "$ROLLBACK_DIR"
+if [ -d "$APP_DIR/client/build" ] && [ -f "$APP_DIR/client/build/index.html" ]; then
+    tar -C "$APP_DIR/client" -czf "$ROLLBACK_DIR/client-build-previous.tgz" build
+fi
+
 git pull origin main
 
 if [ -f "$ENV_FILE" ] && [ -n "$env_hash_before" ]; then
@@ -66,3 +73,4 @@ systemctl restart mailshot-ui
 systemctl is-active mailshot-ui
 
 echo "Deploy complete. .env and auth.config.json were not modified."
+echo "Rollback tip: tar -C $APP_DIR/client -xzf $ROLLBACK_DIR/client-build-previous.tgz && systemctl restart mailshot-ui"

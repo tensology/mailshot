@@ -16,6 +16,7 @@ import {
     moveEmailsToBin,
     restoreEmailsFromBin,
     markEmailsAsSpam,
+    restoreEmailsFromSpam,
     archiveEmails,
     restoreArchivedEmails,
     sendEmail,
@@ -106,6 +107,7 @@ routes.delete('/delete', deleteEmails);
 routes.post('/bin', moveEmailsToBin);
 routes.post('/bin/restore', restoreEmailsFromBin);
 routes.post('/spam', markEmailsAsSpam);
+routes.post('/spam/restore', restoreEmailsFromSpam);
 routes.post('/archive', archiveEmails);
 routes.post('/archive/restore', restoreArchivedEmails);
 routes.post('/move-to-label', moveEmailsToLabel);

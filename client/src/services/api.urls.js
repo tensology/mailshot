@@ -132,6 +132,10 @@ export const API_URLS = {
         endpoint: 'spam',
         method: 'POST'
     },
+    restoreSpamEmails: {
+        endpoint: 'spam/restore',
+        method: 'POST'
+    },
     syncMailbox: {
         endpoint: 'sync',
         method: 'POST'

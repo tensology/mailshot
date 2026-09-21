@@ -6,14 +6,18 @@ const CACHE_DIR = path.join(process.cwd(), 'data');
 const SESSION_FILE = path.join(CACHE_DIR, 'auth-sessions.json');
 const SESSION_TTL_MS = Number(process.env.AUTH_SESSION_TTL_MS || 7 * 24 * 60 * 60 * 1000);
 
+/** tokenHash -> session */
 const sessions = new Map();
+
+const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 
 const saveSessionsToDisk = () => {
     try {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
         fs.writeFileSync(SESSION_FILE, JSON.stringify({
             saved_at: new Date().toISOString(),
-            sessions: [...sessions.entries()].map(([token, session]) => ({ token, session }))
+            version: 2,
+            sessions: [...sessions.entries()].map(([token_hash, session]) => ({ token_hash, session }))
         }));
     } catch (error) {
         console.error('Failed to save auth sessions to disk:', error.message);
@@ -24,9 +28,9 @@ const purgeExpiredSessions = () => {
     const now = Date.now();
     let changed = false;
 
-    for (const [token, session] of sessions.entries()) {
+    for (const [tokenHash, session] of sessions.entries()) {
         if (session.expires_at <= now) {
-            sessions.delete(token);
+            sessions.delete(tokenHash);
             changed = true;
         }
     }
@@ -49,13 +53,23 @@ export const loadSessionsFromDisk = () => {
 
         sessions.clear();
         parsed.sessions.forEach((entry) => {
-            if (!entry?.token || !entry?.session) {
+            if (!entry?.session) {
                 return;
             }
-            sessions.set(entry.token, entry.session);
+
+            // Migrate plaintext tokens from version 1 files to hashes.
+            if (entry.token_hash) {
+                sessions.set(entry.token_hash, entry.session);
+                return;
+            }
+
+            if (entry.token) {
+                sessions.set(hashToken(entry.token), entry.session);
+            }
         });
 
         purgeExpiredSessions();
+        saveSessionsToDisk();
         return sessions.size;
     } catch (error) {
         console.error('Failed to load auth sessions from disk:', error.message);
@@ -75,7 +89,7 @@ export const createSession = (username) => {
         expires_at: Date.now() + SESSION_TTL_MS
     };
 
-    sessions.set(token, session);
+    sessions.set(hashToken(token), session);
     saveSessionsToDisk();
     return { token, session };
 };
@@ -87,13 +101,13 @@ export const getSession = (token) => {
 
     purgeExpiredSessions();
 
-    const session = sessions.get(token);
+    const session = sessions.get(hashToken(token));
     if (!session) {
         return null;
     }
 
     if (session.expires_at <= Date.now()) {
-        sessions.delete(token);
+        sessions.delete(hashToken(token));
         saveSessionsToDisk();
         return null;
     }
@@ -106,6 +120,6 @@ export const revokeSession = (token) => {
         return;
     }
 
-    sessions.delete(token);
+    sessions.delete(hashToken(token));
     saveSessionsToDisk();
 };

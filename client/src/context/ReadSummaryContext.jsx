@@ -17,16 +17,33 @@ const POLL_MS = 2500;
 const ReadSummaryContext = createContext(null);
 const PANEL_STORAGE_KEY = 'mailshot:read-summary-panel-position';
 
-const buildAudioUrl = (job) => {
+const buildAudioRequestUrl = (job) => {
     if (!job?.audio_url) {
         return '';
     }
 
     const base = String(API_URL || '').replace(/\/$/, '');
     const pathPart = String(job.audio_url).startsWith('/') ? job.audio_url : `/${job.audio_url}`;
+    return `${base}${pathPart}`;
+};
+
+const fetchAuthorizedAudioBlobUrl = async (job) => {
+    const url = buildAudioRequestUrl(job);
+    if (!url) {
+        return '';
+    }
+
     const token = getAuthToken();
-    const separator = pathPart.includes('?') ? '&' : '?';
-    return `${base}${pathPart}${separator}auth_token=${encodeURIComponent(token)}`;
+    const response = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+
+    if (!response.ok) {
+        throw new Error('Could not load read summary audio');
+    }
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
 };
 
 const isJobPayload = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -167,6 +184,7 @@ export const ReadSummaryProvider = ({ children }) => {
     const { isAuthenticated } = useAuth();
     const [enabled, setEnabled] = useState(false);
     const [playerJob, setPlayerJob] = useState(null);
+    const [audioUrl, setAudioUrl] = useState('');
     const [pendingEmailId, setPendingEmailId] = useState('');
     const [pendingJobId, setPendingJobId] = useState('');
     const [preparingMessage, setPreparingMessage] = useState('Preparing read summary');
@@ -390,7 +408,38 @@ export const ReadSummaryProvider = ({ children }) => {
         setPlayerJob(null);
     }, []);
 
-    const audioUrl = buildAudioUrl(playerJob);
+    useEffect(() => {
+        let cancelled = false;
+        const createdUrls = [];
+
+        if (playerJob?.status !== 'ready' || !playerJob?.audio_url) {
+            setAudioUrl('');
+            return undefined;
+        }
+
+        fetchAuthorizedAudioBlobUrl(playerJob)
+            .then((url) => {
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+                createdUrls.push(url);
+                setAudioUrl(url);
+            })
+            .catch((error) => {
+                if (!cancelled) {
+                    handleError(error?.message || 'Could not load read summary audio');
+                    setPlayerJob(null);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+            createdUrls.forEach((url) => URL.revokeObjectURL(url));
+            setAudioUrl('');
+        };
+    }, [handleError, playerJob]);
+
     const value = useMemo(() => ({
         enabled,
         pendingEmailId,

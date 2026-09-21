@@ -12,6 +12,7 @@ import {
     Play,
     Reply,
     ReplyAll,
+    OctagonAlert,
     Trash2,
     Volume2,
     X
@@ -61,6 +62,8 @@ const ViewEmail = () => {
     const toggleReadService = useApi(API_URLS.toggleReadMail);
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
     const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
+    const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
+    const restoreSpamEmailsService = useApi(API_URLS.restoreSpamEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
@@ -188,8 +191,11 @@ const ViewEmail = () => {
 
     const subject = primaryEmail?.subject || '(no subject)';
     const isArchivedView = type === 'archived';
+    const isSpamView = type === 'spam';
     const canToggleArchive = !['bin', 'spam', 'sent', 'drafts'].includes(type || '');
+    const canToggleSpam = !['bin', 'sent', 'drafts'].includes(type || '');
     const archiveActionLabel = isArchivedView ? 'Unarchive' : 'Archive';
+    const spamActionLabel = isSpamView ? 'Not spam' : 'Mark as spam';
     const ArchiveIcon = isArchivedView ? ArchiveRestore : Archive;
     const downloadMessageAttachment = async (path, filename) => {
         const result = await downloadAttachment({
@@ -353,6 +359,21 @@ const ViewEmail = () => {
         removeEmailsFromListCache(ids);
         requestMailboxCountsRefresh();
         setActionNotice(`Message ${isArchivedView ? 'unarchived' : 'archived'}`);
+        navigate(backUrl);
+    };
+
+    const toggleSpam = async () => {
+        const ids = getCurrentEmailSelectionIds();
+        const service = isSpamView ? restoreSpamEmailsService : markSpamEmailsService;
+        const result = await service.call(ids);
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+
+        removeEmailsFromListCache(ids);
+        requestMailboxCountsRefresh();
+        setActionNotice(isSpamView ? 'Message restored from spam' : 'Message marked as spam');
         navigate(backUrl);
     };
 
@@ -567,6 +588,11 @@ const ViewEmail = () => {
                     {canToggleArchive && (
                         <IconButton size="touch" label={archiveActionLabel} onClick={toggleArchive}>
                             <ArchiveIcon className="h-5 w-5" />
+                        </IconButton>
+                    )}
+                    {canToggleSpam && (
+                        <IconButton size="touch" label={spamActionLabel} onClick={toggleSpam}>
+                            <OctagonAlert className="h-5 w-5" />
                         </IconButton>
                     )}
                 </div>

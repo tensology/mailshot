@@ -183,10 +183,13 @@ const mergeSettings = (value = {}) => {
         ...(value.ai || {})
     };
     const provider = providerDefaults[rawAi.provider] ? rawAi.provider : 'openai';
-    const apiKeys = {
-        ...(rawAi.api_keys || {}),
-        ...(rawAi.api_key ? { [provider]: rawAi.api_key } : {})
-    };
+    const decryptedApiKeys = {};
+    Object.entries(rawAi.api_keys || {}).forEach(([key, secret]) => {
+        decryptedApiKeys[key] = decryptSecret(secret || '');
+    });
+    if (rawAi.api_key) {
+        decryptedApiKeys[provider] = decryptSecret(rawAi.api_key);
+    }
 
     return {
         ...defaultSettings(),
@@ -195,11 +198,11 @@ const mergeSettings = (value = {}) => {
         ai: {
             enabled: Boolean(rawAi.enabled),
             provider,
-            api_key: String(apiKeys[provider] || ''),
-            api_keys: apiKeys,
+            api_key: String(decryptedApiKeys[provider] || ''),
+            api_keys: decryptedApiKeys,
             model: String(rawAi.model || ''),
             summary_provider: providerDefaults[rawAi.summary_provider] ? rawAi.summary_provider : 'nvidia',
-            summary_api_key: String(rawAi.summary_api_key || ''),
+            summary_api_key: decryptSecret(rawAi.summary_api_key || ''),
             summary_model: String(rawAi.summary_model || '')
         },
         tts: {
@@ -214,7 +217,10 @@ const mergeSettings = (value = {}) => {
             base_url: String(value.tensology?.base_url || 'https://www.tensology.com').replace(/\/$/, ''),
             api_key: decryptSecret(value.tensology?.api_key || process.env.TENSOLOGY_API_KEY || '')
         },
-        autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : []
+        autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : [],
+        autoresponder_daily: value.autoresponder_daily && typeof value.autoresponder_daily === 'object'
+            ? value.autoresponder_daily
+            : { day: '', count: 0 }
     };
 };
 
@@ -222,6 +228,21 @@ const serializeSettings = (settings = {}) => {
     const serialized = JSON.parse(JSON.stringify(settings));
     if (serialized.tensology?.api_key) {
         serialized.tensology.api_key = encryptSecret(serialized.tensology.api_key);
+    }
+    if (serialized.ai) {
+        if (serialized.ai.api_key) {
+            serialized.ai.api_key = encryptSecret(serialized.ai.api_key);
+        }
+        if (serialized.ai.summary_api_key) {
+            serialized.ai.summary_api_key = encryptSecret(serialized.ai.summary_api_key);
+        }
+        if (serialized.ai.api_keys && typeof serialized.ai.api_keys === 'object') {
+            Object.keys(serialized.ai.api_keys).forEach((key) => {
+                if (serialized.ai.api_keys[key]) {
+                    serialized.ai.api_keys[key] = encryptSecret(serialized.ai.api_keys[key]);
+                }
+            });
+        }
     }
     return serialized;
 };
@@ -315,9 +336,13 @@ export const markAutoresponderSent = async (messageId) => {
     if (existing.includes(messageId)) {
         return;
     }
+    const day = new Date().toISOString().slice(0, 10);
+    const daily = current.autoresponder_daily || {};
+    const count = daily.day === day ? Number(daily.count || 0) + 1 : 1;
     await saveSettings({
         ...current,
-        autoresponder_log: [...existing.slice(-499), messageId]
+        autoresponder_log: [...existing.slice(-499), messageId],
+        autoresponder_daily: { day, count }
     });
 };
 

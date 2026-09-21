@@ -18,10 +18,10 @@ const QuotedContent = ({ body, bodyHtml }) => {
     const hasQuote = hasHtmlQuote || hasPlainQuote;
 
     const mainHtml = htmlParts.main
-        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.main, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] }))
+        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.main, { ADD_ATTR: ['target', 'rel'] }))
         : '';
     const quotedHtml = htmlParts.quoted
-        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.quoted, { ADD_ATTR: ['target', 'rel', 'style'], ADD_TAGS: ['style'] }))
+        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.quoted, { ADD_ATTR: ['target', 'rel'] }))
         : '';
 
     const showHtml = mainHtml && mainHtml.replace(/<[^>]+>/g, '').trim();

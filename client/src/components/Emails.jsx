@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Archive, Mail, MailOpen, OctagonAlert, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Archive, Mail, MailOpen, OctagonAlert, RefreshCw, Search, Trash2, Undo2, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -186,6 +186,7 @@ const Emails = () => {
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
     const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
+    const restoreSpamEmailsService = useApi(API_URLS.restoreSpamEmails);
     const toggleReadService = useApi(API_URLS.toggleReadMail);
     const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
     const getSummarizeAllStatusService = useApi(API_URLS.getSummarizeAllStatus);
@@ -1051,6 +1052,54 @@ const Emails = () => {
         showActionToast(`${idsToRemove.length} message${idsToRemove.length === 1 ? '' : 's'} marked as spam`);
     };
 
+    const restoreSelectedFromSpam = async () => {
+        if (!hasSelection) {
+            return;
+        }
+
+        if (allMatchingSelected) {
+            const count = selectionCount;
+            const result = await restoreSpamEmailsService.call(getBulkPayload());
+            if (result.error) {
+                showActionToast(result.error, 'error');
+                return;
+            }
+            clearBulkSelection();
+            clearEmailListCache();
+            setEmails([]);
+            setTotalEmails(0);
+            setTotalPages(1);
+            setPage(1);
+            requestMailboxCountsRefresh();
+            showActionToast(`${Number(result.data?.count) || count} messages restored from spam`);
+            return;
+        }
+
+        const idsToRemove = [...selectedEmails];
+        const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly: sectionOnlySearch, page };
+        const previousEmails = emails;
+        const previousTotal = totalEmails;
+        const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, idsToRemove));
+
+        setSelectedEmails([]);
+        setEmails(nextEmails);
+        setTotalEmails(Math.max(0, previousTotal - (previousEmails.length - nextEmails.length)));
+        removeEmailsFromListCache(idsToRemove);
+        writeEmailListCache(cacheParams, nextEmails);
+
+        const result = await restoreSpamEmailsService.call(idsToRemove);
+        if (result.error) {
+            setEmails(previousEmails);
+            setTotalEmails(previousTotal);
+            writeEmailListCache(cacheParams, previousEmails);
+            showActionToast(result.error, 'error');
+            return;
+        }
+
+        requestMailboxCountsRefresh();
+        showActionToast(`${idsToRemove.length} message${idsToRemove.length === 1 ? '' : 's'} restored from spam`);
+    };
+
     const moveSelectedToLabel = (labelSlug, ids, error, affectedCount) => {
         if (error) {
             setSyncError(error);
@@ -1262,6 +1311,11 @@ const Emails = () => {
                         {hasSelection && type !== 'bin' && type !== 'spam' && (
                             <IconButton label="Mark as spam" onClick={markSelectedAsSpam}>
                                 <OctagonAlert className="h-4 w-4" />
+                            </IconButton>
+                        )}
+                        {hasSelection && type === 'spam' && (
+                            <IconButton label="Not spam" onClick={restoreSelectedFromSpam}>
+                                <Undo2 className="h-4 w-4" />
                             </IconButton>
                         )}
                         {hasSelection && type !== 'spam' && availableLabels.length > 0 && (

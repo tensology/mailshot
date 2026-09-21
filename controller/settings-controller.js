@@ -8,10 +8,22 @@ import {
     providerDefaults
 } from '../services/ai-provider.js';
 import { canEncryptSecrets } from '../services/secret-store.js';
+import { assertSafeExternalUrl } from '../services/safe-url.js';
 
 const sanitizeForUser = (settings, superUser) => ({
     general: settings.general,
-    ai: superUser ? settings.ai : null,
+    ai: superUser ? {
+        enabled: Boolean(settings.ai?.enabled),
+        provider: settings.ai?.provider || 'nvidia',
+        model: settings.ai?.model || '',
+        summary_provider: settings.ai?.summary_provider || 'nvidia',
+        summary_model: settings.ai?.summary_model || '',
+        api_key_set: Boolean(settings.ai?.api_key),
+        summary_api_key_set: Boolean(settings.ai?.summary_api_key),
+        api_keys_set: Object.fromEntries(
+            Object.entries(settings.ai?.api_keys || {}).map(([key, value]) => [key, Boolean(value)])
+        )
+    } : null,
     tts: superUser ? settings.tts : null,
     tensology: superUser ? {
         enabled: Boolean(settings.tensology?.enabled),
@@ -125,24 +137,27 @@ const normalizeGeneralPayload = (body = {}) => {
     };
 };
 
-const normalizeAiPayload = (body = {}) => {
-    const provider = providerDefaults[body.provider] ? body.provider : 'openai';
-    const api_key = String(body.api_key || '').trim();
-    const model = String(body.model || '').trim();
+const normalizeAiPayload = (body = {}, current = {}) => {
+    const provider = providerDefaults[body.provider] ? body.provider : (current.provider || 'openai');
+    const api_key = String(body.api_key || '').trim() || String(current.api_key || '');
+    const summary_api_key = String(body.summary_api_key || '').trim() || String(current.summary_api_key || '');
     const api_keys = {
+        ...(current.api_keys || {}),
         ...(body.api_keys || {}),
         [provider]: api_key
     };
 
     return {
-        enabled: Boolean(body.enabled ?? api_key),
+        enabled: Boolean(body.enabled ?? current.enabled ?? api_key),
         provider,
         api_key,
         api_keys,
-        model,
-        summary_provider: provider,
-        summary_api_key: '',
-        summary_model: ''
+        model: String(body.model || current.model || '').trim(),
+        summary_provider: providerDefaults[body.summary_provider]
+            ? body.summary_provider
+            : (current.summary_provider || provider),
+        summary_api_key,
+        summary_model: String(body.summary_model || current.summary_model || '').trim()
     };
 };
 
@@ -167,7 +182,8 @@ export const updateAiSettings = async (request, response) => {
     if (!requireSuperUser(request, response)) {
         return;
     }
-    const settings = await updateSettingsSection('ai', normalizeAiPayload(request.body));
+    const current = await getSettings();
+    const settings = await updateSettingsSection('ai', normalizeAiPayload(request.body, current.ai || {}));
     response.status(200).json(sanitizeForUser(settings, true));
 };
 
@@ -186,7 +202,8 @@ const normalizeTensologyPayload = (body = {}, current = {}) => ({
 });
 
 const fetchTensologyIdentity = async ({ base_url, api_key }) => {
-    const result = await fetch(`${base_url}/api/integrations/v1/identity`, {
+    const safeBase = await assertSafeExternalUrl(base_url);
+    const result = await fetch(`${safeBase}/api/integrations/v1/identity`, {
         headers: { Authorization: `Bearer ${api_key}`, Accept: 'application/json' },
         signal: AbortSignal.timeout(10000)
     });
@@ -211,6 +228,7 @@ export const updateTensologySettings = async (request, response) => {
         return response.status(503).json('MAILSHOT_SETTINGS_SECRET must be configured before saving this key');
     }
     try {
+        next.base_url = await assertSafeExternalUrl(next.base_url);
         const identity = next.enabled ? await fetchTensologyIdentity(next) : null;
         const settings = await updateSettingsSection('tensology', next);
         return response.status(200).json({ ...sanitizeForUser(settings, true), tensology_identity: identity });

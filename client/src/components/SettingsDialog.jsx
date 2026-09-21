@@ -47,6 +47,8 @@ const emptyAi = {
     provider: 'nvidia',
     api_key: '',
     api_keys: {},
+    api_key_set: false,
+    api_keys_set: {},
     model: ''
 };
 
@@ -85,11 +87,15 @@ const normalizeAiProvider = (ai = {}, providers = AI_PROVIDER_OPTIONS) => {
     if (!providers[next.provider]) {
         next.provider = Object.keys(providers)[0] || 'nvidia';
     }
-    next.api_keys = {
-        ...(ai.api_keys || {}),
-        ...(ai.api_key ? { [next.provider]: ai.api_key } : {})
-    };
-    next.api_key = next.api_keys[next.provider] || '';
+    const keysSet = { ...(ai.api_keys_set || {}) };
+    if (ai.api_key_set && next.provider) {
+        keysSet[next.provider] = true;
+    }
+    // Server no longer returns raw keys — only *_set flags.
+    next.api_keys = {};
+    next.api_key = '';
+    next.api_keys_set = keysSet;
+    next.api_key_set = Boolean(keysSet[next.provider] || ai.api_key_set);
     return next;
 };
 
@@ -303,7 +309,8 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     }, [open]);
 
     const providerOptions = useMemo(() => Object.entries(providers), [providers]);
-    const currentProviderKey = ai.api_keys?.[ai.provider] || '';
+    const currentProviderKey = ai.api_key || '';
+    const providerKeyIsSet = Boolean(ai.api_keys_set?.[ai.provider] || ai.api_key_set);
     const currentSignature = general.signatures.find((entry) => entry.email === selectedEmail) || general.signatures[0] || emptySignature();
     const currentAutoresponder = general.autoresponders.find((entry) => entry.email === selectedEmail) || general.autoresponders[0] || emptyAutoresponder();
     const emailOptions = useMemo(() => {
@@ -425,14 +432,14 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
     const saveAiKey = async () => {
         const providerKey = String(currentProviderKey || '').trim();
+        if (!providerKey && !providerKeyIsSet) {
+            setToast({ open: true, message: 'Enter an API key first', severity: 'error' });
+            return;
+        }
         const payload = {
-            ...ai,
+            enabled: Boolean(providerKey || providerKeyIsSet),
+            provider: ai.provider,
             api_key: providerKey,
-            api_keys: {
-                ...(ai.api_keys || {}),
-                [ai.provider]: providerKey
-            },
-            enabled: Boolean(providerKey),
             model: ''
         };
         const result = await updateAiService.call(payload);
@@ -444,13 +451,18 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         setAi(nextAi);
         setModels([]);
         setModelsLoaded(false);
-        await loadModels(nextAi);
+        await loadModels({ provider: nextAi.provider, api_key: providerKey });
         window.dispatchEvent(new Event('mailshot:settings-updated'));
     };
 
     const saveModel = async (model) => {
-        const payload = { ...ai, api_key: currentProviderKey, model };
-        setAi(payload);
+        const payload = {
+            enabled: Boolean(currentProviderKey || providerKeyIsSet),
+            provider: ai.provider,
+            api_key: currentProviderKey,
+            model
+        };
+        setAi({ ...ai, model });
         const result = await updateAiService.call(payload, '', { silent: true });
         if (result.error) {
             setToast({ open: true, message: result.error, severity: 'error' });
@@ -660,7 +672,8 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                     setAi({
                                         ...ai,
                                         provider,
-                                        api_key: ai.api_keys?.[provider] || '',
+                                        api_key: '',
+                                        api_key_set: Boolean(ai.api_keys_set?.[provider]),
                                         model: ''
                                     });
                                     setModels([]);
@@ -683,23 +696,19 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
                             <Input
                                 label="API key"
-                                placeholder={ai.provider === 'nvidia' ? 'nvapi-...' : 'API key'}
+                                placeholder={providerKeyIsSet ? 'Key saved. Enter a new key to replace it.' : (ai.provider === 'nvidia' ? 'nvapi-...' : 'API key')}
                                 value={currentProviderKey}
                                 onChange={(event) => {
                                     setAi({
                                         ...ai,
                                         api_key: event.target.value,
-                                        api_keys: {
-                                            ...(ai.api_keys || {}),
-                                            [ai.provider]: event.target.value
-                                        },
                                         model: ''
                                     });
                                     setModels([]);
                                     setModelsLoaded(false);
                                 }}
                             />
-                            <Button onClick={saveAiKey} disabled={!currentProviderKey?.trim() || updateAiService.isLoading || fetchModelsService.isLoading}>
+                            <Button onClick={saveAiKey} disabled={(!currentProviderKey?.trim() && !providerKeyIsSet) || updateAiService.isLoading || fetchModelsService.isLoading}>
                                 <Save className="h-4 w-4" />
                                 Save key
                             </Button>

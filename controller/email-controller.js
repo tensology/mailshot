@@ -12,10 +12,12 @@ import {
     buildStableSentId,
     getThreadForEmail,
     suppressMessageId,
-    saveMailboxCacheToDisk
+    saveMailboxCacheToDisk,
+    moveEmailsToSpamMailbox,
+    moveEmailsToInboxMailbox
 } from '../services/mail-sync.js';
 import { isDbConnected } from '../database/db.js';
-import { deleteAttachmentFile, readAttachmentFile, saveAttachmentFromBuffer } from '../services/attachments.js';
+import { deleteAttachmentFile, readAttachmentFile, saveAttachmentFromBuffer, buildContentDisposition } from '../services/attachments.js';
 import { createZipArchive } from '../services/zip-archive.js';
 import { deleteCachedLabelBySlug } from '../services/label-store.js';
 import { compactEmailsBySubject, findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
@@ -36,10 +38,45 @@ import {
     isMailboxStoreReady,
     __setMailboxStoreForTests as setMailboxStoreForTests
 } from '../services/postgres-mailbox-store.js';
+import { assertOutboundSendAllowed } from '../services/rate-limit.js';
 
 const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived', 'everywhere']);
 const COUNT_MAIL_TYPES = ['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived'];
 const RESERVED_SYSTEM_LABELS = new Set(['archived', 'archive', 'spam']);
+const MAX_OUTBOUND_BYTES = Number(process.env.MAIL_SEND_MAX_BYTES || 25 * 1024 * 1024);
+
+const respondServerError = (response, error, fallback = 'Request failed') => {
+    console.error(fallback, error?.message || error);
+    return response.status(500).json(fallback);
+};
+
+const estimateOutboundBytes = ({ body = '', html = '', attachments = [] } = {}) => {
+    const textBytes = Buffer.byteLength(String(html || body || ''), 'utf8');
+    const attachmentBytes = (attachments || []).reduce((sum, item) => sum + Number(item.size || 0), 0);
+    return textBytes + attachmentBytes;
+};
+
+const loadEmailsByIds = async (ids = []) => {
+    const uniqueIds = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))];
+    if (!uniqueIds.length) {
+        return [];
+    }
+
+    if (isMailboxStoreReady()) {
+        const repository = getMailboxRepository();
+        const emails = await Promise.all(uniqueIds.map((id) => repository.findById(id)));
+        return emails.filter(Boolean);
+    }
+
+    const emails = [];
+    for (const id of uniqueIds) {
+        const resolved = await findEmailRecord(id);
+        if (resolved?.email) {
+            emails.push(resolved.email);
+        }
+    }
+    return emails;
+};
 const SAFE_INLINE_ATTACHMENT_TYPES = new Set([
     'application/pdf',
     'image/bmp',
@@ -315,7 +352,7 @@ export const saveSendEmails = async (request, response) => {
 
         response.status(200).json('email saved successfully');
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -572,7 +609,7 @@ export const saveDraftEmail = async (request, response) => {
         saveMailboxCacheToDisk();
         return response.status(200).json(serializeEmail(savedDraft));
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -638,7 +675,7 @@ export const getEmails = async (request, response) => {
             total_pages: Math.max(1, Math.ceil(total / limit))
         });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -693,7 +730,7 @@ export const getMailboxCounts = async (_, response) => {
         }
         return response.status(503).json(mailboxIndex.message);
     } catch (error) {
-        return response.status(500).json(error.message);
+        return respondServerError(response, error);
     }
 };
 
@@ -738,7 +775,7 @@ export const searchEmails = async (request, response) => {
             total_pages: Math.max(1, Math.ceil(total / limit))
         });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -838,7 +875,7 @@ export const getEmailThread = async (request, response) => {
         await markThreadRead(thread, source);
         response.status(200).json(thread.map(serializeEmail));
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -873,7 +910,7 @@ export const getEmailById = async (request, response) => {
         email.read = true;
         response.status(200).json(serializeEmail(email));
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -908,10 +945,10 @@ export const downloadAttachment = async (request, response) => {
             : 'attachment';
         response.setHeader('Content-Type', contentType);
         response.setHeader('X-Content-Type-Options', 'nosniff');
-        response.setHeader('Content-Disposition', `${disposition}; filename="${attachment.filename}"`);
+        response.setHeader('Content-Disposition', buildContentDisposition(disposition, attachment.filename));
         response.send(fileBuffer);
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -944,10 +981,10 @@ export const downloadAllAttachments = async (request, response) => {
         const zip = createZipArchive(files);
         const safeSubject = String(email.subject || 'attachments').replace(/[^\w .()[\]-]/g, '_').slice(0, 80) || 'attachments';
         response.setHeader('Content-Type', 'application/zip');
-        response.setHeader('Content-Disposition', `attachment; filename="${safeSubject}.zip"`);
+        response.setHeader('Content-Disposition', buildContentDisposition('attachment', `${safeSubject}.zip`));
         response.send(zip);
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -972,7 +1009,7 @@ export const startEmailReadAloud = async (request, response) => {
         const job = await startReadAloudJob(resolved.email);
         return response.status(200).json(job);
     } catch (error) {
-        return response.status(500).json(error.message || 'Could not start read aloud');
+        return respondServerError(response, error, 'Could not start read aloud');
     }
 };
 
@@ -1004,7 +1041,7 @@ export const startSummarizeAllEmails = async (request, response) => {
         const status = await startBulkReadAloudSummaries();
         return response.status(200).json(status);
     } catch (error) {
-        return response.status(500).json(error.message || 'Could not start summarize all');
+        return respondServerError(response, error, 'Could not start summarize all');
     }
 };
 
@@ -1039,7 +1076,7 @@ export const toggleStarredEmail = async (request, response) => {
 
         response.status(201).json('Value is updated');
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -1082,7 +1119,7 @@ export const toggleReadEmail = async (request, response) => {
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'Read state updated', count: ids.length });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -1125,7 +1162,7 @@ export const deleteEmails = async (request, response) => {
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails deleted successfully', count: ids.length });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -1163,7 +1200,7 @@ export const moveEmailsToBin = async (request, response) => {
         saveMailboxCacheToDisk();
         response.status(201).json({ message: 'emails moved to bin', count: ids.length });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -1214,15 +1251,18 @@ export const restoreEmailsFromBin = async (request, response) => {
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails restored from bin', count: ids.length });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
 export const markEmailsAsSpam = async (request, response) => {
     try {
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+        const emails = await loadEmailsByIds(ids);
+        await moveEmailsToSpamMailbox(emails);
+
         if (isMailboxStoreReady()) {
             const repository = getMailboxRepository();
-            const ids = await resolveBulkEmailSelection(request.body, 'inbox');
             await repository.updateMany(ids, {
                 spam: true,
                 in_inbox: false,
@@ -1233,7 +1273,6 @@ export const markEmailsAsSpam = async (request, response) => {
             return response.status(200).json({ message: 'emails marked as spam', count: ids.length });
         }
 
-        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
         const dbIds = [];
 
         for (const id of ids) {
@@ -1260,7 +1299,13 @@ export const markEmailsAsSpam = async (request, response) => {
             await Email.updateMany(
                 { _id: { $in: dbIds }},
                 {
-                    $set: { spam: true, in_inbox: false, archived: false, bin: false, starred: false },
+                    $set: {
+                        spam: true,
+                        in_inbox: false,
+                        archived: false,
+                        bin: false,
+                        starred: false
+                    },
                     $pull: { labels: { $in: ['spam', 'archived', 'archive'] } }
                 }
             );
@@ -1269,7 +1314,65 @@ export const markEmailsAsSpam = async (request, response) => {
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails marked as spam', count: ids.length });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
+    }
+};
+
+export const restoreEmailsFromSpam = async (request, response) => {
+    try {
+        const ids = await resolveBulkEmailSelection(request.body, 'spam');
+        const emails = await loadEmailsByIds(ids);
+        await moveEmailsToInboxMailbox(emails);
+
+        if (isMailboxStoreReady()) {
+            const repository = getMailboxRepository();
+            await repository.updateMany(ids, {
+                spam: false,
+                in_inbox: true,
+                archived: false,
+                bin: false
+            });
+            return response.status(200).json({ message: 'emails restored from spam', count: ids.length });
+        }
+
+        const dbIds = [];
+        for (const id of ids) {
+            const resolved = await findEmailRecord(id);
+            if (!resolved) {
+                continue;
+            }
+
+            if (resolved.source === 'cache') {
+                updateCachedEmail(id, {
+                    spam: false,
+                    in_inbox: true,
+                    archived: false,
+                    bin: false
+                });
+            } else {
+                dbIds.push(id);
+            }
+        }
+
+        if (dbIds.length > 0 && isDbConnected()) {
+            await Email.updateMany(
+                { _id: { $in: dbIds }},
+                {
+                    $set: {
+                        spam: false,
+                        in_inbox: true,
+                        archived: false,
+                        bin: false
+                    },
+                    $pull: { labels: { $in: ['spam'] } }
+                }
+            );
+        }
+
+        saveMailboxCacheToDisk();
+        response.status(200).json({ message: 'emails restored from spam', count: ids.length });
+    } catch (error) {
+        respondServerError(response, error);
     }
 };
 
@@ -1323,7 +1426,7 @@ export const archiveEmails = async (request, response) => {
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails archived', count: ids.length });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -1375,7 +1478,7 @@ export const restoreArchivedEmails = async (request, response) => {
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails unarchived', count: ids.length });
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 
@@ -1387,6 +1490,20 @@ export const sendEmail = async (request, response) => {
         const draftRecord = draftId ? await findStoredEmail(draftId) : null;
         const retainedSelectionSpecified = Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
         const retainedAttachmentIds = parseJsonArray(request.body.retained_attachments);
+
+        const rate = assertOutboundSendAllowed({
+            actor: request.auth?.username || request.integration?.key_id || 'anonymous',
+            to: request.body.to,
+            cc: request.body.cc,
+            bcc: request.body.bcc
+        });
+        if (!rate.ok) {
+            if (rate.retry_after_ms) {
+                response.setHeader('Retry-After', String(Math.ceil(rate.retry_after_ms / 1000)));
+            }
+            return response.status(rate.status || 429).json(rate.message);
+        }
+
         const outgoingAttachments = await runWithCleanupOnFailure(async () => {
             const retained = createRetainedAttachmentSendPlan(getRetainedAttachments(
                 draftRecord,
@@ -1415,6 +1532,14 @@ export const sendEmail = async (request, response) => {
             attachments: outgoingAttachments
         };
 
+        const outboundBytes = estimateOutboundBytes(payload);
+        if (outboundBytes > MAX_OUTBOUND_BYTES) {
+            attachmentOwnership.cleanup();
+            return response.status(400).json(
+                `Message is too large (${Math.round(outboundBytes / (1024 * 1024))}MB). Max is ${Math.round(MAX_OUTBOUND_BYTES / (1024 * 1024))}MB.`
+            );
+        }
+
         const info = await runWithCleanupOnFailure(
             () => sendMail(payload),
             attachmentOwnership.cleanup
@@ -1441,12 +1566,30 @@ export const sendEmail = async (request, response) => {
             attachments: outgoingAttachments
         };
 
+        const deleteDraftIfNeeded = async () => {
+            if (!draftId) {
+                return;
+            }
+            try {
+                if (mailboxStoreReady) {
+                    await getMailboxRepository().deleteMany([draftId]);
+                } else if (isDbConnected()) {
+                    await Email.deleteOne({ _id: draftId });
+                } else {
+                    deleteCachedEmails([draftId]);
+                }
+            } catch (error) {
+                console.error('Failed to delete draft after send:', error.message);
+            }
+        };
+
         if (mailboxStoreReady) {
             const repository = getMailboxRepository();
             const email = await runWithCleanupOnFailure(
                 () => repository.upsert(savedMail),
                 attachmentOwnership.cleanup
             );
+            await deleteDraftIfNeeded();
             return response.status(200).json(serializeEmail(email));
         }
 
@@ -1456,6 +1599,7 @@ export const sendEmail = async (request, response) => {
                 () => email.save(),
                 attachmentOwnership.cleanup
             );
+            await deleteDraftIfNeeded();
             return response.status(200).json(serializeEmail(email));
         }
 
@@ -1466,10 +1610,11 @@ export const sendEmail = async (request, response) => {
             }),
             attachmentOwnership.cleanup
         );
+        await deleteDraftIfNeeded();
         return response.status(200).json(serializeEmail(cached));
     } catch (error) {
         attachmentOwnership.cleanup();
-        response.status(500).json(error.message);
+        respondServerError(response, error, 'Could not send email');
     }
 };
 
@@ -1482,7 +1627,7 @@ export const syncMailbox = async (_, response) => {
 
         response.status(200).json(result);
     } catch (error) {
-        response.status(500).json(error.message);
+        respondServerError(response, error);
     }
 };
 

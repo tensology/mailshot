@@ -2,6 +2,12 @@ import crypto from 'crypto';
 import { getAuthCredentials, isAuthConfigured } from '../services/auth-config.js';
 import { createSession, getSession, revokeSession } from '../services/auth-store.js';
 import { isSuperUser } from '../services/settings-store.js';
+import {
+    clearLoginFailures,
+    getClientIp,
+    getLoginLockoutStatus,
+    recordLoginFailure
+} from '../services/login-lockout.js';
 
 const safeEqual = (left, right) => {
     const leftBuffer = Buffer.from(String(left));
@@ -30,15 +36,30 @@ export const login = (request, response) => {
 
     const username = String(request.body?.username || '').trim();
     const password = String(request.body?.password || '');
+    const ip = getClientIp(request);
 
     if (!username || !password) {
         return response.status(400).json('Username and password are required');
     }
 
+    const lockout = getLoginLockoutStatus(username, ip);
+    if (lockout.locked) {
+        const seconds = Math.ceil(lockout.remaining_ms / 1000);
+        response.setHeader('Retry-After', String(seconds));
+        return response.status(429).json(`Too many failed login attempts. Try again in ${seconds}s.`);
+    }
+
     if (!safeEqual(username, credentials.username) || !safeEqual(password, credentials.password)) {
+        const next = recordLoginFailure(username, ip);
+        if (next.locked) {
+            const seconds = Math.ceil(next.remaining_ms / 1000);
+            response.setHeader('Retry-After', String(seconds));
+            return response.status(429).json(`Too many failed login attempts. Try again in ${seconds}s.`);
+        }
         return response.status(401).json('Invalid username or password');
     }
 
+    clearLoginFailures(username, ip);
     const { token, session } = createSession(username);
 
     return response.status(200).json({

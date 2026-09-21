@@ -48,7 +48,7 @@ const getWindowClass = (composeState, isMobile) => {
 };
 
 const sanitizeComposeHtml = (html = '') => DOMPurify.sanitize(String(html || ''), {
-    ADD_ATTR: ['style', 'target', 'rel'],
+    ADD_ATTR: ['target', 'rel'],
     ALLOWED_TAGS: [
         'a', 'b', 'br', 'div', 'em', 'i', 'img', 'li', 'ol', 'p', 'span', 'strong', 'u', 'ul'
     ]

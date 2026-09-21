@@ -6,7 +6,7 @@ const extractToken = (request) => {
     if (header.startsWith('Bearer ')) {
         return header.slice(7).trim();
     }
-    return String(request.query.auth_token || '').trim();
+    return '';
 };
 
 export const requireAuth = (request, response, next) => {

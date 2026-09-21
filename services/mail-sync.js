@@ -199,7 +199,13 @@ const isNoReplyAddress = (address = '') => {
 };
 
 const shouldAutoRespond = async (payload = {}) => {
-    if (!payload.messageId || payload.type !== 'inbox' || isMailboxSender(payload.from) || isNoReplyAddress(payload.from)) {
+    if (
+        !payload.messageId
+        || payload.type !== 'inbox'
+        || payload.spam
+        || isMailboxSender(payload.from)
+        || isNoReplyAddress(payload.from)
+    ) {
         return { ok: false };
     }
 
@@ -209,6 +215,13 @@ const shouldAutoRespond = async (payload = {}) => {
     const { autoresponder } = findSettingsForEmail(settings.general, payload.to);
     if (!autoresponder?.enabled || !autoresponder?.html || log.includes(threadKey)) {
         return { ok: false };
+    }
+
+    const day = new Date().toISOString().slice(0, 10);
+    const dailyCap = Number(process.env.MAIL_AUTORESPONDER_DAILY_CAP || 20);
+    const daily = settings.autoresponder_daily || {};
+    if (daily.day === day && Number(daily.count || 0) >= dailyCap) {
+        return { ok: false, reason: 'daily_cap' };
     }
 
     return { ok: true, autoresponder, threadKey };
@@ -557,6 +570,155 @@ export const deleteImportedMessages = async (client, uids = []) => {
     return true;
 };
 
+const SPAM_MAILBOX_CANDIDATES = String(process.env.MAIL_IMAP_SPAM_MAILBOX || 'Junk,Spam,INBOX.Junk,[Gmail]/Spam')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+const BOUNCE_LOG_FILE = path.join(CACHE_DIR, 'bounce-log.json');
+
+const isBounceMessage = (payload = {}, parsed = {}) => {
+    const from = normalizeAddress(payload.from);
+    if (/(^|@)(mailer-daemon|postmaster|mail-daemon)/i.test(from)) {
+        return true;
+    }
+    const contentType = String(parsed.contentType?.value || parsed.headers?.get?.('content-type') || '').toLowerCase();
+    return contentType.includes('multipart/report');
+};
+
+const recordBounce = (payload = {}) => {
+    try {
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+        let entries = [];
+        if (fs.existsSync(BOUNCE_LOG_FILE)) {
+            entries = JSON.parse(fs.readFileSync(BOUNCE_LOG_FILE, 'utf8'))?.entries || [];
+        }
+        entries.push({
+            at: new Date().toISOString(),
+            from: payload.from || '',
+            subject: payload.subject || '',
+            messageId: payload.messageId || ''
+        });
+        fs.writeFileSync(BOUNCE_LOG_FILE, JSON.stringify({
+            saved_at: new Date().toISOString(),
+            entries: entries.slice(-200)
+        }));
+    } catch (error) {
+        console.error('Failed to record bounce:', error.message);
+    }
+};
+
+export const resolveSpamMailbox = async (client) => {
+    if (!client) {
+        return '';
+    }
+
+    for (const name of SPAM_MAILBOX_CANDIDATES) {
+        try {
+            await client.mailboxOpen(name);
+            return name;
+        } catch {
+            // try next candidate
+        }
+    }
+
+    return '';
+};
+
+/**
+ * Move messages on IMAP when uid/mailbox are still known.
+ * Failures are swallowed — local taxonomy still updates.
+ */
+export const moveEmailsOnImap = async (emails = [], destinationMailbox = '') => {
+    const targets = (Array.isArray(emails) ? emails : [])
+        .map((email) => ({
+            mailbox: String(email?.imap_mailbox || '').trim(),
+            uid: Number(email?.imap_uid || 0)
+        }))
+        .filter((item) => item.mailbox && item.uid > 0);
+
+    if (!targets.length || !destinationMailbox) {
+        return { moved: 0 };
+    }
+
+    const config = getSyncConfig();
+    if (!config.host || !config.auth.user || !config.auth.pass) {
+        return { moved: 0 };
+    }
+
+    let client;
+    let moved = 0;
+    try {
+        client = await connectImapClient(config);
+        const byMailbox = new Map();
+        targets.forEach((item) => {
+            const list = byMailbox.get(item.mailbox) || [];
+            list.push(item.uid);
+            byMailbox.set(item.mailbox, list);
+        });
+
+        for (const [mailbox, uids] of byMailbox.entries()) {
+            try {
+                const lock = await client.getMailboxLock(mailbox);
+                try {
+                    await client.messageMove(uids, destinationMailbox, { uid: true });
+                    moved += uids.length;
+                } finally {
+                    lock.release();
+                }
+            } catch (error) {
+                console.error(`IMAP move from ${mailbox} failed:`, error.message);
+            }
+        }
+    } catch (error) {
+        console.error('IMAP move connect failed:', error.message);
+    } finally {
+        try {
+            if (client) {
+                await client.logout();
+            }
+        } catch {
+            // ignore logout errors
+        }
+    }
+
+    return { moved };
+};
+
+export const moveEmailsToSpamMailbox = async (emails = []) => {
+    const config = getSyncConfig();
+    if (!config.host) {
+        return { moved: 0 };
+    }
+
+    let client;
+    try {
+        client = await connectImapClient(config);
+        const spamMailbox = await resolveSpamMailbox(client);
+        await client.logout();
+        client = null;
+        if (!spamMailbox) {
+            return { moved: 0 };
+        }
+        return moveEmailsOnImap(emails, spamMailbox);
+    } catch (error) {
+        console.error('IMAP spam move failed:', error.message);
+        return { moved: 0 };
+    } finally {
+        try {
+            if (client) {
+                await client.logout();
+            }
+        } catch {
+            // ignore
+        }
+    }
+};
+
+export const moveEmailsToInboxMailbox = async (emails = []) => (
+    moveEmailsOnImap(emails, 'INBOX')
+);
+
 const connectImapClient = async (config) => {
     const fallbackHost = process.env.MAIL_IMAP_FALLBACK_HOST || '127.0.0.1';
     const client = createImapClient(config);
@@ -581,6 +743,221 @@ const connectImapClient = async (config) => {
     }
 };
 
+const importMessageFromImap = async ({
+    client,
+    mailbox,
+    msg,
+    isSpamFolder = false,
+    deleteAfterImport = false
+}) => {
+    const parsed = await simpleParser(msg.source);
+    const fromValue = createAddressString(parsed.from);
+    const toValue = createAddressString(parsed.to);
+    const subject = parsed.subject || msg.envelope?.subject || '';
+    const messageId = parsed.messageId || `${msg.uid}-${mailbox}`;
+    const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
+    const attachments = parseMailAttachments(parsed.attachments || []);
+    const ccValue = createAddressString(parsed.cc);
+
+    if (isMessageSuppressed(messageId)) {
+        return { skipped: true };
+    }
+
+    const payload = {
+        to: toValue,
+        cc: ccValue,
+        from: fromValue,
+        subject: decodeHtmlEntities(subject),
+        body: parsed.text || stripHtml(parsed.html || ''),
+        body_html: typeof parsed.html === 'string' ? parsed.html : '',
+        date: msg.internalDate || parsed.date || new Date(),
+        image: '',
+        name: parseNameFromAddress(fromValue),
+        read: Boolean(msg.flags?.has('\\Seen')),
+        type: emailType,
+        messageId,
+        in_reply_to: parsed.inReplyTo || '',
+        references: Array.isArray(parsed.references) ? parsed.references : [],
+        attachments,
+        imap_mailbox: mailbox,
+        imap_uid: String(msg.uid || '')
+    };
+
+    if (isBounceMessage(payload, parsed)) {
+        recordBounce(payload);
+    }
+
+    if (isMailboxStoreReady()) {
+        const repository = getMailboxRepository();
+        const existing = await repository.findByMessageId(messageId);
+        if (existing) {
+            if (existing.bin) {
+                return { skipped: true };
+            }
+            await repository.updateMany([existing._id], {
+                body: payload.body,
+                body_html: payload.body_html,
+                subject: payload.subject,
+                read: Boolean(existing.read || payload.read),
+                imap_mailbox: mailbox,
+                imap_uid: String(msg.uid || ''),
+                ...(isSpamFolder ? { spam: true, in_inbox: false } : {})
+            });
+            return { skipped: true };
+        }
+
+        const labelState = isSpamFolder
+            ? { labels: [], in_inbox: false }
+            : await applyLabelRule(payload);
+        const importedEmail = {
+            ...payload,
+            starred: false,
+            bin: false,
+            archived: false,
+            spam: Boolean(isSpamFolder),
+            in_inbox: isSpamFolder ? false : labelState.in_inbox,
+            labels: labelState.labels
+        };
+        await persistInboundMessage({
+            repository,
+            client,
+            uid: msg.uid,
+            payload: importedEmail,
+            deleteAfterImport
+        });
+        if (!isSpamFolder) {
+            await sendAutoResponderIfNeeded(importedEmail);
+            enqueueEmailSummary(importedEmail);
+        }
+        return { synced: true, uid: msg.uid };
+    }
+
+    if (isDbConnected()) {
+        const existing = await Email.findOne({ messageId: payload.messageId });
+        if (existing) {
+            if (existing.bin) {
+                return { skipped: true };
+            }
+            await Email.updateOne(
+                { _id: existing._id },
+                {
+                    $set: {
+                        body: payload.body,
+                        body_html: payload.body_html,
+                        subject: payload.subject,
+                        read: Boolean(existing.read || payload.read),
+                        ...(isSpamFolder ? { spam: true, in_inbox: false } : {})
+                    }
+                }
+            );
+            return { skipped: true };
+        }
+
+        const labelState = isSpamFolder
+            ? { labels: [], in_inbox: false }
+            : await applyLabelRule(payload);
+        const emailDoc = await Email.create({
+            ...payload,
+            starred: false,
+            bin: false,
+            archived: false,
+            spam: Boolean(isSpamFolder),
+            in_inbox: isSpamFolder ? false : labelState.in_inbox,
+            labels: labelState.labels
+        });
+        if (!emailDoc) {
+            return { skipped: true };
+        }
+        if (!isSpamFolder) {
+            await sendAutoResponderIfNeeded(payload);
+            enqueueEmailSummary(emailDoc.toObject ? emailDoc.toObject() : emailDoc);
+        }
+        return { synced: true, uid: msg.uid };
+    }
+
+    const existing = mailboxCache.find((item) => item.messageId === messageId);
+    if (existing) {
+        persistCachedEmail({
+            ...payload,
+            spam: isSpamFolder ? true : existing.spam,
+            in_inbox: isSpamFolder ? false : existing.in_inbox
+        });
+        return { skipped: true };
+    }
+
+    const labelState = isSpamFolder
+        ? { labels: [], in_inbox: false }
+        : await applyLabelRule(payload);
+    const cachedEmail = persistCachedEmail({
+        ...payload,
+        starred: false,
+        bin: false,
+        archived: false,
+        spam: Boolean(isSpamFolder),
+        in_inbox: isSpamFolder ? false : labelState.in_inbox,
+        labels: labelState.labels
+    });
+    if (!isSpamFolder) {
+        await sendAutoResponderIfNeeded(payload);
+        enqueueEmailSummary(cachedEmail);
+    }
+    return { synced: true, uid: msg.uid };
+};
+
+const syncMailboxFolder = async (client, mailbox, { isSpamFolder = false } = {}) => {
+    let synced = 0;
+    let skipped = 0;
+    const importedUidsToDelete = [];
+    const deleteAfterImport = !isSpamFolder && String(process.env.MAILBOX_DELETE_AFTER_IMPORT || 'true') === 'true';
+    const lock = await client.getMailboxLock(mailbox);
+    let emptyMailbox = false;
+
+    try {
+        const mailboxStatus = await client.status(mailbox, { uidNext: true, messages: true, unseen: true });
+        const fetchSet = buildFetchSequenceSet(mailboxStatus);
+        if (!fetchSet) {
+            emptyMailbox = true;
+        } else {
+            for await (const msg of client.fetch(fetchSet, {
+                uid: true,
+                source: true,
+                envelope: true,
+                internalDate: true,
+                flags: true
+            })) {
+                try {
+                    const result = await importMessageFromImap({
+                        client,
+                        mailbox,
+                        msg,
+                        isSpamFolder,
+                        deleteAfterImport: false
+                    });
+                    if (result.synced) {
+                        synced += 1;
+                        if (deleteAfterImport && result.uid) {
+                            importedUidsToDelete.push(result.uid);
+                        }
+                    } else {
+                        skipped += 1;
+                    }
+                } catch (error) {
+                    skipped += 1;
+                    console.error('Error parsing/saving IMAP message:', error?.message || error);
+                }
+            }
+        }
+
+        if (!emptyMailbox && deleteAfterImport) {
+            await deleteImportedMessages(client, importedUidsToDelete);
+        }
+    } finally {
+        lock.release();
+    }
+
+    return { synced, skipped, mailbox };
+};
+
 const syncOnce = async () => {
     const config = getSyncConfig();
     if (!config.host || !config.auth.user || !config.auth.pass) {
@@ -590,174 +967,30 @@ const syncOnce = async () => {
     let synced = 0;
     let skipped = 0;
     let client;
+    const folders = [];
 
     try {
         client = await connectImapClient(config);
-        const mailbox = 'INBOX';
-        const lock = await client.getMailboxLock(mailbox);
-        const importedUidsToDelete = [];
-        let emptyMailbox = false;
-        try {
-            const mailboxStatus = await client.status(mailbox, { uidNext: true, messages: true, unseen: true });
-            const fetchSet = buildFetchSequenceSet(mailboxStatus);
-            if (!fetchSet) {
-                emptyMailbox = true;
-            } else {
-                for await (const msg of client.fetch(fetchSet, { uid: true, source: true, envelope: true, internalDate: true, flags: true })) {
-                    try {
-                        const parsed = await simpleParser(msg.source);
-                        const fromValue = createAddressString(parsed.from);
-                        const toValue = createAddressString(parsed.to);
-                        const subject = parsed.subject || msg.envelope?.subject || '';
-                        const messageId = parsed.messageId || `${msg.uid}-${mailbox}`;
-                        const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
-                        const attachments = parseMailAttachments(parsed.attachments || []);
 
-                        const ccValue = createAddressString(parsed.cc);
+        const inboxResult = await syncMailboxFolder(client, 'INBOX', { isSpamFolder: false });
+        synced += inboxResult.synced;
+        skipped += inboxResult.skipped;
+        folders.push(inboxResult.mailbox);
 
-                        if (isMessageSuppressed(messageId)) {
-                            skipped++;
-                            continue;
-                        }
-
-                        const payload = {
-                            to: toValue,
-                            cc: ccValue,
-                            from: fromValue,
-                            subject: decodeHtmlEntities(subject),
-                            body: parsed.text || stripHtml(parsed.html || ''),
-                            body_html: typeof parsed.html === 'string' ? parsed.html : '',
-                            date: msg.internalDate || parsed.date || new Date(),
-                            image: '',
-                            name: parseNameFromAddress(fromValue),
-                            read: Boolean(msg.flags?.has('\\Seen')),
-                            type: emailType,
-                            messageId,
-                            in_reply_to: parsed.inReplyTo || '',
-                            references: Array.isArray(parsed.references) ? parsed.references : [],
-                            attachments
-                        };
-
-                        if (isMailboxStoreReady()) {
-                            const repository = getMailboxRepository();
-                            const existing = await repository.findByMessageId(messageId);
-                            if (existing) {
-                                if (existing.bin) {
-                                    skipped++;
-                                    continue;
-                                }
-                                await repository.updateMany([existing._id], {
-                                    body: payload.body,
-                                    body_html: payload.body_html,
-                                    subject: payload.subject,
-                                    read: Boolean(existing.read || payload.read)
-                                });
-                                skipped++;
-                                continue;
-                            }
-
-                            const labelState = await applyLabelRule(payload);
-                            const importedEmail = {
-                                ...payload,
-                                starred: false,
-                                bin: false,
-                                archived: false,
-                                spam: false,
-                                in_inbox: labelState.in_inbox,
-                                labels: labelState.labels
-                            };
-                            await persistInboundMessage({
-                                repository,
-                                client,
-                                uid: msg.uid,
-                                payload: importedEmail,
-                                deleteAfterImport: false
-                            });
-                            if (String(process.env.MAILBOX_DELETE_AFTER_IMPORT || 'true') === 'true' && msg.uid) {
-                                importedUidsToDelete.push(msg.uid);
-                            }
-                            synced++;
-                            await sendAutoResponderIfNeeded(payload);
-                            enqueueEmailSummary(importedEmail);
-                        } else if (isDbConnected()) {
-                            const existing = await Email.findOne({ messageId: payload.messageId });
-                            if (existing) {
-                                if (existing.bin) {
-                                    skipped++;
-                                    continue;
-                                }
-                                await Email.updateOne(
-                                    { _id: existing._id },
-                                    {
-                                        $set: {
-                                            body: payload.body,
-                                            body_html: payload.body_html,
-                                            subject: payload.subject,
-                                            read: Boolean(existing.read || payload.read)
-                                        }
-                                    }
-                                );
-                                skipped++;
-                                continue;
-                            }
-
-                            const labelState = await applyLabelRule(payload);
-                            const emailDoc = await Email.create({
-                                ...payload,
-                                starred: false,
-                                bin: false,
-                                archived: false,
-                                spam: false,
-                                in_inbox: labelState.in_inbox,
-                                labels: labelState.labels
-                            });
-                            if (!emailDoc) {
-                                skipped++;
-                            } else {
-                                synced++;
-                                await sendAutoResponderIfNeeded(payload);
-                                enqueueEmailSummary(emailDoc.toObject ? emailDoc.toObject() : emailDoc);
-                            }
-                        } else {
-                            const existing = mailboxCache.find((item) => item.messageId === messageId);
-                            if (existing) {
-                                persistCachedEmail(payload);
-                                skipped++;
-                            } else {
-                                const labelState = await applyLabelRule(payload);
-                                const cachedEmail = persistCachedEmail({
-                                    ...payload,
-                                    starred: false,
-                                    bin: false,
-                                    archived: false,
-                                    spam: false,
-                                    in_inbox: labelState.in_inbox,
-                                    labels: labelState.labels
-                                });
-                                synced++;
-                                await sendAutoResponderIfNeeded(payload);
-                                enqueueEmailSummary(cachedEmail);
-                            }
-                        }
-                    } catch (error) {
-                        skipped++;
-                        const errorMessage = error?.message || 'Error parsing/saving IMAP message';
-                        console.error('Error parsing/saving IMAP message:', errorMessage);
-                    }
-                }
-            }
-            if (!emptyMailbox) {
-                await deleteImportedMessages(client, importedUidsToDelete);
-            }
-        } finally {
-            lock.release();
+        const spamMailbox = await resolveSpamMailbox(client);
+        if (spamMailbox && spamMailbox !== 'INBOX') {
+            const spamResult = await syncMailboxFolder(client, spamMailbox, { isSpamFolder: true });
+            synced += spamResult.synced;
+            skipped += spamResult.skipped;
+            folders.push(spamResult.mailbox);
         }
 
         await client.logout();
         return {
             synced,
             skipped,
-            mailbox: mailbox,
+            mailbox: folders.join(','),
+            folders,
             uid_window: SYNC_RECENT_UID_WINDOW,
             synced_at: new Date().toISOString()
         };
