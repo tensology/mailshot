@@ -187,6 +187,10 @@ const buildWhereClause = (filter = {}) => {
         conditions.push(`(e.snoozed_until IS NULL OR e.snoozed_until <= NOW())`);
     }
 
+    if (filter.snoozed_active) {
+        conditions.push(`e.snoozed_until IS NOT NULL AND e.snoozed_until > NOW()`);
+    }
+
     if (filter.exclude_muted) {
         conditions.push(`(e.muted_until IS NULL OR e.muted_until <= NOW())`);
     }

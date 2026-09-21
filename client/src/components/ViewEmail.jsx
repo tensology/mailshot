@@ -69,6 +69,7 @@ const ViewEmail = () => {
     const restoreSpamEmailsService = useApi(API_URLS.restoreSpamEmails);
     const muteEmailsService = useApi(API_URLS.muteEmails);
     const snoozeEmailsService = useApi(API_URLS.snoozeEmails);
+    const wakeSnoozedEmailsService = useApi(API_URLS.wakeSnoozedEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
@@ -197,8 +198,10 @@ const ViewEmail = () => {
     const subject = primaryEmail?.subject || '(no subject)';
     const isArchivedView = type === 'archived';
     const isSpamView = type === 'spam';
+    const isSnoozedView = type === 'snoozed';
     const canToggleArchive = !['bin', 'spam', 'sent', 'drafts'].includes(type || '');
     const canToggleSpam = !['bin', 'sent', 'drafts'].includes(type || '');
+    const canSnoozeOrMute = canToggleSpam && !isSnoozedView;
     const archiveActionLabel = isArchivedView ? 'Unarchive' : 'Archive';
     const spamActionLabel = isSpamView ? 'Not spam' : 'Mark as spam';
     const ArchiveIcon = isArchivedView ? ArchiveRestore : Archive;
@@ -391,6 +394,18 @@ const ViewEmail = () => {
         }
         removeEmailsFromListCache(ids);
         setActionNotice('Snoozed for 1 day');
+        navigate(backUrl);
+    };
+
+    const wakeCurrent = async () => {
+        const ids = getCurrentEmailSelectionIds();
+        const result = await wakeSnoozedEmailsService.call({ ids });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        removeEmailsFromListCache(ids);
+        setActionNotice('Woken');
         navigate(backUrl);
     };
 
@@ -624,12 +639,17 @@ const ViewEmail = () => {
                             <OctagonAlert className="h-5 w-5" />
                         </IconButton>
                     )}
-                    {canToggleSpam && (
+                    {canSnoozeOrMute && (
                         <IconButton size="touch" label="Snooze 1 day" onClick={snoozeCurrent}>
                             <Clock className="h-5 w-5" />
                         </IconButton>
                     )}
-                    {canToggleSpam && (
+                    {isSnoozedView && (
+                        <IconButton size="touch" label="Wake now" onClick={wakeCurrent}>
+                            <Clock className="h-5 w-5" />
+                        </IconButton>
+                    )}
+                    {canSnoozeOrMute && (
                         <IconButton size="touch" label="Mute 7 days" onClick={muteCurrent}>
                             <Bell className="h-5 w-5" />
                         </IconButton>

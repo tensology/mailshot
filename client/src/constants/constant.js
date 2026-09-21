@@ -41,5 +41,9 @@ export const EMPTY_TABS = {
     archived: {
         heading: 'No archived messages',
         subHeading: 'Archived messages are hidden from your inbox until you move them back.'
+    },
+    snoozed: {
+        heading: 'No snoozed messages',
+        subHeading: 'Snoozed messages hide from the inbox until their wake time, or until you wake them.'
     }
 }

@@ -418,6 +418,15 @@ export const buildEmailFilter = (type, query = {}) => {
             ...participantFilter,
             ...(query.label ? { label: query.label } : {})
         };
+    } else if (type === 'snoozed') {
+        filter = {
+            bin: false,
+            spam: false,
+            snoozed_active: true,
+            ...unreadFilter,
+            ...searchFilter,
+            ...participantFilter
+        };
     } else if (type === 'inbox') {
         filter = {
             type: 'inbox',
@@ -445,8 +454,8 @@ export const buildEmailFilter = (type, query = {}) => {
         filter = applyParsedSearchToFilter(filter, parsedSearch);
     }
 
-    // Hide snoozed mail from normal views until wake time (unless searching everywhere).
-    if (type !== 'everywhere' && type !== 'bin') {
+    // Hide snoozed mail from normal views until wake time (unless searching everywhere / snoozed folder).
+    if (type !== 'everywhere' && type !== 'bin' && type !== 'snoozed') {
         filter.exclude_snoozed = true;
     }
 

@@ -41,7 +41,7 @@ import {
 import { assertOutboundSendAllowed } from '../services/rate-limit.js';
 
 const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived', 'everywhere']);
-const COUNT_MAIL_TYPES = ['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived'];
+const COUNT_MAIL_TYPES = ['inbox', 'starred', 'snoozed', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived'];
 const RESERVED_SYSTEM_LABELS = new Set(['archived', 'archive', 'spam']);
 const MAX_OUTBOUND_BYTES = Number(process.env.MAIL_SEND_MAX_BYTES || 25 * 1024 * 1024);
 
@@ -1364,7 +1364,7 @@ export const snoozeEmails = async (request, response) => {
 
 export const wakeSnoozedEmails = async (request, response) => {
     try {
-        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+        const ids = await resolveBulkEmailSelection(request.body, 'snoozed');
         if (!isMailboxStoreReady()) {
             return response.status(503).json('Mailbox store unavailable');
         }

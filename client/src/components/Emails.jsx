@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Archive, Bell, Clock, Mail, MailOpen, OctagonAlert, RefreshCw, Search, Trash2, Undo2, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -38,6 +38,7 @@ import {
     getDeleteSelectionIds,
     getSectionOnlySearchLabel,
     hasActiveMailSelection,
+    getEmailMailboxType,
     resolveSearchMailboxType
 } from '../utils/mailActions';
 
@@ -94,6 +95,7 @@ const normalizeEmailListResponse = (data) => {
 const tabTitles = {
     inbox: 'Inbox',
     starred: 'Starred',
+    snoozed: 'Snoozed',
     sent: 'Sent',
     drafts: 'Drafts',
     bin: 'Bin',
@@ -123,6 +125,7 @@ const buildEmptyMessage = ({ searchFilter, participantFilter, labelFilter, listT
 
 const Emails = () => {
     const { type } = useParams();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
     const { openComposeDraft } = useCompose();
@@ -190,6 +193,7 @@ const Emails = () => {
     const restoreSpamEmailsService = useApi(API_URLS.restoreSpamEmails);
     const muteEmailsService = useApi(API_URLS.muteEmails);
     const snoozeEmailsService = useApi(API_URLS.snoozeEmails);
+    const wakeSnoozedEmailsService = useApi(API_URLS.wakeSnoozedEmails);
     const toggleReadService = useApi(API_URLS.toggleReadMail);
     const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
     const getSummarizeAllStatusService = useApi(API_URLS.getSummarizeAllStatus);
@@ -832,6 +836,28 @@ const Emails = () => {
                 handleKeyboardNavigate(index >= 0 ? index : emails.length, -1);
                 return;
             }
+            if (key === 'escape') {
+                if (hasSelection) {
+                    event.preventDefault();
+                    clearBulkSelection();
+                }
+                return;
+            }
+            if (key === 'enter' && highlightedEmail) {
+                event.preventDefault();
+                const email = emails.find((entry) => entry._id === highlightedEmail);
+                if (!email) {
+                    return;
+                }
+                if (activeTab === 'drafts' || email.type === 'drafts') {
+                    openDraftEmail(email);
+                    return;
+                }
+                const mailboxType = getEmailMailboxType(email) || activeTab || 'inbox';
+                const queryString = searchParams.toString();
+                navigate(`${routes.emails.path}/${mailboxType}/${email._id}${queryString ? `?${queryString}` : ''}`);
+                return;
+            }
             if (!hasSelection) {
                 return;
             }
@@ -1191,6 +1217,29 @@ const Emails = () => {
         showActionToast('Snoozed');
     };
 
+    const wakeSelectedEmails = async () => {
+        if (!hasSelection) {
+            return;
+        }
+        const ids = allMatchingSelected ? null : [...selectedEmails];
+        const payload = allMatchingSelected ? getBulkPayload() : { ids };
+        const result = await wakeSnoozedEmailsService.call(payload);
+        if (result.error) {
+            showActionToast(result.error, 'error');
+            return;
+        }
+        clearBulkSelection();
+        if (!allMatchingSelected) {
+            removeEmailsFromListCache(ids);
+            setEmails((current) => current.filter((email) => !emailMatchesRemoval(email, ids)));
+        } else {
+            clearEmailListCache();
+            setEmails([]);
+        }
+        requestMailboxCountsRefresh();
+        showActionToast('Woken');
+    };
+
     const moveSelectedToLabel = (labelSlug, ids, error, affectedCount) => {
         if (error) {
             setSyncError(error);
@@ -1409,8 +1458,13 @@ const Emails = () => {
                                 <Undo2 className="h-4 w-4" />
                             </IconButton>
                         )}
-                        {hasSelection && type !== 'bin' && type !== 'spam' && (
+                        {hasSelection && type !== 'bin' && type !== 'spam' && type !== 'snoozed' && (
                             <IconButton label="Snooze 1 day" onClick={() => snoozeSelectedEmails(24)}>
+                                <Clock className="h-4 w-4" />
+                            </IconButton>
+                        )}
+                        {hasSelection && type === 'snoozed' && (
+                            <IconButton label="Wake now" onClick={wakeSelectedEmails}>
                                 <Clock className="h-4 w-4" />
                             </IconButton>
                         )}
