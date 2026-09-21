@@ -136,6 +136,18 @@ export const API_URLS = {
         endpoint: 'spam/restore',
         method: 'POST'
     },
+    muteEmails: {
+        endpoint: 'mute',
+        method: 'POST'
+    },
+    snoozeEmails: {
+        endpoint: 'snooze',
+        method: 'POST'
+    },
+    wakeSnoozedEmails: {
+        endpoint: 'snooze/wake',
+        method: 'POST'
+    },
     syncMailbox: {
         endpoint: 'sync',
         method: 'POST'

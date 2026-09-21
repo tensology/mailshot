@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { SUPERUSER_EMAIL, isSuperUser, getSettings, updateSettingsSection } from '../services/settings-store.js';
 import {
     buildProviderHeaders,
@@ -124,12 +125,21 @@ const normalizeGeneralPayload = (body = {}) => {
     const selectedEmail = normalizeEmail(body.selected_email || body.email) || signatures[0]?.email || SUPERUSER_EMAIL;
     const selectedSignature = signatures.find((entry) => entry.email === selectedEmail) || signatures[0];
     const selectedAutoresponder = autoresponders.find((entry) => entry.email === selectedEmail) || autoresponders[0];
+    const templates = Array.isArray(body.templates)
+        ? body.templates.map((entry = {}) => ({
+            id: String(entry.id || randomUUID()),
+            name: String(entry.name || 'Template').trim() || 'Template',
+            subject: String(entry.subject || ''),
+            body_html: String(entry.body_html || entry.html || '')
+        })).filter((entry) => entry.name)
+        : undefined;
 
     return {
         email: selectedEmail,
         selected_email: selectedEmail,
         signatures,
         autoresponders,
+        ...(templates ? { templates } : {}),
         signature_html: selectedSignature?.signature_html || '',
         autoresponder_enabled: Boolean(selectedAutoresponder?.enabled),
         autoresponder_html: selectedAutoresponder?.html || '',

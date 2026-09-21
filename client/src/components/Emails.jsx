@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Archive, Mail, MailOpen, OctagonAlert, RefreshCw, Search, Trash2, Undo2, X } from 'lucide-react';
+import { Archive, Bell, Clock, Mail, MailOpen, OctagonAlert, RefreshCw, Search, Trash2, Undo2, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -31,6 +31,7 @@ import { formatAddressListLabel } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useAuth } from '../context/AuthContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
+import { requestDesktopNotifications } from '../utils/desktopNotifications';
 import {
     buildReadTogglePayload,
     getArchiveToggleAction,
@@ -187,6 +188,8 @@ const Emails = () => {
     const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
     const restoreSpamEmailsService = useApi(API_URLS.restoreSpamEmails);
+    const muteEmailsService = useApi(API_URLS.muteEmails);
+    const snoozeEmailsService = useApi(API_URLS.snoozeEmails);
     const toggleReadService = useApi(API_URLS.toggleReadMail);
     const startSummarizeAllService = useApi(API_URLS.startSummarizeAll);
     const getSummarizeAllStatusService = useApi(API_URLS.getSummarizeAllStatus);
@@ -804,6 +807,55 @@ const Emails = () => {
         }
     };
 
+    useEffect(() => {
+        const onKeyDown = (event) => {
+            const tag = String(event.target?.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || event.target?.isContentEditable) {
+                return;
+            }
+
+            const key = event.key.toLowerCase();
+            if (key === 'c' && !event.metaKey && !event.ctrlKey) {
+                event.preventDefault();
+                openComposeDraft({});
+                return;
+            }
+            if (key === 'j') {
+                event.preventDefault();
+                const index = emails.findIndex((email) => email._id === highlightedEmail);
+                handleKeyboardNavigate(index >= 0 ? index : -1, 1);
+                return;
+            }
+            if (key === 'k') {
+                event.preventDefault();
+                const index = emails.findIndex((email) => email._id === highlightedEmail);
+                handleKeyboardNavigate(index >= 0 ? index : emails.length, -1);
+                return;
+            }
+            if (!hasSelection) {
+                return;
+            }
+            if (key === 'e') {
+                event.preventDefault();
+                archiveSelectedEmails();
+            } else if (key === 'u') {
+                event.preventDefault();
+                markSelectedReadState(false);
+            } else if (key === 's' && !event.metaKey && !event.ctrlKey) {
+                event.preventDefault();
+                markSelectedAsSpam();
+            } else if (key === 'b') {
+                event.preventDefault();
+                requestDesktopNotifications().then((ok) => {
+                    showActionToast(ok ? 'Desktop notifications on' : 'Notifications not allowed');
+                });
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    });
+
     const handleReadSummary = async (email) => {
         const result = await startReadSummary(email?._id, {
             audioReady: email?.read_aloud_status === 'ready',
@@ -1100,6 +1152,45 @@ const Emails = () => {
         showActionToast(`${idsToRemove.length} message${idsToRemove.length === 1 ? '' : 's'} restored from spam`);
     };
 
+    const muteSelectedEmails = async (hours = 168) => {
+        if (!hasSelection) {
+            return;
+        }
+        const ids = allMatchingSelected ? null : [...selectedEmails];
+        const payload = allMatchingSelected ? { ...getBulkPayload(), hours } : { ids, hours };
+        const result = await muteEmailsService.call(payload);
+        if (result.error) {
+            showActionToast(result.error, 'error');
+            return;
+        }
+        clearBulkSelection();
+        requestMailboxCountsRefresh();
+        showActionToast('Muted');
+        fetchEmailList({ silent: true });
+    };
+
+    const snoozeSelectedEmails = async (hours = 24) => {
+        if (!hasSelection) {
+            return;
+        }
+        const ids = allMatchingSelected ? null : [...selectedEmails];
+        const payload = allMatchingSelected ? { ...getBulkPayload(), hours } : { ids, hours };
+        const result = await snoozeEmailsService.call(payload);
+        if (result.error) {
+            showActionToast(result.error, 'error');
+            return;
+        }
+        clearBulkSelection();
+        if (!allMatchingSelected) {
+            removeEmailsFromListCache(ids);
+            setEmails((current) => current.filter((email) => !emailMatchesRemoval(email, ids)));
+        } else {
+            clearEmailListCache();
+            setEmails([]);
+        }
+        showActionToast('Snoozed');
+    };
+
     const moveSelectedToLabel = (labelSlug, ids, error, affectedCount) => {
         if (error) {
             setSyncError(error);
@@ -1318,6 +1409,16 @@ const Emails = () => {
                                 <Undo2 className="h-4 w-4" />
                             </IconButton>
                         )}
+                        {hasSelection && type !== 'bin' && type !== 'spam' && (
+                            <IconButton label="Snooze 1 day" onClick={() => snoozeSelectedEmails(24)}>
+                                <Clock className="h-4 w-4" />
+                            </IconButton>
+                        )}
+                        {hasSelection && type !== 'bin' && type !== 'spam' && (
+                            <IconButton label="Mute 7 days" onClick={() => muteSelectedEmails(168)}>
+                                <Bell className="h-4 w-4" />
+                            </IconButton>
+                        )}
                         {hasSelection && type !== 'spam' && availableLabels.length > 0 && (
                             <MoveToLabelMenu
                                 emailIds={selectedEmails}
@@ -1420,8 +1521,8 @@ const Emails = () => {
                                 value={searchInput}
                                 onChange={(event) => setSearchInput(event.target.value)}
                                 placeholder={sectionOnlySearch
-                                    ? `Search ${tabTitles[activeTab] || 'section'}`
-                                    : 'Search all mail'}
+                                    ? `Search ${tabTitles[activeTab] || 'section'} (from: is:unread has:attachment)`
+                                    : 'Search all mail (from: to: subject: is:unread has:attachment)'}
                                 className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
                             />
                             {searchFilter && (

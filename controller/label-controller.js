@@ -340,6 +340,8 @@ export const createLabelRule = async (request, response) => {
     try {
         const rules = await createLabelRules({
             from: request.body.from,
+            from_domain: request.body.from_domain,
+            subject_contains: request.body.subject_contains,
             label: request.body.label
         });
 

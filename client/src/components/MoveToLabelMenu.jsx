@@ -21,6 +21,7 @@ const MoveToLabelMenu = ({
     const [open, setOpen] = useState(false);
     const [pendingRule, setPendingRule] = useState(null);
     const [ruleSaving, setRuleSaving] = useState(false);
+    const [ruleMatchMode, setRuleMatchMode] = useState('from'); // from | domain
     const menuRef = useRef(null);
     const moveToLabelService = useApi(API_URLS.moveEmailsToLabel);
     const createLabelRuleService = useApi(API_URLS.createLabelRule);
@@ -65,6 +66,7 @@ const MoveToLabelMenu = ({
             requestMailboxCountsRefresh();
 
             if (Array.isArray(result.data?.senders) && result.data.senders.length > 0) {
+                setRuleMatchMode('from');
                 setPendingRule({
                     label: result.data.label || labelSlug,
                     senders: result.data.senders
@@ -91,10 +93,16 @@ const MoveToLabelMenu = ({
         }
 
         setRuleSaving(true);
-        const result = await createLabelRuleService.call({
-            from: pendingRule.senders,
-            label: pendingRule.label
-        }, '', { silent: true });
+        const payload = ruleMatchMode === 'domain' && pendingRule.senders?.[0]
+            ? {
+                from_domain: String(pendingRule.senders[0]).split('@')[1] || '',
+                label: pendingRule.label
+            }
+            : {
+                from: pendingRule.senders,
+                label: pendingRule.label
+            };
+        const result = await createLabelRuleService.call(payload, '', { silent: true });
 
         setRuleSaving(false);
         if (result.error) {
@@ -163,6 +171,17 @@ const MoveToLabelMenu = ({
                         ? `Automatically move future emails from ${pendingRule.senders[0]} to ${getLabelDisplayName(pendingRule.label, new Map(labels.map((label) => [label.slug, label.name])))}?`
                         : `Automatically move future emails from these ${pendingRule?.senders?.length || 0} senders to ${getLabelDisplayName(pendingRule?.label, new Map(labels.map((label) => [label.slug, label.name])))}?`}
                 </p>
+                {pendingRule?.senders?.length === 1 && String(pendingRule.senders[0]).includes('@') && (
+                    <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                            type="checkbox"
+                            checked={ruleMatchMode === 'domain'}
+                            onChange={(event) => setRuleMatchMode(event.target.checked ? 'domain' : 'from')}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        Match entire @{String(pendingRule.senders[0]).split('@')[1]} domain
+                    </label>
+                )}
                 {pendingRule?.senders?.length > 1 && (
                     <div className="mt-3 max-h-32 overflow-y-auto rounded-xl bg-slate-50 p-2 text-xs text-slate-600">
                         {pendingRule.senders.map((sender) => (

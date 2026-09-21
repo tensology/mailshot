@@ -28,6 +28,7 @@ const emptyGeneral = {
     selected_email: DEFAULT_EMAIL,
     signatures: [emptySignature()],
     autoresponders: [emptyAutoresponder()],
+    templates: [],
     signature_html: '',
     autoresponder_enabled: false,
     autoresponder_html: '',
@@ -136,7 +137,15 @@ const normalizeGeneral = (settings = {}) => {
         email: selectedEmail,
         selected_email: selectedEmail,
         signatures,
-        autoresponders
+        autoresponders,
+        templates: Array.isArray(settings.templates)
+            ? settings.templates.map((entry = {}) => ({
+                id: String(entry.id || crypto.randomUUID?.() || `tpl-${Date.now()}`),
+                name: String(entry.name || 'Template').trim() || 'Template',
+                subject: String(entry.subject || ''),
+                body_html: String(entry.body_html || entry.html || '')
+            }))
+            : []
     };
 };
 
@@ -417,6 +426,37 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         return nextGeneral;
     };
 
+    const addTemplate = () => {
+        setGeneral((current) => ({
+            ...current,
+            templates: [
+                ...(current.templates || []),
+                {
+                    id: crypto.randomUUID?.() || `tpl-${Date.now()}`,
+                    name: 'New template',
+                    subject: '',
+                    body_html: ''
+                }
+            ]
+        }));
+    };
+
+    const updateTemplate = (id, updates) => {
+        setGeneral((current) => ({
+            ...current,
+            templates: (current.templates || []).map((entry) => (
+                entry.id === id ? { ...entry, ...updates } : entry
+            ))
+        }));
+    };
+
+    const removeTemplate = (id) => {
+        setGeneral((current) => ({
+            ...current,
+            templates: (current.templates || []).filter((entry) => entry.id !== id)
+        }));
+    };
+
     const loadModels = async (payload) => {
         const result = await fetchModelsService.call(payload);
         if (result.error) {
@@ -525,6 +565,13 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         onClick={() => setActiveTab('autoresponder')}
                     >
                         Auto Responder
+                    </button>
+                    <button
+                        type="button"
+                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'templates' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                        onClick={() => setActiveTab('templates')}
+                    >
+                        Templates
                     </button>
                     {isSuperuser && (
                         <>
@@ -658,6 +705,60 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             <Save className="h-4 w-4" />
                             Save auto responder
                         </Button>
+                    </div>
+                )}
+
+                {activeTab === 'templates' && (
+                    <div className="space-y-4">
+                        <p className="text-sm text-slate-600">
+                            Templates appear in Compose. Name, optional subject, and body.
+                        </p>
+                        {(general.templates || []).length === 0 && (
+                            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                                No templates yet.
+                            </p>
+                        )}
+                        {(general.templates || []).map((template) => (
+                            <div key={template.id} className="space-y-3 rounded-xl border border-slate-200 p-3">
+                                <div className="flex items-start gap-2">
+                                    <Input
+                                        value={template.name}
+                                        onChange={(event) => updateTemplate(template.id, { name: event.target.value })}
+                                        placeholder="Template name"
+                                        className="flex-1"
+                                    />
+                                    <IconButton
+                                        label="Remove template"
+                                        size="sm"
+                                        onClick={() => removeTemplate(template.id)}
+                                        className="text-slate-500 hover:bg-red-50 hover:text-red-600"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </IconButton>
+                                </div>
+                                <Input
+                                    value={template.subject}
+                                    onChange={(event) => updateTemplate(template.id, { subject: event.target.value })}
+                                    placeholder="Subject (optional)"
+                                />
+                                <RichTextEditor
+                                    label="Body"
+                                    value={template.body_html}
+                                    onChange={(value) => updateTemplate(template.id, { body_html: value })}
+                                    placeholder="Template body…"
+                                />
+                            </div>
+                        ))}
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="secondary" onClick={addTemplate}>
+                                <Plus className="h-4 w-4" />
+                                Add template
+                            </Button>
+                            <Button onClick={() => saveGeneral('Templates saved')} disabled={updateGeneralService.isLoading}>
+                                <Save className="h-4 w-4" />
+                                Save templates
+                            </Button>
+                        </div>
                     </div>
                 )}
 

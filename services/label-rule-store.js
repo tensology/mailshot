@@ -19,20 +19,53 @@ export const extractEmailAddress = (value = '') => {
     return (/<([^>]+)>/.exec(raw)?.[1] || raw).trim();
 };
 
+export const extractEmailDomain = (value = '') => {
+    const address = extractEmailAddress(value);
+    const at = address.lastIndexOf('@');
+    return at >= 0 ? address.slice(at + 1) : '';
+};
+
 const normalizeRule = (rule = {}) => {
     const from = extractEmailAddress(rule.from || rule.from_email);
+    const fromDomain = String(rule.from_domain || '').trim().toLowerCase().replace(/^@/, '');
+    const subjectContains = String(rule.subject_contains || rule.subject || '').trim().toLowerCase();
     const label = slugify(rule.label || rule.label_slug);
-    if (!from || !label) {
+    if (!label || (!from && !fromDomain && !subjectContains)) {
         return null;
     }
 
+    const identity = [from, fromDomain, subjectContains, label].join(':');
     return {
-        id: rule.id || crypto.createHash('sha1').update(`${from}:${label}`).digest('hex').slice(0, 16),
+        id: rule.id || crypto.createHash('sha1').update(identity).digest('hex').slice(0, 16),
         from,
+        from_domain: fromDomain,
+        subject_contains: subjectContains,
         label,
         enabled: rule.enabled !== false,
         created_at: rule.created_at || new Date().toISOString()
     };
+};
+
+const ruleMatchesMessage = (rule, { from = '', subject = '' } = {}) => {
+    if (!rule?.enabled) {
+        return false;
+    }
+
+    const sender = extractEmailAddress(from);
+    const domain = extractEmailDomain(from);
+    const subjectText = String(subject || '').toLowerCase();
+
+    if (rule.from && rule.from !== sender) {
+        return false;
+    }
+    if (rule.from_domain && rule.from_domain !== domain) {
+        return false;
+    }
+    if (rule.subject_contains && !subjectText.includes(rule.subject_contains)) {
+        return false;
+    }
+
+    return Boolean(rule.from || rule.from_domain || rule.subject_contains);
 };
 
 const saveRulesToDisk = () => {
@@ -85,44 +118,67 @@ export const getLabelRules = async () => {
         }
     }
 
-    return [...ruleCache].sort((a, b) => a.from.localeCompare(b.from));
+    return [...ruleCache].sort((a, b) => {
+        const left = a.from || a.from_domain || a.subject_contains || '';
+        const right = b.from || b.from_domain || b.subject_contains || '';
+        return left.localeCompare(right);
+    });
 };
 
-export const createLabelRules = async ({ from = [], label }) => {
+export const createLabelRules = async ({
+    from = [],
+    from_domain = '',
+    subject_contains = '',
+    label
+} = {}) => {
     const labelSlug = slugify(label);
     const senders = [...new Set((Array.isArray(from) ? from : [from]).map(extractEmailAddress).filter(Boolean))];
-    if (!senders.length || !labelSlug) {
-        throw new Error('Sender and label are required');
+    const domain = String(from_domain || '').trim().toLowerCase().replace(/^@/, '');
+    const subject = String(subject_contains || '').trim().toLowerCase();
+
+    if (!labelSlug || (!senders.length && !domain && !subject)) {
+        throw new Error('Label and at least one match condition are required');
     }
 
     await getLabelRules();
-    const existingKeys = new Set(ruleCache.map((rule) => `${rule.from}:${rule.label}`));
+    const existingKeys = new Set(ruleCache.map((rule) => (
+        `${rule.from}|${rule.from_domain}|${rule.subject_contains}|${rule.label}`
+    )));
     const created = [];
 
-    senders.forEach((sender) => {
-        const key = `${sender}:${labelSlug}`;
+    const pushRule = (partial) => {
+        const rule = normalizeRule({ ...partial, label: labelSlug });
+        if (!rule) {
+            return;
+        }
+        const key = `${rule.from}|${rule.from_domain}|${rule.subject_contains}|${rule.label}`;
         if (existingKeys.has(key)) {
             return;
         }
+        ruleCache.push(rule);
+        created.push(rule);
+        existingKeys.add(key);
+    };
 
-        const rule = normalizeRule({ from: sender, label: labelSlug });
-        if (rule) {
-            ruleCache.push(rule);
-            created.push(rule);
-            existingKeys.add(key);
-        }
-    });
+    if (senders.length) {
+        senders.forEach((sender) => pushRule({
+            from: sender,
+            from_domain: domain,
+            subject_contains: subject
+        }));
+    } else {
+        pushRule({ from_domain: domain, subject_contains: subject });
+    }
 
     await saveRules();
     return created;
 };
 
-export const findLabelRuleForEmail = async (from = '') => {
-    const sender = extractEmailAddress(from);
-    if (!sender) {
-        return null;
-    }
+export const findLabelRuleForEmail = async (from = '', subject = '') => (
+    findLabelRuleForMessage({ from, subject })
+);
 
+export const findLabelRuleForMessage = async ({ from = '', subject = '' } = {}) => {
     const rules = await getLabelRules();
-    return rules.find((rule) => rule.enabled && rule.from === sender) || null;
+    return rules.find((rule) => ruleMatchesMessage(rule, { from, subject })) || null;
 };

@@ -3,6 +3,8 @@ import {
     Archive,
     ArchiveRestore,
     ArrowLeft,
+    Bell,
+    Clock,
     Download,
     ExternalLink,
     FileText,
@@ -12,6 +14,7 @@ import {
     Play,
     Reply,
     ReplyAll,
+    Printer,
     OctagonAlert,
     Trash2,
     Volume2,
@@ -64,6 +67,8 @@ const ViewEmail = () => {
     const restoreArchivedEmailsService = useApi(API_URLS.restoreArchivedEmails);
     const markSpamEmailsService = useApi(API_URLS.markSpamEmails);
     const restoreSpamEmailsService = useApi(API_URLS.restoreSpamEmails);
+    const muteEmailsService = useApi(API_URLS.muteEmails);
+    const snoozeEmailsService = useApi(API_URLS.snoozeEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const restoreEmailsFromBin = useApi(API_URLS.restoreEmailsFromBin);
@@ -377,6 +382,30 @@ const ViewEmail = () => {
         navigate(backUrl);
     };
 
+    const snoozeCurrent = async () => {
+        const ids = getCurrentEmailSelectionIds();
+        const result = await snoozeEmailsService.call({ ids, hours: 24 });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        removeEmailsFromListCache(ids);
+        setActionNotice('Snoozed for 1 day');
+        navigate(backUrl);
+    };
+
+    const muteCurrent = async () => {
+        const ids = getCurrentEmailSelectionIds();
+        const result = await muteEmailsService.call({ ids, hours: 168 });
+        if (result.error) {
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+        requestMailboxCountsRefresh();
+        setActionNotice('Muted for 7 days');
+        navigate(backUrl);
+    };
+
     const markAsUnread = async () => {
         const ids = getCurrentEmailSelectionIds();
         const result = await toggleReadService.call({ ids, value: false });
@@ -560,11 +589,11 @@ const ViewEmail = () => {
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-white">
+        <div className="mailshot-print-root flex h-full min-h-0 flex-col bg-white">
             <div
                 role="toolbar"
                 aria-label="Email actions"
-                className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-1 border-b border-slate-100 bg-white/95 px-2 py-1.5 backdrop-blur sm:px-4 lg:py-2"
+                className="mailshot-no-print sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-1 border-b border-slate-100 bg-white/95 px-2 py-1.5 backdrop-blur sm:px-4 lg:py-2"
             >
                 <div className="flex shrink-0 items-center gap-1">
                     <IconButton size="touch" label="Back" onClick={() => navigate(backUrl)}>
@@ -595,6 +624,19 @@ const ViewEmail = () => {
                             <OctagonAlert className="h-5 w-5" />
                         </IconButton>
                     )}
+                    {canToggleSpam && (
+                        <IconButton size="touch" label="Snooze 1 day" onClick={snoozeCurrent}>
+                            <Clock className="h-5 w-5" />
+                        </IconButton>
+                    )}
+                    {canToggleSpam && (
+                        <IconButton size="touch" label="Mute 7 days" onClick={muteCurrent}>
+                            <Bell className="h-5 w-5" />
+                        </IconButton>
+                    )}
+                    <IconButton size="touch" label="Print" onClick={() => window.print()} className="print:hidden">
+                        <Printer className="h-5 w-5" />
+                    </IconButton>
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-1">
                     {readSummaryEnabled && (

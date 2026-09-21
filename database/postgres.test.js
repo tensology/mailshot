@@ -74,7 +74,7 @@ test('bootstraps the mailbox schema with the required tables', async () => {
 
     await ensurePostgresSchema(pool);
 
-    assert.equal(queries.length, 1);
+    assert.ok(queries.length >= 1);
     assert.match(queries[0], /CREATE TABLE IF NOT EXISTS emails/i);
     assert.match(queries[0], /CREATE TABLE IF NOT EXISTS attachments/i);
     assert.match(queries[0], /CREATE TABLE IF NOT EXISTS mailbox_ingest_jobs/i);
@@ -83,4 +83,8 @@ test('bootstraps the mailbox schema with the required tables', async () => {
     assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_date_value_idx/i);
     assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_thread_subject_idx/i);
     assert.match(queries[0], /CREATE INDEX IF NOT EXISTS attachments_email_id_idx/i);
+    const migrationSql = queries.slice(1).join('\n');
+    assert.match(migrationSql, /muted_until/i);
+    assert.match(migrationSql, /snoozed_until/i);
+    assert.match(migrationSql, /scheduled_send_at/i);
 });

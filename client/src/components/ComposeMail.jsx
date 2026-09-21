@@ -7,6 +7,7 @@ import { API_URLS } from '../services/api.urls';
 import { MAIL_FROM, MAILBOX_USER } from '../config/env';
 import { useCompose } from '../context/ComposeContext';
 import { useLayout } from '../context/LayoutContext';
+import { useUndoDelete } from '../context/UndoDeleteContext';
 import {
     applySignatureHtml,
     htmlToPlainText,
@@ -150,6 +151,7 @@ const hasDraftContent = (draft = {}) => (
 const ComposeWindow = ({ item, index, onSent }) => {
     const { closeCompose, setComposeState } = useCompose();
     const { isMobile } = useLayout();
+    const { showDeferredAction } = useUndoDelete();
     const { id: composeId, draft, composeState } = item;
     const [data, setData] = useState({ to: '', cc: '', bcc: '', subject: '', body: '', html: '' });
     const [toRecipients, setToRecipients] = useState([]);
@@ -158,6 +160,8 @@ const ComposeWindow = ({ item, index, onSent }) => {
     const [toActiveIndex, setToActiveIndex] = useState(0);
     const [showCc, setShowCc] = useState(false);
     const [showBcc, setShowBcc] = useState(false);
+    const [scheduledAt, setScheduledAt] = useState('');
+    const [templates, setTemplates] = useState([]);
     const toFieldRef = useRef(null);
     const [savedAttachments, setSavedAttachments] = useState([]);
     const [newAttachments, setNewAttachments] = useState([]);
@@ -247,6 +251,12 @@ const ComposeWindow = ({ item, index, onSent }) => {
                 setSignatureOptions(signatures);
                 setSelectedSignatureEmail(selectedSignature.email || '');
                 setSignatureEnabled(shouldApplySignature);
+                setTemplates(Array.isArray(settingsResult.data?.general?.templates)
+                    ? settingsResult.data.general.templates
+                    : []);
+                setScheduledAt(draft.scheduled_send_at
+                    ? new Date(draft.scheduled_send_at).toISOString().slice(0, 16)
+                    : '');
                 setToRecipients(parseRecipientList(draft.to));
                 setToInput('');
                 setData({
@@ -554,6 +564,9 @@ const ComposeWindow = ({ item, index, onSent }) => {
             draftPayload.append('in_reply_to', saveState.in_reply_to);
             draftPayload.append('references', JSON.stringify(saveState.references));
             draftPayload.append('retained_attachments', JSON.stringify(draftSnapshot.retained_attachments));
+            if (scheduledAt) {
+                draftPayload.append('scheduled_send_at', new Date(scheduledAt).toISOString());
+            }
             attachmentState.pending.forEach((file) => draftPayload.append('attachments', file));
 
             const result = await saveDraftService.call(draftPayload, '', { silent });
@@ -579,7 +592,7 @@ const ComposeWindow = ({ item, index, onSent }) => {
             lastSavedDraftRef.current = JSON.stringify({ ...draftSnapshot, id: draftIdRef.current, new_attachments: [] });
             return result;
         }, { coalesce: silent });
-    }, [data, draft.in_reply_to, draft.references, getToValue, replaceNewAttachments, replaceSavedAttachments, saveDraftService]);
+    }, [data, draft.in_reply_to, draft.references, getToValue, replaceNewAttachments, replaceSavedAttachments, saveDraftService, scheduledAt]);
 
     useEffect(() => {
         const hasAnyDraftContent = hasDraftContent({ ...data, to: getToValue() }) || savedAttachments.length > 0 || newAttachments.length > 0;
@@ -614,6 +627,27 @@ const ComposeWindow = ({ item, index, onSent }) => {
             return;
         }
 
+        if (scheduledAt) {
+            const when = new Date(scheduledAt);
+            if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+                setSnackbar({ open: true, message: 'Pick a future schedule time', severity: 'error' });
+                return;
+            }
+            hasUserEditedRef.current = true;
+            const result = await saveDraft({ silent: false });
+            if (result.error) {
+                setSnackbar({ open: true, message: result.error, severity: 'error' });
+                return;
+            }
+            setSnackbar({ open: true, message: `Scheduled for ${when.toLocaleString()}`, severity: 'success' });
+            closeCompose(composeId);
+            resetForm();
+            if (onSent) {
+                onSent();
+            }
+            return;
+        }
+
         const sendState = {
             to,
             cc: data.cc,
@@ -626,77 +660,97 @@ const ComposeWindow = ({ item, index, onSent }) => {
         };
         sendStartedRef.current = true;
         setSendQueued(true);
-
-        let result;
-        try {
-            result = await saveQueueRef.current.enqueueExclusive(async () => {
-                const payload = new FormData();
-                payload.append('to', sendState.to);
-                if (sendState.cc?.trim()) {
-                    payload.append('cc', sendState.cc);
-                }
-                if (sendState.bcc?.trim()) {
-                    payload.append('bcc', sendState.bcc);
-                }
-                payload.append('subject', sendState.subject);
-                payload.append('body', sendState.body);
-                payload.append('html', sendState.html);
-                if (sendState.inReplyTo) {
-                    payload.append('inReplyTo', sendState.inReplyTo);
-                }
-                if (sendState.references.length) {
-                    payload.append('references', sendState.references.join(','));
-                }
-                if (draftIdRef.current) {
-                    payload.append('draftId', draftIdRef.current);
-                }
-                payload.append('retained_attachments', JSON.stringify(
-                    savedAttachmentsRef.current.map((attachment) => attachment.attachment_id).filter(Boolean)
-                ));
-                newAttachmentsRef.current.forEach((file) => payload.append('attachments', file));
-                const forwardedRefs = forwardedAttachments
-                    .map((attachment) => ({
-                        emailId: attachment.emailId,
-                        attachmentId: attachment.attachmentId
-                    }))
-                    .filter((attachment) => attachment.emailId && attachment.attachmentId);
-                if (forwardedRefs.length) {
-                    payload.append('forwardedAttachments', JSON.stringify(forwardedRefs));
-                }
-
-                const sendResult = await sendEmailService.call(payload);
-                if (sendResult.error) {
-                    return sendResult;
-                }
-
-                saveQueueRef.current.close();
-                if (draftIdRef.current) {
-                    await deleteEmailsService.call([draftIdRef.current], '', { silent: true });
-                    window.dispatchEvent(new CustomEvent('mailshot:draft-saved'));
-                }
-                return sendResult;
-            });
-        } catch (error) {
-            result = { error: error instanceof Error ? error.message : 'Unable to send message' };
-        }
-        if (result.cancelled) {
-            sendStartedRef.current = false;
-            setSendQueued(false);
-            return;
-        }
-        if (result.error) {
-            sendStartedRef.current = false;
-            setSendQueued(false);
-            setSnackbar({ open: true, message: result.error, severity: 'error' });
-            return;
-        }
-
-        setSnackbar({ open: true, message: 'Message sent', severity: 'success' });
         closeCompose(composeId);
-        resetForm();
-        if (onSent) {
-            onSent();
+
+        showDeferredAction({
+            message: 'Sending in a few seconds…',
+            delayMs: 8000,
+            cancel: () => {
+                sendStartedRef.current = false;
+                setSendQueued(false);
+                setSnackbar({ open: true, message: 'Send cancelled', severity: 'success' });
+            },
+            commit: async () => {
+                let result;
+                try {
+                    result = await saveQueueRef.current.enqueueExclusive(async () => {
+                        const payload = new FormData();
+                        payload.append('to', sendState.to);
+                        if (sendState.cc?.trim()) {
+                            payload.append('cc', sendState.cc);
+                        }
+                        if (sendState.bcc?.trim()) {
+                            payload.append('bcc', sendState.bcc);
+                        }
+                        payload.append('subject', sendState.subject);
+                        payload.append('body', sendState.body);
+                        payload.append('html', sendState.html);
+                        if (sendState.inReplyTo) {
+                            payload.append('inReplyTo', sendState.inReplyTo);
+                        }
+                        if (sendState.references.length) {
+                            payload.append('references', sendState.references.join(','));
+                        }
+                        if (draftIdRef.current) {
+                            payload.append('draftId', draftIdRef.current);
+                        }
+                        payload.append('retained_attachments', JSON.stringify(
+                            savedAttachmentsRef.current.map((attachment) => attachment.attachment_id).filter(Boolean)
+                        ));
+                        newAttachmentsRef.current.forEach((file) => payload.append('attachments', file));
+                        const forwardedRefs = forwardedAttachments
+                            .map((attachment) => ({
+                                emailId: attachment.emailId,
+                                attachmentId: attachment.attachmentId
+                            }))
+                            .filter((attachment) => attachment.emailId && attachment.attachmentId);
+                        if (forwardedRefs.length) {
+                            payload.append('forwardedAttachments', JSON.stringify(forwardedRefs));
+                        }
+
+                        const sendResult = await sendEmailService.call(payload);
+                        if (sendResult.error) {
+                            return sendResult;
+                        }
+
+                        saveQueueRef.current.close();
+                        if (draftIdRef.current) {
+                            await deleteEmailsService.call([draftIdRef.current], '', { silent: true });
+                            window.dispatchEvent(new CustomEvent('mailshot:draft-saved'));
+                        }
+                        return sendResult;
+                    });
+                } catch (error) {
+                    result = { error: error instanceof Error ? error.message : 'Unable to send message' };
+                }
+
+                if (result?.error) {
+                    sendStartedRef.current = false;
+                    setSendQueued(false);
+                    setSnackbar({ open: true, message: result.error, severity: 'error' });
+                    return;
+                }
+
+                setSendQueued(false);
+                resetForm();
+                if (onSent) {
+                    onSent();
+                }
+            }
+        });
+    };
+
+    const applyTemplate = (template) => {
+        if (!template) {
+            return;
         }
+        hasUserEditedRef.current = true;
+        setData((current) => ({
+            ...current,
+            subject: template.subject || current.subject,
+            html: sanitizeComposeHtml(template.body_html || ''),
+            body: htmlToPlainText(template.body_html || '')
+        }));
     };
 
     const saveDraftAndClose = async () => {
@@ -996,13 +1050,13 @@ const ComposeWindow = ({ item, index, onSent }) => {
                         </div>
                     )}
 
-                    <div className="flex shrink-0 items-center justify-between border-t border-slate-100 px-3 py-3">
+                    <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-3">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <Button type="submit" disabled={sendQueued || sendEmailService.isLoading} className="rounded-full">
                                 {sendQueued || sendEmailService.isLoading ? <Spinner size={18} className="border-white/30 border-t-white" /> : (
                                     <>
                                         <Send className="h-4 w-4" />
-                                        Send
+                                        {scheduledAt ? 'Schedule' : 'Send'}
                                     </>
                                 )}
                             </Button>
@@ -1021,6 +1075,37 @@ const ComposeWindow = ({ item, index, onSent }) => {
                                 multiple
                                 onChange={addAttachments}
                             />
+                            <label className="flex items-center gap-1 text-xs text-slate-500">
+                                <span>Send later</span>
+                                <input
+                                    type="datetime-local"
+                                    value={scheduledAt}
+                                    onChange={(event) => {
+                                        hasUserEditedRef.current = true;
+                                        setScheduledAt(event.target.value);
+                                    }}
+                                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500"
+                                />
+                            </label>
+                            {templates.length > 0 && (
+                                <label className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                                    <span>Template</span>
+                                    <select
+                                        defaultValue=""
+                                        onChange={(event) => {
+                                            const template = templates.find((entry) => entry.id === event.target.value);
+                                            applyTemplate(template);
+                                            event.target.value = '';
+                                        }}
+                                        className="h-8 max-w-[13rem] rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500"
+                                    >
+                                        <option value="">Insert…</option>
+                                        {templates.map((template) => (
+                                            <option key={template.id} value={template.id}>{template.name}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
                             {signatureOptions.length > 1 && (
                                 <label className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
                                     <span>Signature</span>

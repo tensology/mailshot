@@ -549,7 +549,8 @@ const normalizeDraftPayload = (payload = {}) => {
         labels: [],
         attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
         in_reply_to: payload.in_reply_to || payload.inReplyTo || '',
-        references: Array.isArray(payload.references) ? payload.references : parseJsonArray(payload.references)
+        references: Array.isArray(payload.references) ? payload.references : parseJsonArray(payload.references),
+        scheduled_send_at: payload.scheduled_send_at || payload.scheduledSendAt || null
     };
 };
 
@@ -688,7 +689,11 @@ export const getMailboxCounts = async (_, response) => {
             const systemUnread = {};
 
             await Promise.all(COUNT_MAIL_TYPES.map(async (type) => {
-                systemUnread[type] = await repository.count({ ...buildEmailFilter(type), read: false });
+                systemUnread[type] = await repository.count({
+                    ...buildEmailFilter(type),
+                    read: false,
+                    exclude_muted: true
+                });
             }));
 
             return response.status(200).json({
@@ -1313,6 +1318,58 @@ export const markEmailsAsSpam = async (request, response) => {
 
         saveMailboxCacheToDisk();
         response.status(200).json({ message: 'emails marked as spam', count: ids.length });
+    } catch (error) {
+        respondServerError(response, error);
+    }
+};
+
+const parseUntilTimestamp = (value, fallbackHours = 24) => {
+    if (value && Number.isNaN(Number(value))) {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString();
+        }
+    }
+    const hours = Number(value) > 0 ? Number(value) : fallbackHours;
+    return new Date(Date.now() + (hours * 60 * 60 * 1000)).toISOString();
+};
+
+export const muteEmails = async (request, response) => {
+    try {
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+        const mutedUntil = parseUntilTimestamp(request.body.until || request.body.hours, 7 * 24);
+        if (!isMailboxStoreReady()) {
+            return response.status(503).json('Mailbox store unavailable');
+        }
+        await getMailboxRepository().updateMany(ids, { muted_until: mutedUntil, read: true });
+        return response.status(200).json({ message: 'emails muted', count: ids.length, muted_until: mutedUntil });
+    } catch (error) {
+        respondServerError(response, error);
+    }
+};
+
+export const snoozeEmails = async (request, response) => {
+    try {
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+        const snoozedUntil = parseUntilTimestamp(request.body.until || request.body.hours, 24);
+        if (!isMailboxStoreReady()) {
+            return response.status(503).json('Mailbox store unavailable');
+        }
+        await getMailboxRepository().updateMany(ids, { snoozed_until: snoozedUntil });
+        return response.status(200).json({ message: 'emails snoozed', count: ids.length, snoozed_until: snoozedUntil });
+    } catch (error) {
+        respondServerError(response, error);
+    }
+};
+
+export const wakeSnoozedEmails = async (request, response) => {
+    try {
+        const ids = await resolveBulkEmailSelection(request.body, 'inbox');
+        if (!isMailboxStoreReady()) {
+            return response.status(503).json('Mailbox store unavailable');
+        }
+        await getMailboxRepository().updateMany(ids, { snoozed_until: null });
+        return response.status(200).json({ message: 'emails woken', count: ids.length });
     } catch (error) {
         respondServerError(response, error);
     }

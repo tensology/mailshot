@@ -75,3 +75,23 @@
     transform: translateX(calc(var(--mailshot-marquee-distance, 640px) * -1));
   }
 }
+
+@media print {
+  body {
+    background: white !important;
+  }
+
+  .print\:hidden,
+  [role="toolbar"],
+  nav,
+  aside,
+  .mailshot-no-print {
+    display: none !important;
+  }
+
+  .mailshot-print-root {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+}

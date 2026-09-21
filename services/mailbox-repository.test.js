@@ -68,6 +68,9 @@ test('maps Postgres rows into the existing mailbox shape', () => {
         read_aloud_status: '',
         imap_mailbox: 'INBOX',
         imap_uid: '99',
+        muted_until: null,
+        snoozed_until: null,
+        scheduled_send_at: null,
         attachments: [{ attachment_id: 'a1', filename: 'ticket.pdf' }]
     });
 });

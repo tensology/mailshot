@@ -10,9 +10,10 @@ import { slugify } from '../utils/slug.js';
 import { sendMail } from './mailer.js';
 import { findSettingsForEmail, getSettings, markAutoresponderSent } from './settings-store.js';
 import { findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
-import { findLabelRuleForEmail } from './label-rule-store.js';
+import { findLabelRuleForMessage } from './label-rule-store.js';
 import { enqueueEmailSummary } from './email-summary-service.js';
 import { getMailboxRepository, isMailboxStoreReady } from './postgres-mailbox-store.js';
+import { applyParsedSearchToFilter, parseSearchQuery } from './search-query.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
@@ -75,7 +76,7 @@ const applyLabelRule = async (payload = {}) => {
         };
     }
 
-    const rule = await findLabelRuleForEmail(payload.from);
+    const rule = await findLabelRuleForMessage({ from: payload.from, subject: payload.subject });
     if (!rule) {
         return {
             labels: [],
@@ -389,39 +390,36 @@ export const deleteCachedEmails = (ids = []) => {
 
 export const buildEmailFilter = (type, query = {}) => {
     const unreadFilter = String(query.unread || '') === 'true' ? { read: false } : {};
-    const searchFilter = query.search ? { search: String(query.search).trim() } : {};
+    const rawSearch = query.search ? String(query.search).trim() : '';
+    const parsedSearch = rawSearch ? parseSearchQuery(rawSearch) : null;
+    const searchFilter = rawSearch && !parsedSearch
+        ? { search: rawSearch }
+        : {};
     const participantFilter = query.participant ? { participant: String(query.participant).trim() } : {};
 
+    let filter;
     if (type === 'starred') {
-        return { starred: true, bin: false, archived: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
-    }
-    if (type === 'bin') {
-        return { bin: true, ...unreadFilter, ...searchFilter, ...participantFilter };
-    }
-    if (type === 'spam') {
-        return { spam: true, bin: false, ...unreadFilter, ...searchFilter, ...participantFilter };
-    }
-    if (type === 'archived') {
-        return { archived: true, bin: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
-    }
-    if (type === 'allmail') {
-        const filter = { bin: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
+        filter = { starred: true, bin: false, archived: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
+    } else if (type === 'bin') {
+        filter = { bin: true, ...unreadFilter, ...searchFilter, ...participantFilter };
+    } else if (type === 'spam') {
+        filter = { spam: true, bin: false, ...unreadFilter, ...searchFilter, ...participantFilter };
+    } else if (type === 'archived') {
+        filter = { archived: true, bin: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
+    } else if (type === 'allmail') {
+        filter = { bin: false, spam: false, ...unreadFilter, ...searchFilter, ...participantFilter };
         if (query.label) {
             filter.label = query.label;
         }
-        return filter;
-    }
-    if (type === 'everywhere') {
-        // Global search: no mailbox exclusions (includes bin / spam / archived).
-        return {
+    } else if (type === 'everywhere') {
+        filter = {
             ...unreadFilter,
             ...searchFilter,
             ...participantFilter,
             ...(query.label ? { label: query.label } : {})
         };
-    }
-    if (type === 'inbox') {
-        return {
+    } else if (type === 'inbox') {
+        filter = {
             type: 'inbox',
             bin: false,
             archived: false,
@@ -432,15 +430,27 @@ export const buildEmailFilter = (type, query = {}) => {
             ...participantFilter,
             ...(query.label ? { label: query.label } : {}),
         };
+    } else {
+        filter = {
+            type,
+            spam: false,
+            ...unreadFilter,
+            ...searchFilter,
+            ...participantFilter,
+            ...(query.label ? { label: query.label } : {}),
+        };
     }
-    return {
-        type,
-        spam: false,
-        ...unreadFilter,
-        ...searchFilter,
-        ...participantFilter,
-        ...(query.label ? { label: query.label } : {}),
-    };
+
+    if (parsedSearch) {
+        filter = applyParsedSearchToFilter(filter, parsedSearch);
+    }
+
+    // Hide snoozed mail from normal views until wake time (unless searching everywhere).
+    if (type !== 'everywhere' && type !== 'bin') {
+        filter.exclude_snoozed = true;
+    }
+
+    return filter;
 };
 
 const SYNC_RECENT_UID_WINDOW = Number(process.env.MAILBOX_SYNC_UID_WINDOW || 200);
@@ -1039,10 +1049,25 @@ export const startMailboxSync = (options = {}) => {
         console.log(`Loaded ${loaded} emails from disk cache`);
     }
 
-    syncOnce().catch(err => console.error('Mail sync failed:', err.message));
-    syncInterval = setInterval(() => {
-        syncOnce().catch(err => console.error('Mail sync failed:', err.message));
-    }, intervalMs);
+    const tick = async () => {
+        try {
+            await syncOnce();
+        } catch (err) {
+            console.error('Mail sync failed:', err.message);
+        }
+        try {
+            const { processDueScheduledSends } = await import('./scheduled-send.js');
+            const result = await processDueScheduledSends();
+            if (result.sent > 0) {
+                console.log(`Sent ${result.sent} scheduled message(s)`);
+            }
+        } catch (err) {
+            console.error('Scheduled send sweep failed:', err.message);
+        }
+    };
+
+    tick();
+    syncInterval = setInterval(tick, intervalMs);
 };
 
 export const syncMailboxNow = async () => syncOnce();

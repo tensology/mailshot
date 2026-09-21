@@ -17,6 +17,9 @@ import {
     restoreEmailsFromBin,
     markEmailsAsSpam,
     restoreEmailsFromSpam,
+    muteEmails,
+    snoozeEmails,
+    wakeSnoozedEmails,
     archiveEmails,
     restoreArchivedEmails,
     sendEmail,
@@ -108,6 +111,9 @@ routes.post('/bin', moveEmailsToBin);
 routes.post('/bin/restore', restoreEmailsFromBin);
 routes.post('/spam', markEmailsAsSpam);
 routes.post('/spam/restore', restoreEmailsFromSpam);
+routes.post('/mute', muteEmails);
+routes.post('/snooze', snoozeEmails);
+routes.post('/snooze/wake', wakeSnoozedEmails);
 routes.post('/archive', archiveEmails);
 routes.post('/archive/restore', restoreArchivedEmails);
 routes.post('/move-to-label', moveEmailsToLabel);

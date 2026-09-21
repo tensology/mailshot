@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import Setting from '../model/setting.js';
 import { isDbConnected } from '../database/db.js';
 import { providerDefaults } from './ai-provider.js';
@@ -33,7 +34,8 @@ const defaultSettings = () => ({
         signature_html: '',
         autoresponder_enabled: false,
         autoresponder_html: '',
-        autoresponder_subject: 'Re: {{subject}}'
+        autoresponder_subject: 'Re: {{subject}}',
+        templates: []
     },
     ai: {
         enabled: false,
@@ -172,6 +174,14 @@ const mergeSettings = (value = {}) => {
         selected_email: selectedEmail,
         signatures,
         autoresponders,
+        templates: Array.isArray(rawGeneral.templates)
+            ? rawGeneral.templates.map((entry = {}) => ({
+                id: String(entry.id || randomUUID()),
+                name: String(entry.name || 'Template').trim() || 'Template',
+                subject: String(entry.subject || ''),
+                body_html: String(entry.body_html || entry.html || '')
+            }))
+            : [],
         signature_html: selectedSettings.signature?.signature_html || '',
         autoresponder_enabled: Boolean(selectedSettings.autoresponder?.enabled),
         autoresponder_html: selectedSettings.autoresponder?.html || '',

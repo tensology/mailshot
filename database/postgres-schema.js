@@ -98,12 +98,23 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 `;
 
+const MAILBOX_SCHEMA_MIGRATIONS = [
+    'ALTER TABLE emails ADD COLUMN IF NOT EXISTS muted_until TIMESTAMPTZ',
+    'ALTER TABLE emails ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMPTZ',
+    'ALTER TABLE emails ADD COLUMN IF NOT EXISTS scheduled_send_at TIMESTAMPTZ',
+    'CREATE INDEX IF NOT EXISTS emails_snoozed_until_idx ON emails (snoozed_until) WHERE snoozed_until IS NOT NULL',
+    'CREATE INDEX IF NOT EXISTS emails_scheduled_send_at_idx ON emails (scheduled_send_at) WHERE scheduled_send_at IS NOT NULL'
+];
+
 export const ensurePostgresSchema = async (pool) => {
     if (!pool?.query) {
         throw new Error('A Postgres pool with query(sql) is required.');
     }
 
     await pool.query(MAILBOX_SCHEMA_SQL);
+    for (const statement of MAILBOX_SCHEMA_MIGRATIONS) {
+        await pool.query(statement);
+    }
 };
 
 export { MAILBOX_SCHEMA_SQL };

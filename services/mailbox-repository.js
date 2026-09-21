@@ -80,7 +80,10 @@ const normalizeEmailPayload = (payload = {}) => ({
     read_summary_at: payload.read_summary_at || null,
     read_aloud_status: String(payload.read_aloud_status || ''),
     imap_mailbox: String(payload.imap_mailbox || 'INBOX'),
-    imap_uid: String(payload.imap_uid || '')
+    imap_uid: String(payload.imap_uid || ''),
+    muted_until: payload.muted_until || null,
+    snoozed_until: payload.snoozed_until || null,
+    scheduled_send_at: payload.scheduled_send_at || null
 });
 
 export const mapEmailRowToMailboxEmail = (row = {}) => ({
@@ -112,6 +115,9 @@ export const mapEmailRowToMailboxEmail = (row = {}) => ({
     read_aloud_status: row.read_aloud_status || '',
     imap_mailbox: row.imap_mailbox || 'INBOX',
     imap_uid: row.imap_uid || '',
+    muted_until: row.muted_until || null,
+    snoozed_until: row.snoozed_until || null,
+    scheduled_send_at: row.scheduled_send_at || null,
     attachments: normalizeArray(row.attachments)
 });
 
@@ -150,6 +156,43 @@ const buildWhereClause = (filter = {}) => {
         conditions.push(`e.labels ? $${index}`);
         values.push(String(filter.label));
         index += 1;
+    }
+
+    if (filter.from) {
+        conditions.push(`LOWER(e.from_address) LIKE $${index}`);
+        values.push(`%${String(filter.from).toLowerCase()}%`);
+        index += 1;
+    }
+
+    if (filter.to) {
+        conditions.push(`LOWER(CONCAT_WS(' ', e.to_address, e.cc_address)) LIKE $${index}`);
+        values.push(`%${String(filter.to).toLowerCase()}%`);
+        index += 1;
+    }
+
+    if (filter.subject) {
+        conditions.push(`LOWER(e.subject) LIKE $${index}`);
+        values.push(`%${String(filter.subject).toLowerCase()}%`);
+        index += 1;
+    }
+
+    if (filter.has_attachment) {
+        conditions.push(`EXISTS (
+            SELECT 1 FROM attachments a_has
+            WHERE a_has.email_id = e.id
+        )`);
+    }
+
+    if (filter.exclude_snoozed) {
+        conditions.push(`(e.snoozed_until IS NULL OR e.snoozed_until <= NOW())`);
+    }
+
+    if (filter.exclude_muted) {
+        conditions.push(`(e.muted_until IS NULL OR e.muted_until <= NOW())`);
+    }
+
+    if (filter.scheduled_due) {
+        conditions.push(`e.scheduled_send_at IS NOT NULL AND e.scheduled_send_at <= NOW()`);
     }
 
     if (filter.search) {
@@ -340,12 +383,14 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     id, message_id, type, subject, body, body_html, from_address, to_address,
                     cc_address, bcc_address, date_value, name, image, read, labels, references_json,
                     starred, bin, archived, spam, in_inbox, in_reply_to, read_summary,
-                    read_summary_status, read_summary_at, read_aloud_status, imap_mailbox, imap_uid
+                    read_summary_status, read_summary_at, read_aloud_status, imap_mailbox, imap_uid,
+                    scheduled_send_at
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
                     $9, $10, $11, $12, $13, $14, $15::jsonb, $16::jsonb,
                     $17, $18, $19, $20, $21, $22, $23,
-                    $24, $25, $26, $27, $28
+                    $24, $25, $26, $27, $28,
+                    $29
                 )
                 ON CONFLICT (id)
                 DO UPDATE SET
@@ -369,6 +414,7 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     read_aloud_status = EXCLUDED.read_aloud_status,
                     imap_mailbox = EXCLUDED.imap_mailbox,
                     imap_uid = EXCLUDED.imap_uid,
+                    scheduled_send_at = COALESCE(EXCLUDED.scheduled_send_at, emails.scheduled_send_at),
                     -- Keep mailbox taxonomy set by the UI (archive/bin/spam/star).
                     starred = emails.starred,
                     bin = emails.bin,
@@ -376,6 +422,8 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     spam = emails.spam,
                     in_inbox = emails.in_inbox,
                     labels = emails.labels,
+                    muted_until = emails.muted_until,
+                    snoozed_until = emails.snoozed_until,
                     updated_at = NOW()
                 RETURNING *`,
                 [
@@ -406,7 +454,8 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     email.read_summary_at,
                     email.read_aloud_status,
                     email.imap_mailbox,
-                    email.imap_uid
+                    email.imap_uid,
+                    email.scheduled_send_at
                 ]
             );
 
