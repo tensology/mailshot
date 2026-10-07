@@ -39,6 +39,83 @@
     scrollbar-color: #cbd5e1 transparent;
   }
 
+  .mailshot-email-content {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  .mailshot-email-content :where(p, div, span, li, td, th, blockquote) {
+    font-family: inherit !important;
+    line-height: inherit !important;
+  }
+
+  .mailshot-email-content :where(p, li, td, th, blockquote) {
+    font-size: inherit !important;
+  }
+
+  .mailshot-email-content p {
+    margin: 0 0 0.75rem !important;
+  }
+
+  .mailshot-email-content p:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .mailshot-email-content ul,
+  .mailshot-email-content ol {
+    margin: 0.75rem 0 !important;
+    padding-left: 1.5rem !important;
+  }
+
+  .mailshot-email-content ul {
+    list-style: disc outside !important;
+  }
+
+  .mailshot-email-content ol {
+    list-style: decimal outside !important;
+  }
+
+  .mailshot-email-content li {
+    display: list-item !important;
+    margin: 0.25rem 0 !important;
+  }
+
+  .mailshot-email-content li::marker {
+    color: #64748b;
+  }
+
+  .mailshot-email-content table:has(th) {
+    display: table !important;
+    width: 100% !important;
+    min-width: 36rem;
+    margin: 0.75rem 0 1.25rem !important;
+    border: 1px solid #cbd5e1 !important;
+    border-collapse: collapse !important;
+    background: #fff;
+  }
+
+  .mailshot-email-content table:has(th) th,
+  .mailshot-email-content table:has(th) td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 0.625rem 0.75rem !important;
+    vertical-align: top;
+  }
+
+  .mailshot-email-content table:has(th) th {
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  .mailshot-email-content table:has(th) tbody tr:nth-child(even) > td {
+    background: #f8fafc;
+  }
+
+  .mailshot-email-content table:has(th) tbody tr:hover > td {
+    background: #eff6ff;
+  }
+
   .mailshot-marquee-viewport {
     display: block;
     overflow: hidden;
