@@ -118,7 +118,9 @@ const ComposeMail = ({ onSent }) => {
             const selectedSignature = signatures.find((entry) => baseBody.trim().endsWith(entry.signature))
                 || signatures[0]
                 || { email: '', signature: '' };
-            const shouldApplySignature = selectedSignature.signature && !draft.in_reply_to;
+            const shouldApplySignature = selectedSignature.signature
+                && !draft.in_reply_to
+                && !(draft._id || draft.id);
             if (!cancelled) {
                 appliedSignatureRef.current = shouldApplySignature ? selectedSignature.signature : '';
                 setSignatureOptions(signatures);
