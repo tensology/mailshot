@@ -575,6 +575,7 @@ test('finds a thread from message ids and normalized subject without loading the
     });
 
     const thread = await repository.findThread({
+        _id: 'email-10',
         messageId: '<msg-10>',
         in_reply_to: '<msg-9>',
         references: ['<root>'],
@@ -587,9 +588,11 @@ test('finds a thread from message ids and normalized subject without loading the
     assert.match(calls[0].text, /WITH RECURSIVE related_ids/i);
     assert.match(calls[0].text, /e\.in_reply_to = r\.message_id/i);
     assert.match(calls[0].text, /e\.references_json \? r\.message_id/i);
+    assert.match(calls[0].text, /e\.bin = FALSE OR e\.id = \$3/i);
     assert.match(calls[0].text, /ORDER BY e\.date_value DESC/i);
     assert.deepEqual(calls[0].values[0], ['<msg-10>', '<msg-9>', '<root>']);
     assert.equal(calls[0].values[1], 'project update');
+    assert.equal(calls[0].values[2], 'email-10');
 });
 
 test('upserts draft mail by id when no message id exists', async () => {

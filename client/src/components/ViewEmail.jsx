@@ -491,8 +491,9 @@ const ViewEmail = () => {
                         const filename = attachment.filename || 'attachment';
                         const isPdf = contentType === 'application/pdf';
                         const isImage = contentType.startsWith('image/') && contentType !== 'image/svg+xml';
+                        const isAudio = contentType.startsWith('audio/');
                         const isVideo = contentType.startsWith('video/');
-                        const canPreview = isSafeAttachmentPreviewType(contentType) && (isPdf || isImage || isVideo);
+                        const canPreview = isSafeAttachmentPreviewType(contentType) && (isPdf || isImage || isAudio || isVideo);
                         const openPreview = async () => {
                             if (!canPreview) return;
                             const result = await loadAttachmentPreview({
@@ -504,7 +505,7 @@ const ViewEmail = () => {
                                 return;
                             }
                             setPreviewItem({
-                                kind: isPdf ? 'pdf' : isImage ? 'image' : 'video',
+                                kind: isPdf ? 'pdf' : isImage ? 'image' : isAudio ? 'audio' : 'video',
                                 title: filename,
                                 url: result.data,
                                 objectUrl: result.data
@@ -524,10 +525,10 @@ const ViewEmail = () => {
                                     className="flex h-24 w-full items-center justify-center bg-slate-100 disabled:cursor-default"
                                     aria-label={canPreview ? `Preview ${filename}` : filename}
                                 >
-                                    {isVideo ? (
+                                    {isVideo || isAudio ? (
                                         <div className="flex flex-col items-center gap-1 text-slate-500">
-                                            <Play className="h-7 w-7" />
-                                            <span className="text-[11px]">Video</span>
+                                            {isAudio ? <Volume2 className="h-7 w-7" /> : <Play className="h-7 w-7" />}
+                                            <span className="text-[11px]">{isAudio ? 'Audio' : 'Video'}</span>
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center gap-1 text-slate-500">
@@ -729,6 +730,11 @@ const ViewEmail = () => {
                                     Open source
                                 </a>
                             )}
+                            {previewItem.objectUrl && (
+                                <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                    Open in new tab
+                                </a>
+                            )}
                             <IconButton label="Close preview" size="sm" onClick={() => setPreviewItem(null)}>
                                 <X className="h-4 w-4" />
                             </IconButton>
@@ -736,7 +742,8 @@ const ViewEmail = () => {
                         <div className="min-h-0 flex-1 bg-slate-100">
                             {previewItem.kind === 'image' && <img src={previewItem.url} alt="" className="h-full w-full object-contain" />}
                             {previewItem.kind === 'video' && <video src={previewItem.url} controls autoPlay className="h-full w-full bg-black" />}
-                            {previewItem.kind === 'pdf' && <object data={`${previewItem.url}#page=1`} type="application/pdf" className="h-full w-full bg-white" />}
+                            {previewItem.kind === 'audio' && <div className="flex h-full items-center justify-center p-8"><audio src={previewItem.url} controls autoPlay className="w-full max-w-2xl" /></div>}
+                            {previewItem.kind === 'pdf' && <iframe src={`${previewItem.url}#page=1&view=FitH`} title={previewItem.title} className="h-full w-full border-0 bg-white" />}
                             {previewItem.kind === 'embed' && <iframe src={previewItem.url} title={previewItem.title} className="h-full w-full border-0 bg-white" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
                         </div>
                     </div>

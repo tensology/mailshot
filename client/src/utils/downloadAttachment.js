@@ -3,7 +3,8 @@ export const downloadAttachment = async ({
     path,
     filename = 'attachment',
     documentObject = document,
-    urlObject = URL
+    urlObject = URL,
+    scheduleRevoke = (callback) => setTimeout(callback, 1000)
 }) => {
     const result = await call({}, path, { silent: true });
     if (result.error || !result.data) {
@@ -22,7 +23,7 @@ export const downloadAttachment = async ({
             link.remove();
         }
     } finally {
-        urlObject.revokeObjectURL(objectUrl);
+        scheduleRevoke(() => urlObject.revokeObjectURL(objectUrl));
     }
 
     return result;
@@ -35,6 +36,16 @@ const SAFE_PREVIEW_TYPES = new Set([
     'image/jpeg',
     'image/png',
     'image/webp',
+    'audio/aac',
+    'audio/flac',
+    'audio/m4a',
+    'audio/mp4',
+    'audio/mpeg',
+    'audio/ogg',
+    'audio/wav',
+    'audio/webm',
+    'audio/x-m4a',
+    'audio/x-wav',
     'video/mp4',
     'video/ogg',
     'video/quicktime',

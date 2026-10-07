@@ -38,7 +38,11 @@ test('downloads an authenticated blob with the requested filename and revokes it
         path: 'message-id/attachments/attachment-id',
         filename: 'notice.pdf',
         documentObject,
-        urlObject
+        urlObject,
+        scheduleRevoke: (callback) => {
+            calls.push('schedule-revoke');
+            callback();
+        }
     });
 
     assert.equal(result.error, '');
@@ -50,6 +54,7 @@ test('downloads an authenticated blob with the requested filename and revokes it
         ['append', link],
         'click',
         'remove',
+        'schedule-revoke',
         ['revoke', 'blob:authenticated']
     ]);
 });
@@ -69,6 +74,7 @@ test('does not create a browser download when the authenticated request fails', 
 test('allows passive preview types and rejects active attachment content', () => {
     assert.equal(isSafeAttachmentPreviewType('application/pdf'), true);
     assert.equal(isSafeAttachmentPreviewType('image/png; charset=binary'), true);
+    assert.equal(isSafeAttachmentPreviewType('audio/mpeg'), true);
     assert.equal(isSafeAttachmentPreviewType('image/svg+xml'), false);
     assert.equal(isSafeAttachmentPreviewType('text/html'), false);
 });

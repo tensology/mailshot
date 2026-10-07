@@ -367,9 +367,10 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     e.message_id IN (SELECT message_id FROM related_ids)
                     OR LOWER(REGEXP_REPLACE(e.subject, '^((re|fwd|fw):\\s*)+', '', 'i')) = $2
                 )
+                AND (e.bin = FALSE OR e.id = $3)
                 GROUP BY e.id
                 ORDER BY e.date_value DESC`,
-                [relatedIds, subjectKey]
+                [relatedIds, subjectKey, String(anchorEmail._id || anchorEmail.id || '')]
             );
 
             return result.rows.map(mapEmailRowToMailboxEmail);
