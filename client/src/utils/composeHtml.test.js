@@ -16,3 +16,10 @@ test('preserves safe table markup and removes unsafe content', () => {
     assert.match(result, /<td style="text-align:right">R 100<\/td>/);
     assert.doesNotMatch(result, /script|alert/);
 });
+
+test('preserves ordered and unordered lists from rich clipboard content', () => {
+    const result = sanitizeComposeHtml('<ul><li>First item</li><li><strong>Second item</strong></li></ul><ol><li>Third item</li></ol>');
+
+    assert.match(result, /<ul><li>First item<\/li><li><strong>Second item<\/strong><\/li><\/ul>/);
+    assert.match(result, /<ol><li>Third item<\/li><\/ol>/);
+});

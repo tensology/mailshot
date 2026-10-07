@@ -38,9 +38,7 @@ const getWindowClass = (composeState, isMobile) => {
     }
 
     if (composeState === 'expanded') {
-        return isMobile
-            ? 'inset-3 h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)]'
-            : 'h-[min(720px,calc(100dvh-3rem))] w-[min(960px,calc(100vw-3rem))]';
+        return 'inset-0 h-[100dvh] w-screen';
     }
 
     return isMobile
@@ -100,7 +98,7 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, placeholder = 'Write yo
                 role="textbox"
                 aria-multiline="true"
                 aria-label={placeholder}
-                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left"
+                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6"
                 onInput={syncEditor}
                 onBlur={syncEditor}
                 onPaste={pasteHtml}
@@ -796,17 +794,18 @@ const ComposeWindow = ({ item, index, onSent }) => {
     };
 
     const isMinimized = composeState === 'minimized';
+    const isExpanded = composeState === 'expanded';
     const windowClass = getWindowClass(composeState, isMobile);
     const desktopOffset = isMinimized ? index * 19 : index * 36;
-    const positionStyle = composeState === 'expanded' && isMobile
+    const positionStyle = isExpanded
         ? undefined
         : { right: isMobile ? '0.75rem' : `${1.5 + desktopOffset}rem` };
 
     return (
         <div
             style={positionStyle}
-            className={`fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all ${
-                composeState === 'expanded' && isMobile ? 'left-0 top-0' : 'bottom-0'
+            className={`fixed z-[60] flex flex-col overflow-hidden bg-white shadow-2xl transition-all ${
+                isExpanded ? 'left-0 top-0 rounded-none border-0' : 'bottom-0 rounded-2xl border border-slate-200'
             } ${windowClass}`}
         >
             <div
@@ -976,20 +975,24 @@ const ComposeWindow = ({ item, index, onSent }) => {
                         </div>
                     </div>
 
-                    <ComposeBodyEditor
-                        ref={bodyRef}
-                        value={data.html}
-                        onChange={onBodyHtmlChange}
-                        placeholder="Write your message"
-                        className="min-h-0 flex-1 overflow-hidden"
-                    />
+                    <div className={`flex min-h-0 flex-1 ${isExpanded && !isMobile ? 'flex-row' : 'flex-col'}`}>
+                        <ComposeBodyEditor
+                            ref={bodyRef}
+                            value={data.html}
+                            onChange={onBodyHtmlChange}
+                            placeholder="Write your message"
+                            className="min-h-0 flex-1 overflow-hidden"
+                        />
 
-                    {(savedAttachments.length > 0 || newAttachments.length > 0 || forwardedAttachments.length > 0) && (
-                        <div className="max-h-40 shrink-0 space-y-2 overflow-y-auto border-t border-slate-100 px-3 py-2">
-                            <p className="text-xs font-medium text-slate-500">
-                                {savedAttachments.length + newAttachments.length + forwardedAttachments.length} attachment{savedAttachments.length + newAttachments.length + forwardedAttachments.length === 1 ? '' : 's'} will be sent with this email
-                            </p>
-                            <div className="grid gap-2 sm:grid-cols-2">
+                        {(savedAttachments.length > 0 || newAttachments.length > 0 || forwardedAttachments.length > 0) && (
+                            <aside className={isExpanded && !isMobile
+                                ? 'w-80 shrink-0 space-y-2 overflow-y-auto border-l border-slate-100 px-3 py-3'
+                                : 'max-h-40 shrink-0 space-y-2 overflow-y-auto border-t border-slate-100 px-3 py-2'}
+                            >
+                                <p className="text-xs font-medium text-slate-500">
+                                    {savedAttachments.length + newAttachments.length + forwardedAttachments.length} attachment{savedAttachments.length + newAttachments.length + forwardedAttachments.length === 1 ? '' : 's'} will be sent with this email
+                                </p>
+                                <div className={isExpanded && !isMobile ? 'grid grid-cols-1 gap-2' : 'grid gap-2 sm:grid-cols-2'}>
                                 {forwardedAttachments.map((attachment, itemIndex) => (
                                     <div key={`${attachment.emailId}-${attachment.attachmentId}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
                                         <FileText className="h-4 w-4 shrink-0 text-blue-600" />
@@ -1049,9 +1052,10 @@ const ComposeWindow = ({ item, index, onSent }) => {
                                         </button>
                                     </div>
                                 ))}
-                            </div>
-                        </div>
-                    )}
+                                </div>
+                            </aside>
+                        )}
+                    </div>
 
                     <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-3">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
