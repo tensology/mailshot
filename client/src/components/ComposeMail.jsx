@@ -1,6 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import DOMPurify from 'dompurify';
 import { Download, FileText, Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -30,6 +29,7 @@ import {
     cleanContactName,
     filterContactSuggestions
 } from '../utils/contactSuggestions';
+import { sanitizeComposeHtml } from '../utils/composeHtml';
 import RecipientField from './RecipientField';
 
 const getWindowClass = (composeState, isMobile) => {
@@ -47,13 +47,6 @@ const getWindowClass = (composeState, isMobile) => {
         ? 'inset-x-3 bottom-3 h-[min(560px,calc(100dvh-5rem))] w-[calc(100vw-1.5rem)]'
         : 'h-[560px] w-[560px]';
 };
-
-const sanitizeComposeHtml = (html = '') => DOMPurify.sanitize(String(html || ''), {
-    ADD_ATTR: ['target', 'rel'],
-    ALLOWED_TAGS: [
-        'a', 'b', 'br', 'div', 'em', 'i', 'img', 'li', 'ol', 'p', 'span', 'strong', 'u', 'ul'
-    ]
-});
 
 const plainTextToHtml = (text = '') => String(text || '')
     .split(/\r?\n/)
@@ -89,6 +82,15 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, placeholder = 'Write yo
 
     const syncEditor = () => onChange(editorRef.current?.innerHTML || '');
 
+    const pasteHtml = (event) => {
+        const html = event.clipboardData?.getData('text/html');
+        if (!html) return;
+
+        event.preventDefault();
+        document.execCommand('insertHTML', false, sanitizeComposeHtml(html));
+        syncEditor();
+    };
+
     return (
         <div className={`relative ${className}`}>
             <div
@@ -98,9 +100,10 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, placeholder = 'Write yo
                 role="textbox"
                 aria-multiline="true"
                 aria-label={placeholder}
-                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md"
+                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left"
                 onInput={syncEditor}
                 onBlur={syncEditor}
+                onPaste={pasteHtml}
             />
             {!String(value || '').trim() && (
                 <span className="pointer-events-none absolute left-3 top-3 text-sm text-slate-400">{placeholder}</span>
@@ -982,7 +985,7 @@ const ComposeWindow = ({ item, index, onSent }) => {
                     />
 
                     {(savedAttachments.length > 0 || newAttachments.length > 0 || forwardedAttachments.length > 0) && (
-                        <div className="shrink-0 space-y-2 border-t border-slate-100 px-3 py-2">
+                        <div className="max-h-40 shrink-0 space-y-2 overflow-y-auto border-t border-slate-100 px-3 py-2">
                             <p className="text-xs font-medium text-slate-500">
                                 {savedAttachments.length + newAttachments.length + forwardedAttachments.length} attachment{savedAttachments.length + newAttachments.length + forwardedAttachments.length === 1 ? '' : 's'} will be sent with this email
                             </p>
