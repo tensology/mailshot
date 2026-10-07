@@ -12,8 +12,11 @@ const PLAIN_QUOTE_PATTERNS = [
 
 const HTML_QUOTE_PATTERNS = [
     /<div[^>]*class="[^"]*(?:gmail_quote|gmail_extra|yahoo_quoted|protonmail_quote|moz-cite-prefix)[^"]*"[\s\S]*$/i,
+    /<div[^>]*\bdata-zbluepencil-ignore(?:=(?:"[^"]*"|'[^']*'|[^\s>]+))?[^>]*>[\s\S]*$/i,
+    /<div[^>]*class=(?:"[^"]*\breplyHeader\b[^"]*"|'[^']*\breplyHeader\b[^']*')[^>]*>[\s\S]*$/i,
     /<div[^>]*id="[^"]*(?:divRplyFwdMsg|divtagdefaultwrapper|appendonsend)[^"]*"[\s\S]*$/i,
-    /<blockquote[\s\S]*$/i,
+    /<blockquote[^>]*\btype=(?:"cite"|'cite'|cite)[^>]*>[\s\S]*$/i,
+    /<blockquote[^>]*class=(?:"[^"]*(?:gmail_quote|yahoo_quoted|protonmail_quote)[^"]*"|'[^']*(?:gmail_quote|yahoo_quoted|protonmail_quote)[^']*')[^>]*>[\s\S]*$/i,
     /<(?:div|p|br|table|hr)[^>]*>\s*(?:<[^>]+>\s*)*(?:-{2,}\s*)?Forwarded message[\s\S]*$/i,
     /<(?:div|p|br|table|hr)[^>]*>\s*(?:<[^>]+>\s*)*Begin forwarded message:[\s\S]*$/i,
     /<(?:div|p|br|table|hr)[^>]*>\s*(?:<[^>]+>\s*)*(?:<b[^>]*>)?\s*From:\s*(?:<\/b>)?[\s\S]{0,1500}?(?:<b[^>]*>)?\s*(?:Sent|Date|To|Subject|Cc):\s*(?:<\/b>)?[\s\S]*$/i,
@@ -26,14 +29,16 @@ export const splitPlainQuotedContent = (text = '') => {
         return { main: '', quoted: '' };
     }
 
-    for (const pattern of PLAIN_QUOTE_PATTERNS) {
-        const match = pattern.exec(source);
-        if (match && match.index > 0) {
-            return {
-                main: source.slice(0, match.index).trimEnd(),
-                quoted: source.slice(match.index).trimStart()
-            };
-        }
+    const earliestMatch = PLAIN_QUOTE_PATTERNS
+        .map((pattern) => pattern.exec(source))
+        .filter((match) => match && match.index > 0)
+        .sort((left, right) => left.index - right.index)[0];
+
+    if (earliestMatch) {
+        return {
+            main: source.slice(0, earliestMatch.index).trimEnd(),
+            quoted: source.slice(earliestMatch.index).trimStart()
+        };
     }
 
     const lines = source.split('\n');

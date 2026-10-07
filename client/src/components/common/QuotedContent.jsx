@@ -27,7 +27,7 @@ const QuotedContent = ({ body, bodyHtml }) => {
     const showHtml = mainHtml && mainHtml.replace(/<[^>]+>/g, '').trim();
 
     return (
-        <div className="inline-block w-auto max-w-full overflow-x-auto text-left text-sm leading-6 text-slate-800 [overflow-wrap:anywhere] [&_*]:max-w-full [&_a]:text-blue-700 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-slate-200 [&_blockquote]:pl-3 [&_img]:h-auto [&_img]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+        <div className="mailshot-email-content inline-block w-auto max-w-full overflow-x-auto text-left text-sm leading-6 text-slate-800 [overflow-wrap:anywhere] [&_*]:max-w-full [&_a]:text-blue-700 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-slate-200 [&_blockquote]:pl-3 [&_img]:h-auto [&_img]:max-w-full [&_pre]:overflow-x-auto">
             {showHtml ? (
                 <div dangerouslySetInnerHTML={{ __html: mainHtml }} />
             ) : (
