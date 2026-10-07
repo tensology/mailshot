@@ -243,7 +243,9 @@ const ComposeWindow = ({ item, index, onSent }) => {
             const selectedSignature = signatures.find((entry) => entry.html && baseHtml.trim().endsWith(entry.html))
                 || signatures[0]
                 || { email: '', html: '', text: '' };
-            const shouldApplySignature = Boolean(selectedSignature.html) && !draft.in_reply_to;
+            const shouldApplySignature = Boolean(selectedSignature.html)
+                && !draft.in_reply_to
+                && !(draft._id || draft.id);
             const nextHtml = shouldApplySignature
                 ? applySignatureHtml(baseHtml, selectedSignature.html)
                 : baseHtml;
