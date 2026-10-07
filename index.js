@@ -33,6 +33,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
             mediaSrc: ["'self'", 'blob:'],
+            frameSrc: ["'self'", 'blob:'],
             connectSrc: ["'self'", ...String(process.env.MAILSHOT_ALLOWED_ORIGINS || 'https://mailshot.tensology.com')
                 .split(',')
                 .map((value) => value.trim())
