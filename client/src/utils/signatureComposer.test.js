@@ -44,13 +44,13 @@ test('collapses duplicate trailing signatures to exactly one copy', () => {
     assert.equal(htmlToPlainText(html), 'Hello\nPaul');
 });
 
-test('removes legacy forced signature image sizing', () => {
+test('normalizes signature images to a responsive 460px width', () => {
     assert.equal(
         normalizeSignatureHtml('<img src="x" style="max-width:240px;width:100%;height:auto;display:block;">'),
-        '<img src="x" style="height:auto;display:block;">'
+        '<img src="x" style="width:460px;max-width:100%;height:auto;display:block;">'
     );
     assert.equal(
-        normalizeSignatureHtml('<img src="x" style="max-width:100%;width:520px;height:auto;display:block;">'),
-        '<img src="x" style="height:auto;display:block;">'
+        normalizeSignatureHtml('<img src="x">'),
+        '<img src="x" style="width:460px;max-width:100%;height:auto;display:block;">'
     );
 });

@@ -25,26 +25,29 @@ export const htmlToPlainText = (html = '') => {
 
 const trimHtml = (html = '') => String(html || '').trim();
 
-const stripForcedImageSizing = (tag = '') => tag.replace(/\sstyle=(["'])(.*?)\1/i, (match, quote, style) => {
-    const declarations = style
-        .split(';')
-        .map((declaration) => declaration.trim())
-        .filter(Boolean)
-        .filter((declaration) => {
-            const [property, ...valueParts] = declaration.split(':');
-            const propertyName = String(property || '').trim().toLowerCase();
-            const value = valueParts.join(':').trim().toLowerCase();
-            return !(
-                (propertyName === 'width' && ['100%', '520px'].includes(value))
-                || (propertyName === 'max-width' && ['100%', '240px', '520px'].includes(value))
-            );
-        });
+const normalizeSignatureImageSizing = (tag = '') => {
+    const sizing = ['width:460px', 'max-width:100%', 'height:auto', 'display:block'];
+    const normalized = tag.replace(/\sstyle=(["'])(.*?)\1/i, (match, quote, style) => {
+        const declarations = style
+            .split(';')
+            .map((declaration) => declaration.trim())
+            .filter(Boolean)
+            .filter((declaration) => {
+                const [property] = declaration.split(':');
+                const propertyName = String(property || '').trim().toLowerCase();
+                return !['width', 'max-width', 'height', 'display'].includes(propertyName);
+            });
 
-    return declarations.length ? ` style=${quote}${declarations.join(';')};${quote}` : '';
-});
+        return ` style=${quote}${[...declarations, ...sizing].join(';')};${quote}`;
+    });
+
+    return normalized === tag
+        ? tag.replace(/\s*\/?>(\s*)$/, ` style="${sizing.join(';')};">$1`)
+        : normalized;
+};
 
 export const normalizeSignatureHtml = (html = '') => trimHtml(html)
-    .replace(/<img\b[^>]*>/gi, stripForcedImageSizing);
+    .replace(/<img\b[^>]*>/gi, normalizeSignatureImageSizing);
 
 export const normalizeSignatureOptions = (general = {}, fallbackEmail = 'paul@tensology.com') => {
     const entries = Array.isArray(general.signatures) ? general.signatures : [];
