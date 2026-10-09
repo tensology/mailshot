@@ -32,8 +32,10 @@ import {
 } from '../utils/emailListCache';
 import {
     buildForwardBody,
+    buildForwardHtml,
     buildReplyAllRecipients,
     buildReplyBody,
+    buildReplyHtml,
     buildReplyRecipients
 } from '../utils/recipients';
 import { useCompose } from '../context/ComposeContext';
@@ -45,7 +47,6 @@ import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
-import { formatEmailBody } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
 import { isDeleteKeyboardShortcut, getThreadSelectionIds } from '../utils/mailActions';
@@ -216,7 +217,8 @@ const ViewEmail = () => {
         }
     };
 
-    const openReplyDraft = (message, plainBody, mode) => {
+    const openReplyDraft = (message, mode) => {
+        const plainBody = message.body || '';
         const replySubject = (message.subject || '').startsWith('Re:')
             ? message.subject
             : `Re: ${message.subject || '(no subject)'}`;
@@ -239,6 +241,7 @@ const ViewEmail = () => {
                 to: '',
                 subject: (message.subject || '').startsWith('Fwd:') ? message.subject : `Fwd: ${message.subject || '(no subject)'}`,
                 body: buildForwardBody(message, plainBody),
+                body_html: buildForwardHtml(message, plainBody),
                 forwarded_attachments: forwardedAttachments,
                 title: 'Forward'
             });
@@ -253,6 +256,7 @@ const ViewEmail = () => {
                 show_cc: Boolean(cc),
                 subject: replySubject,
                 body: buildReplyBody(message, plainBody),
+                body_html: buildReplyHtml(message, plainBody),
                 in_reply_to: message.messageId || '',
                 references,
                 title: 'Reply all'
@@ -264,6 +268,7 @@ const ViewEmail = () => {
             to: buildReplyRecipients(message).join(', '),
             subject: replySubject,
             body: buildReplyBody(message, plainBody),
+            body_html: buildReplyHtml(message, plainBody),
             in_reply_to: message.messageId || '',
             references,
             title: 'Reply'
@@ -440,7 +445,7 @@ const ViewEmail = () => {
             return;
         }
 
-        openReplyDraft(primaryEmail, formatEmailBody(primaryEmail.body), mode);
+        openReplyDraft(primaryEmail, mode);
     };
 
     const startCurrentReadSummary = async () => {

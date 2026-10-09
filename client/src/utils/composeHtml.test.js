@@ -23,3 +23,12 @@ test('preserves ordered and unordered lists from rich clipboard content', () => 
     assert.match(result, /<ul><li>First item<\/li><li><strong>Second item<\/strong><\/li><\/ul>/);
     assert.match(result, /<ol><li>Third item<\/li><\/ol>/);
 });
+
+test('preserves quoted rich email markup and removes scripts', () => {
+    const result = sanitizeComposeHtml('<blockquote data-mailshot-quoted="true" style="color:#123"><table><tbody><tr><td><img src="https://example.com/logo.png"></td></tr></tbody></table><script>alert(1)</script></blockquote>');
+
+    assert.match(result, /<blockquote data-mailshot-quoted="true" style="color:#123">/);
+    assert.match(result, /<table>/);
+    assert.match(result, /<img src="https:\/\/example\.com\/logo\.png">/);
+    assert.doesNotMatch(result, /script|alert/);
+});

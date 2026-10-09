@@ -1,4 +1,17 @@
-import { parseSenderEmail } from './emailFormatter';
+import { extractHtmlBody, parseSenderEmail } from './emailFormatter.js';
+
+const escapeHtml = (value = '') => String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const plainTextToHtml = (value = '') => escapeHtml(value).replace(/\r?\n/g, '<br>');
+
+const originalMessageHtml = (email, plainBody) => (
+    extractHtmlBody(email.body_html) || plainTextToHtml(plainBody || email.body || '')
+);
 
 export const splitRecipients = (value = '') => {
     return String(value || '')
@@ -81,3 +94,25 @@ export const buildForwardBody = (email, plainBody) => {
 export const buildReplyBody = (email, plainBody) => {
     return `\n\nOn ${new Date(email.date).toLocaleString()}, ${email.from} wrote:\n${plainBody}`;
 };
+
+export const buildForwardHtml = (email, plainBody = '') => `
+    <div><br></div><div><br></div>
+    <div data-mailshot-quoted="true">
+        <div>---------- Forwarded message ---------</div>
+        <div><strong>From:</strong> ${escapeHtml(email.from)}</div>
+        <div><strong>Date:</strong> ${escapeHtml(new Date(email.date).toLocaleString())}</div>
+        <div><strong>Subject:</strong> ${escapeHtml(email.subject || '(no subject)')}</div>
+        <div><strong>To:</strong> ${escapeHtml(email.to)}</div>
+        ${email.cc ? `<div><strong>Cc:</strong> ${escapeHtml(email.cc)}</div>` : ''}
+        <div><br></div>
+        ${originalMessageHtml(email, plainBody)}
+    </div>
+`;
+
+export const buildReplyHtml = (email, plainBody = '') => `
+    <div><br></div><div><br></div>
+    <blockquote data-mailshot-quoted="true" style="margin:0 0 0 0.8ex;border-left:1px solid #cbd5e1;padding-left:1ex">
+        <div>On ${escapeHtml(new Date(email.date).toLocaleString())}, ${escapeHtml(email.from)} wrote:</div>
+        ${originalMessageHtml(email, plainBody)}
+    </blockquote>
+`;

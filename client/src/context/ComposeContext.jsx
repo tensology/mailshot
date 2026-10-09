@@ -58,7 +58,11 @@ export const ComposeProvider = ({ children }) => {
 
     const setComposeState = (id, composeState) => {
         setComposeItems((current) => current.map((item) => (
-            item.id === id ? { ...item, composeState } : item
+            item.id === id
+                ? { ...item, composeState }
+                : composeState === 'expanded'
+                    ? { ...item, composeState: 'minimized' }
+                    : item
         )));
     };
 

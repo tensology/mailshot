@@ -136,10 +136,26 @@
     white-space: nowrap;
   }
 
+  .group:hover .mailshot-compose-marquee,
+  .group:focus .mailshot-compose-marquee {
+    animation: mailshot-compose-marquee 6s linear infinite alternate;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .mailshot-marquee-track {
+    .mailshot-marquee-track,
+    .mailshot-compose-marquee {
       animation: none;
     }
+  }
+}
+
+@keyframes mailshot-compose-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(min(0px, 16rem - 100%)));
   }
 }
 

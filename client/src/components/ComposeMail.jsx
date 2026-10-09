@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, FileText, Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Eye, FileText, Mail, Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { MAIL_FROM, MAILBOX_USER } from '../config/env';
@@ -32,9 +32,9 @@ import {
 import { sanitizeComposeHtml } from '../utils/composeHtml';
 import RecipientField from './RecipientField';
 
-const getWindowClass = (composeState, isMobile) => {
+const getWindowClass = (composeState, isMobile, compactMinimized) => {
     if (composeState === 'minimized') {
-        return 'h-12 w-[min(18rem,88vw)]';
+        return compactMinimized ? 'h-12 w-16 shrink-0' : 'h-12 w-[min(18rem,88vw)] shrink-0';
     }
 
     if (composeState === 'expanded') {
@@ -42,8 +42,8 @@ const getWindowClass = (composeState, isMobile) => {
     }
 
     return isMobile
-        ? 'inset-x-3 bottom-3 h-[min(560px,calc(100dvh-5rem))] w-[calc(100vw-1.5rem)]'
-        : 'h-[560px] w-[560px]';
+        ? 'h-[min(560px,calc(100dvh-5rem))] w-[calc(100vw-1.5rem)] shrink-0'
+        : 'h-[560px] w-[560px] shrink-0';
 };
 
 const plainTextToHtml = (text = '') => String(text || '')
@@ -149,7 +149,7 @@ const hasDraftContent = (draft = {}) => (
     ['to', 'cc', 'bcc', 'subject', 'body', 'html', 'body_html'].some((field) => String(draft[field] || '').trim())
 );
 
-const ComposeWindow = ({ item, index, onSent }) => {
+const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
     const { closeCompose, setComposeState } = useCompose();
     const { isMobile } = useLayout();
     const { showDeferredAction } = useUndoDelete();
@@ -240,11 +240,10 @@ const ComposeWindow = ({ item, index, onSent }) => {
                 });
             }
 
-            const selectedSignature = signatures.find((entry) => entry.html && baseHtml.trim().endsWith(entry.html))
+            const selectedSignature = signatures.find((entry) => entry.html && baseHtml.includes(entry.html))
                 || signatures[0]
                 || { email: '', html: '', text: '' };
             const shouldApplySignature = Boolean(selectedSignature.html)
-                && !draft.in_reply_to
                 && !(draft._id || draft.id);
             const nextHtml = shouldApplySignature
                 ? applySignatureHtml(baseHtml, selectedSignature.html)
@@ -797,27 +796,41 @@ const ComposeWindow = ({ item, index, onSent }) => {
 
     const isMinimized = composeState === 'minimized';
     const isExpanded = composeState === 'expanded';
-    const windowClass = getWindowClass(composeState, isMobile);
-    const desktopOffset = isMinimized ? index * 19 : index * 36;
-    const positionStyle = isExpanded
-        ? undefined
-        : { right: isMobile ? '0.75rem' : `${1.5 + desktopOffset}rem` };
+    const compactMinimized = isMinimized && minimizedCount > 1;
+    const windowClass = getWindowClass(composeState, isMobile, compactMinimized);
+    const composeTitle = data.subject || draft.subject || draft.title || 'New Message';
 
     return (
         <div
-            style={positionStyle}
-            className={`fixed z-[60] flex flex-col overflow-hidden bg-white shadow-2xl transition-all ${
-                isExpanded ? 'left-0 top-0 rounded-none border-0' : 'bottom-0 rounded-2xl border border-slate-200'
+            className={`${isExpanded ? 'fixed' : 'relative'} z-[60] flex flex-col overflow-hidden bg-white shadow-2xl transition-all ${
+                isExpanded ? 'left-0 top-0 rounded-none border-0' : 'rounded-t-2xl border border-b-0 border-slate-200'
             } ${windowClass}`}
         >
             <div
-                className="flex min-h-11 items-center justify-between bg-slate-800 px-3 text-white"
+                className={`group relative flex min-h-11 items-center bg-slate-800 text-white ${compactMinimized ? 'justify-center px-2' : 'justify-between px-3'}`}
                 onClick={isMinimized ? () => setComposeState(composeId, 'normal') : undefined}
-                onKeyDown={undefined}
-                role="presentation"
+                onKeyDown={isMinimized ? (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setComposeState(composeId, 'normal');
+                    }
+                } : undefined}
+                role={isMinimized ? 'button' : 'presentation'}
+                tabIndex={isMinimized ? 0 : undefined}
+                aria-label={isMinimized ? `Restore ${composeTitle}` : undefined}
             >
-                <p className="truncate text-sm font-medium">{draft.title || 'New Message'}</p>
-                <div className="flex items-center">
+                {compactMinimized ? (
+                    <>
+                        <Mail className="h-4 w-4" />
+                        <span className="ml-1 text-xs font-semibold">{minimizedIndex + 1}</span>
+                        <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden max-w-72 overflow-hidden rounded-lg bg-slate-950 px-3 py-2 text-xs shadow-xl group-hover:block group-focus:block">
+                            <span className="mailshot-compose-marquee inline-block whitespace-nowrap">{composeTitle}</span>
+                        </div>
+                    </>
+                ) : (
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{composeTitle}</p>
+                )}
+                {!compactMinimized && <div className="flex items-center">
                     {!isMinimized && (
                         <IconButton
                             label={composeState === 'expanded' ? 'Restore' : 'Expand'}
@@ -850,7 +863,7 @@ const ComposeWindow = ({ item, index, onSent }) => {
                     >
                         <X className="h-4 w-4" />
                     </IconButton>
-                </div>
+                </div>}
             </div>
 
             {!isMinimized && (
@@ -1146,22 +1159,71 @@ const ComposeWindow = ({ item, index, onSent }) => {
 
 const ComposeMail = ({ onSent }) => {
     const { composeItems } = useCompose();
+    const shelfRef = useRef(null);
+    const [shelfOverflow, setShelfOverflow] = useState({ left: false, right: false });
+
+    const updateShelfOverflow = useCallback(() => {
+        const shelf = shelfRef.current;
+        if (!shelf) return;
+        setShelfOverflow({
+            left: shelf.scrollLeft > 2,
+            right: shelf.scrollLeft + shelf.clientWidth < shelf.scrollWidth - 2
+        });
+    }, []);
+
+    useEffect(() => {
+        const shelf = shelfRef.current;
+        if (!shelf) return undefined;
+        updateShelfOverflow();
+        const observer = new ResizeObserver(updateShelfOverflow);
+        observer.observe(shelf);
+        return () => observer.disconnect();
+    }, [composeItems, updateShelfOverflow]);
 
     if (!composeItems.length) {
         return null;
     }
 
+    const minimizedItems = composeItems.filter((item) => item.composeState === 'minimized');
+
     return createPortal(
-        <>
-            {composeItems.map((item, index) => (
-                <ComposeWindow
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    onSent={onSent}
-                />
-            ))}
-        </>,
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex items-end justify-end">
+            {shelfOverflow.left && (
+                <button
+                    type="button"
+                    aria-label="Previous compose window"
+                    className="pointer-events-auto absolute bottom-2 left-2 z-[70] rounded-full bg-slate-800 p-2 text-white shadow-lg hover:bg-slate-700"
+                    onClick={() => shelfRef.current?.scrollBy({ left: -Math.max(280, shelfRef.current.clientWidth * 0.75), behavior: 'smooth' })}
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
+            )}
+            <div
+                ref={shelfRef}
+                className="pointer-events-auto flex max-w-full items-end gap-2 overflow-x-auto px-6 pt-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                onScroll={updateShelfOverflow}
+            >
+                {composeItems.map((item) => (
+                    <ComposeWindow
+                        key={item.id}
+                        item={item}
+                        minimizedCount={minimizedItems.length}
+                        minimizedIndex={minimizedItems.findIndex((candidate) => candidate.id === item.id)}
+                        onSent={onSent}
+                    />
+                ))}
+            </div>
+            {shelfOverflow.right && (
+                <button
+                    type="button"
+                    aria-label="Next compose window"
+                    className="pointer-events-auto absolute bottom-2 right-2 z-[70] rounded-full bg-slate-800 p-2 text-white shadow-lg hover:bg-slate-700"
+                    onClick={() => shelfRef.current?.scrollBy({ left: Math.max(280, shelfRef.current.clientWidth * 0.75), behavior: 'smooth' })}
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+            )}
+        </div>,
         document.body
     );
 };

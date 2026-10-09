@@ -87,11 +87,14 @@ export const removeTrailingSignatureHtml = (bodyHtml = '', signatureHtml = '') =
 };
 
 export const applySignatureHtml = (bodyHtml = '', nextSignatureHtml = '', previousSignatureHtml = '') => {
-    const withoutPrevious = removeTrailingSignatureHtml(bodyHtml, previousSignatureHtml);
+    const quoteIndex = String(bodyHtml || '').search(/<(?:blockquote|div)\b[^>]*data-mailshot-quoted=["']?true/i);
+    const editableBody = quoteIndex < 0 ? bodyHtml : bodyHtml.slice(0, quoteIndex);
+    const quotedBody = quoteIndex < 0 ? '' : bodyHtml.slice(quoteIndex);
+    const withoutPrevious = removeTrailingSignatureHtml(editableBody, previousSignatureHtml);
     const next = trimHtml(nextSignatureHtml);
     if (!next) {
-        return withoutPrevious;
+        return `${withoutPrevious}${quotedBody}`;
     }
     const body = trimHtml(removeTrailingSignatureHtml(withoutPrevious, next));
-    return `${body}${body ? '<br>' : '<br><br>'}${next}`;
+    return `${body}${body ? '<br>' : '<br><br>'}${next}${quotedBody}`;
 };

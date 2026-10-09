@@ -44,6 +44,16 @@ test('collapses duplicate trailing signatures to exactly one copy', () => {
     assert.equal(htmlToPlainText(html), 'Hello\nPaul');
 });
 
+test('inserts and replaces a signature before quoted reply html', () => {
+    const first = '<p>Paul</p>';
+    const second = '<p>Paul H</p>';
+    const quoted = '<blockquote data-mailshot-quoted="true"><table><tbody><tr><td>Original</td></tr></tbody></table></blockquote>';
+    const signed = applySignatureHtml(`<div><br></div>${quoted}`, first);
+
+    assert.equal(signed, `<div><br></div><br>${first}${quoted}`);
+    assert.equal(applySignatureHtml(signed, second, first), `<div><br></div><br>${second}${quoted}`);
+});
+
 test('normalizes signature images to a responsive 460px width', () => {
     assert.equal(
         normalizeSignatureHtml('<img src="x" style="max-width:240px;width:100%;height:auto;display:block;">'),
