@@ -1,5 +1,6 @@
-const BASE_FAVICON = '/favicon.svg';
+const BASE_FAVICON = '/favicon-64.png';
 const BADGE_LIMIT = 99;
+let badgeRequest = 0;
 
 const ensureFaviconLink = () => {
     let link = document.querySelector('link[rel="icon"]');
@@ -25,14 +26,6 @@ const drawRoundedRect = (context, x, y, width, height, radius) => {
     context.closePath();
 };
 
-const drawMailshotMark = (context) => {
-    const path = new Path2D('M17 44V20h7.3l7.7 12.7L39.7 20H47v24h-6.5V30.7L34.1 41h-4.2l-6.4-10.3V44H17z');
-    context.save();
-    context.scale(2, 2);
-    context.fill(path);
-    context.restore();
-};
-
 export const setMailshotFaviconBadge = (count = 0) => {
     if (typeof document === 'undefined') {
         return;
@@ -40,41 +33,35 @@ export const setMailshotFaviconBadge = (count = 0) => {
 
     const link = ensureFaviconLink();
     const unreadCount = Math.max(0, Number(count) || 0);
+    const request = ++badgeRequest;
+    link.type = 'image/png';
+    link.href = BASE_FAVICON;
 
     if (unreadCount <= 0 || typeof document.createElement !== 'function') {
-        link.type = 'image/svg+xml';
-        link.href = BASE_FAVICON;
         return;
     }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    const context = canvas.getContext('2d');
-    if (!context) {
-        link.type = 'image/svg+xml';
-        link.href = BASE_FAVICON;
-        return;
-    }
+    const image = new Image();
+    image.onload = () => {
+        if (request !== badgeRequest) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const context = canvas.getContext('2d');
+        if (!context) return;
 
-    context.fillStyle = '#2563eb';
-    drawRoundedRect(context, 0, 0, 128, 128, 32);
-    context.fill();
+        context.drawImage(image, 0, 0, 128, 128);
+        context.fillStyle = '#2563eb';
+        drawRoundedRect(context, 72, 72, 56, 56, 18);
+        context.fill();
 
-    context.fillStyle = '#ffffff';
-    drawMailshotMark(context);
-
-    const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
-    context.textAlign = 'right';
-    context.textBaseline = 'alphabetic';
-    context.lineJoin = 'round';
-    context.lineWidth = label.length > 2 ? 11 : 13;
-    context.strokeStyle = '#ffffff';
-    context.fillStyle = '#020617';
-    context.font = label.length > 2 ? '900 54px Arial, sans-serif' : '900 78px Arial, sans-serif';
-    context.strokeText(label, 127, 126);
-    context.fillText(label, 127, 126);
-
-    link.type = 'image/png';
-    link.href = canvas.toDataURL('image/png');
+        const label = unreadCount > BADGE_LIMIT ? `${BADGE_LIMIT}+` : String(unreadCount);
+        context.fillStyle = '#ffffff';
+        context.font = label.length > 2 ? '800 25px Arial, sans-serif' : '800 36px Arial, sans-serif';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(label, 100, 101);
+        link.href = canvas.toDataURL('image/png');
+    };
+    image.src = '/mailshot-icon-192.png';
 };

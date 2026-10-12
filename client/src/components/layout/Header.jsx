@@ -52,9 +52,7 @@ const Header = () => {
                 </IconButton>
 
                 <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
-                        M
-                    </div>
+                    <img src="/mailshot-icon-192.png" alt="" className="h-9 w-9 object-contain drop-shadow-sm" />
                     <span className="inline text-base font-semibold text-slate-900">Mailshot</span>
                 </div>
 

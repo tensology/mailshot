@@ -16,7 +16,7 @@ const IconButton = ({
             type="button"
             aria-label={label}
             title={label}
-            className={`inline-flex items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50 ${sizeClass} ${className}`}
+            className={`inline-flex items-center justify-center rounded-xl border border-transparent text-slate-600 transition hover:-translate-y-px hover:border-blue-100 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm active:translate-y-0 disabled:opacity-50 ${sizeClass} ${className}`}
             {...props}
         >
             {children}

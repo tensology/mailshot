@@ -1,6 +1,5 @@
 import { NavLink, useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { PenSquare } from 'lucide-react';
 import { SIDEBAR_DATA } from '../../config/sidebar.config';
 import { routes } from '../../routes/routes';
 import { useLayout } from '../../context/LayoutContext';
@@ -86,14 +85,14 @@ const Sidebar = ({ onSent }) => {
                     <button
                         type="button"
                         onClick={handleCompose}
-                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-lg"
                     >
-                        <PenSquare className="h-4 w-4" />
+                        <img src="/mailshot-icon-192.png" alt="" className="h-7 w-7 object-contain drop-shadow" />
                         Compose
                     </button>
                 </div>
 
-                <nav className="scrollbar-thin min-w-[16rem] flex-1 space-y-1 overflow-y-auto px-3 py-3">
+                <nav className="min-w-[16rem] shrink-0 space-y-1 px-3 py-3">
                     {SIDEBAR_DATA.map((item) => {
                         const Icon = item.icon;
                         const active = type === item.name && !(item.name === 'allmail' && activeLabel);
@@ -119,14 +118,17 @@ const Sidebar = ({ onSent }) => {
                         );
                     })}
 
-                    <div className="pt-3">
+                </nav>
+
+                <div className="scrollbar-thin min-h-0 min-w-[16rem] flex-1 overflow-y-auto border-t border-slate-100 px-3 pb-3">
+                    <div>
                         <LabelSidebar
                             counts={counts.label_unread || {}}
                             onNavigate={handleNavigate}
                         />
                         <ContactSidebar onNavigate={handleNavigate} />
                     </div>
-                </nav>
+                </div>
 
                 <ComposeMail onSent={onSent} />
             </aside>
