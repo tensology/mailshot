@@ -612,7 +612,7 @@ const ViewEmail = () => {
             >
                 <div className="flex shrink-0 items-center gap-1">
                     <IconButton size="touch" label="Back" className={toolbarButtonClass} onClick={() => navigate(backUrl)}>
-                        <MailshotIcon name="back" size={24} />
+                        <MailshotIcon name="back" size={28} />
                     </IconButton>
                     {labels.length > 0 && primaryEmail && (
                         <MoveToLabelMenu
@@ -621,42 +621,43 @@ const ViewEmail = () => {
                             onMoved={moveToLabel}
                             onMoveConfirmed={confirmMoveToLabel}
                             buttonSize="touch"
+                            iconSize={26}
                             buttonClassName={toolbarButtonClass}
                         />
                     )}
                     <IconButton size="touch" label="Delete" className={toolbarButtonClass} onClick={() => setConfirmDeleteOpen(true)}>
-                        <MailshotIcon name="delete" size={24} />
+                        <MailshotIcon name="delete" size={28} />
                     </IconButton>
                     <IconButton size="touch" label="Mark as unread" className={toolbarButtonClass} onClick={markAsUnread}>
-                        <MailshotIcon name="unread" size={24} />
+                        <MailshotIcon name="unread" size={28} />
                     </IconButton>
                     {canToggleArchive && (
                         <IconButton size="touch" label={archiveActionLabel} className={toolbarButtonClass} onClick={toggleArchive}>
-                            <MailshotIcon name={archiveIconName} size={24} />
+                            <MailshotIcon name={archiveIconName} size={28} />
                         </IconButton>
                     )}
                     {canToggleSpam && (
                         <IconButton size="touch" label={spamActionLabel} className={toolbarButtonClass} onClick={toggleSpam}>
-                            <MailshotIcon name="spam" size={24} />
+                            <MailshotIcon name="spam" size={28} />
                         </IconButton>
                     )}
                     {canSnoozeOrMute && (
                         <IconButton size="touch" label="Snooze 1 day" className={toolbarButtonClass} onClick={snoozeCurrent}>
-                            <MailshotIcon name="snooze" size={24} />
+                            <MailshotIcon name="snooze" size={28} />
                         </IconButton>
                     )}
                     {isSnoozedView && (
                         <IconButton size="touch" label="Wake now" className={toolbarButtonClass} onClick={wakeCurrent}>
-                            <MailshotIcon name="wake" size={24} />
+                            <MailshotIcon name="wake" size={28} />
                         </IconButton>
                     )}
                     {canSnoozeOrMute && (
                         <IconButton size="touch" label="Mute 7 days" className={toolbarButtonClass} onClick={muteCurrent}>
-                            <MailshotIcon name="mute" size={24} />
+                            <MailshotIcon name="mute" size={28} />
                         </IconButton>
                     )}
                     <IconButton size="touch" label="Print" onClick={() => window.print()} className={`${toolbarButtonClass} print:hidden`}>
-                        <MailshotIcon name="print" size={24} />
+                        <MailshotIcon name="print" size={28} />
                     </IconButton>
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -668,17 +669,17 @@ const ViewEmail = () => {
                             disabled={readSummaryLoading}
                             className={`${toolbarButtonClass} ${readAloudReady ? 'text-green-600 hover:bg-green-50' : 'text-blue-600 hover:bg-blue-50'}`}
                         >
-                            {readSummaryLoading ? <MailshotIcon name="refresh" size={24} active /> : <MailshotIcon name="speaker" size={24} />}
+                            {readSummaryLoading ? <MailshotIcon name="refresh" size={28} active /> : <MailshotIcon name="speaker" size={28} />}
                         </IconButton>
                     )}
                     <IconButton size="touch" label="Reply" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('reply')}>
-                        <MailshotIcon name="reply" size={24} />
+                        <MailshotIcon name="reply" size={28} />
                     </IconButton>
                     <IconButton size="touch" label="Reply all" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('reply-all')}>
-                        <MailshotIcon name="reply-all" size={24} />
+                        <MailshotIcon name="reply-all" size={28} />
                     </IconButton>
                     <IconButton size="touch" label="Forward" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('forward')}>
-                        <MailshotIcon name="forward" size={24} />
+                        <MailshotIcon name="forward" size={28} />
                     </IconButton>
                 </div>
             </div>

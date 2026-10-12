@@ -17,7 +17,8 @@ const MoveToLabelMenu = ({
     disabled = false,
     buttonLabel = 'Move to',
     buttonSize = 'md',
-    buttonClassName = ''
+    buttonClassName = '',
+    iconSize = 22
 }) => {
     const [open, setOpen] = useState(false);
     const [pendingRule, setPendingRule] = useState(null);
@@ -130,7 +131,7 @@ const MoveToLabelMenu = ({
                     disabled={disabled || !hasSelection}
                     onClick={() => setOpen((value) => !value)}
                 >
-                    <MailshotIcon name="tag" size={22} />
+                    <MailshotIcon name="tag" size={iconSize} />
                 </IconButton>
 
                 {open && (
