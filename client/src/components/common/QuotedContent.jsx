@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { splitPlainQuotedContent, splitHtmlQuotedContent } from '../../utils/quoteSplitter';
 import { formatEmailBody, extractHtmlBody } from '../../utils/emailFormatter';
 import { forceLinksToOpenInNewTab } from '../../utils/htmlLinks';
 import IconButton from '../ui/IconButton';
+import MailshotIcon from '../ui/MailshotIcon';
 
 const QuotedContent = ({ body, bodyHtml }) => {
     const [expanded, setExpanded] = useState(false);
@@ -42,7 +42,7 @@ const QuotedContent = ({ body, bodyHtml }) => {
                             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                             onClick={() => setExpanded(true)}
                         >
-                            <ChevronDown className="h-3.5 w-3.5" />
+                            <MailshotIcon name="chevron-down" size={18} />
                             View folded message
                         </button>
                     ) : (
@@ -53,7 +53,7 @@ const QuotedContent = ({ body, bodyHtml }) => {
                                 className="mb-2 rounded-xl border border-slate-200 bg-white"
                                 onClick={() => setExpanded(false)}
                             >
-                                <ChevronUp className="h-4 w-4" />
+                                <MailshotIcon name="chevron-up" size={20} />
                             </IconButton>
                             {quotedHtml && quotedHtml.replace(/<[^>]+>/g, '').trim() ? (
                                 <div dangerouslySetInnerHTML={{ __html: quotedHtml }} />

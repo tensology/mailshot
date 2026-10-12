@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { GripHorizontal, Loader2, Volume2, X } from 'lucide-react';
 import API from '../services/api';
 import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
 import { getAuthToken, useAuth } from './AuthContext';
 import IconButton from '../components/ui/IconButton';
 import Toast from '../components/ui/Toast';
+import MailshotIcon from '../components/ui/MailshotIcon';
 import {
     clampReadSummaryPosition,
     getDefaultReadSummaryPosition
@@ -103,7 +103,7 @@ const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 
             aria-label="Move read summary panel"
             title="Move"
         >
-            <GripHorizontal className="h-4 w-4" />
+            <MailshotIcon name="menu" size={18} />
         </button>
         {children}
     </div>
@@ -124,19 +124,19 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose, panelRef, posi
     return (
         <ReadSummaryShell panelRef={panelRef} position={position} onPointerDown={onDragStart}>
             <div className="mb-2 flex items-start gap-2">
-                <Volume2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                <MailshotIcon name="speaker" size={20} className="mt-0.5" />
                 <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-900">Read summary</p>
                     {job?.summary && <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-600">{job.summary}</p>}
                     {isPreparing && (
                         <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <MailshotIcon name="refresh" size={18} active />
                             Preparing next summary
                         </p>
                     )}
                 </div>
                 <IconButton label="Close player" size="sm" onClick={onClose}>
-                    <X className="h-4 w-4" />
+                    <MailshotIcon name="close" size={20} />
                 </IconButton>
             </div>
             <audio
@@ -171,7 +171,7 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose, panelRef, posi
 const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = '', panelRef, position, onDragStart }) => (
     <ReadSummaryShell panelRef={panelRef} position={position} onPointerDown={onDragStart} tone="preparing">
         <div className="flex items-start gap-2 text-sm font-medium text-blue-700">
-            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+            <MailshotIcon name="refresh" size={20} active className="mt-0.5" />
             <div className="min-w-0">
                 <p>{message}</p>
                 {summary && <p className="mt-2 line-clamp-4 text-xs font-normal leading-5 text-slate-600">{summary}</p>}

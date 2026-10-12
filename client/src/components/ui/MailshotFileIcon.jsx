@@ -38,8 +38,8 @@ const MailshotFileIcon = ({ filename = '', contentType = '', size = 56, classNam
                     <stop offset="1" stopColor={meta.to} />
                 </linearGradient>
             </defs>
-            <path d="M14 5h25l12 12v40H14z" fill="white" stroke="#cbd5e1" strokeWidth="2" />
-            <path d="M39 5v13h12" fill="#e2e8f0" stroke="#cbd5e1" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M11 3h29l13 13v43H11z" fill="white" stroke="#cbd5e1" strokeWidth="2" />
+            <path d="M40 3v14h13" fill="#e2e8f0" stroke="#cbd5e1" strokeWidth="2" strokeLinejoin="round" />
             {type === 'zip' && <><path d="M28 8h8v5h-8zM32 13h8v5h-8zM28 18h8v5h-8zM32 23h8v5h-8z" fill="#92400e"/><rect x="29" y="28" width="10" height="8" rx="2" fill="#fbbf24" stroke="#92400e"/><circle cx="34" cy="32" r="1.5" fill="#92400e"/></>}
             {type === 'image' && <><circle cx="27" cy="23" r="4" fill="#c084fc"/><path d="m20 38 8-8 5 5 4-4 8 7" fill="none" stroke="#7e22ce" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></>}
             {type === 'audio' && <><path d="M37 16v18a6 6 0 1 1-4-5.7V19l13-3v14a6 6 0 1 1-4-5.7V14z" fill={`url(#${gradientId})`}/></>}

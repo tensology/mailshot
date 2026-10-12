@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -669,7 +668,7 @@ const ViewEmail = () => {
                             disabled={readSummaryLoading}
                             className={`${toolbarButtonClass} ${readAloudReady ? 'text-green-600 hover:bg-green-50' : 'text-blue-600 hover:bg-blue-50'}`}
                         >
-                            {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <MailshotIcon name="speaker" size={24} />}
+                            {readSummaryLoading ? <MailshotIcon name="refresh" size={24} active /> : <MailshotIcon name="speaker" size={24} />}
                         </IconButton>
                     )}
                     <IconButton size="touch" label="Reply" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('reply')}>
@@ -737,7 +736,7 @@ const ViewEmail = () => {
                                 </a>
                             )}
                             <IconButton label="Close preview" size="sm" onClick={() => setPreviewItem(null)}>
-                                <X className="h-4 w-4" />
+                                <MailshotIcon name="close" size={20} />
                             </IconButton>
                         </div>
                         <div className="min-h-0 flex-1 bg-slate-100">

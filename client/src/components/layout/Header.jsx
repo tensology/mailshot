@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLayout } from '../../context/LayoutContext';
@@ -69,7 +68,7 @@ const Header = () => {
                         >
                             <MailshotIcon name="settings" size={20} />
                             <span className="max-w-[140px] truncate">{username || 'Account'}</span>
-                            <ChevronDown className="h-4 w-4" />
+                            <MailshotIcon name="chevron-down" size={18} />
                         </button>
                         <IconButton
                             label="Account settings"

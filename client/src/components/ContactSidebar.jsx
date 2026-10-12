@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Users } from 'lucide-react';
 import { routes } from '../routes/routes';
+import MailshotIcon from './ui/MailshotIcon';
 
 const ContactSidebar = ({ onNavigate }) => {
     const location = useLocation();
@@ -15,7 +15,7 @@ const ContactSidebar = ({ onNavigate }) => {
                     isActive ? 'bg-blue-100 text-blue-800' : 'text-slate-700 hover:bg-slate-100'
                 }`}
             >
-                <Users className="h-4 w-4" />
+                <MailshotIcon name="users" size={22} />
                 Contacts
             </NavLink>
         </div>

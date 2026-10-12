@@ -2,7 +2,13 @@ import { useId } from 'react';
 
 const PALETTES = {
     archive: ['#06b6d4', '#0369a1'],
+    alert: ['#fb7185', '#dc2626'],
+    bold: ['#94a3b8', '#475569'],
     check: ['#34d399', '#047857'],
+    'chevron-down': ['#94a3b8', '#475569'],
+    'chevron-left': ['#94a3b8', '#475569'],
+    'chevron-right': ['#94a3b8', '#475569'],
+    'chevron-up': ['#94a3b8', '#475569'],
     unarchive: ['#34d399', '#047857'],
     attach: ['#64748b', '#334155'],
     back: ['#60a5fa', '#1d4ed8'],
@@ -12,8 +18,12 @@ const PALETTES = {
     edit: ['#fbbf24', '#d97706'],
     drafts: ['#818cf8', '#4f46e5'],
     external: ['#22d3ee', '#0284c7'],
+    eye: ['#60a5fa', '#2563eb'],
     forward: ['#22d3ee', '#0369a1'],
     inbox: ['#60a5fa', '#2563eb'],
+    image: ['#c084fc', '#6d28d9'],
+    italic: ['#94a3b8', '#475569'],
+    list: ['#94a3b8', '#475569'],
     close: ['#fb7185', '#be123c'],
     expand: ['#818cf8', '#4338ca'],
     logout: ['#fb7185', '#be123c'],
@@ -38,16 +48,23 @@ const PALETTES = {
     tag: ['#a78bfa', '#6d28d9'],
     unread: ['#818cf8', '#4338ca'],
     undo: ['#34d399', '#047857'],
+    users: ['#60a5fa', '#1d4ed8'],
     wake: ['#f472b6', '#be185d']
 };
 
 const glyph = (name) => {
     switch (name) {
         case 'archive': return <><path d="M5 8.5h14v10H5z"/><path d="M4 5.5h16v3H4z"/><path d="M9 12h6"/></>;
+        case 'alert': return <><path d="m8 4-4 4v8l4 4h8l4-4V8l-4-4z"/><path d="M12 8v5M12 16h.01"/></>;
+        case 'bold': return <><path d="M8 5h5a4 4 0 0 1 0 8H8zM8 13h6a3 3 0 0 1 0 6H8z"/></>;
         case 'unarchive': return <><path d="M5 9h14v9.5H5z"/><path d="M4 6h16v3H4z"/><path d="m9 14 3-3 3 3"/></>;
         case 'attach': return <path d="M8.2 12.8 13.8 7a3 3 0 0 1 4.3 4.2l-7.3 7.5a4.2 4.2 0 0 1-6-6L12 5.3"/>;
         case 'back': return <><path d="m10 6-6 6 6 6"/><path d="M5 12h15"/></>;
         case 'check': return <><path d="m6 12 4 4 8-9"/></>;
+        case 'chevron-down': return <path d="m7 9 5 5 5-5"/>;
+        case 'chevron-left': return <path d="m14 7-5 5 5 5"/>;
+        case 'chevron-right': return <path d="m10 7 5 5-5 5"/>;
+        case 'chevron-up': return <path d="m7 15 5-5 5 5"/>;
         case 'bin':
         case 'delete': return <><path d="M7 8h10l-.7 11H7.7z"/><path d="M5 6h14M9 6V4h6v2M10 11v5M14 11v5"/></>;
         case 'download': return <><path d="M12 4v10"/><path d="m8 10 4 4 4-4"/><path d="M5 17v2h14v-2"/></>;
@@ -55,9 +72,13 @@ const glyph = (name) => {
         case 'drafts': return <><path d="M6 4h9l3 3v13H6z"/><path d="M14 4v4h4M9 12h6M9 15h5"/></>;
         case 'edit': return <><path d="m6 16-1 4 4-1L18 10l-3-3z"/><path d="m13 9 3 3"/></>;
         case 'external': return <><path d="M13 5h6v6"/><path d="m19 5-8 8"/><path d="M17 14v5H5V7h5"/></>;
+        case 'eye': return <><path d="M3 12s3-5 9-5 9 5 9 5-3 5-9 5-9-5-9-5z"/><circle cx="12" cy="12" r="2.5"/></>;
         case 'expand': return <><path d="M9 5H5v4M15 5h4v4M9 19H5v-4M15 19h4v-4"/></>;
         case 'forward': return <><path d="m13 7 6 5-6 5v-3H6a3 3 0 0 0-2 1 7 7 0 0 1 7-7h2z"/></>;
         case 'inbox': return <><path d="M5 6h14l2 8v5H3v-5z"/><path d="M3 14h5l2 2h4l2-2h5"/></>;
+        case 'image': return <><rect x="5" y="6" width="14" height="12" rx="2"/><circle cx="10" cy="10" r="1.5"/><path d="m7 16 4-4 3 3 2-2 3 3"/></>;
+        case 'italic': return <><path d="M10 5h7M7 19h7M14 5 10 19"/></>;
+        case 'list': return <><path d="M9 7h10M9 12h10M9 17h10"/><path d="M5 7h.01M5 12h.01M5 17h.01"/></>;
         case 'mail':
         case 'unread': return <><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></>;
         case 'menu': return <><path d="M5 7h14M5 12h14M5 17h14"/></>;
@@ -81,6 +102,7 @@ const glyph = (name) => {
         case 'star': return <path d="m12 4 2.4 5 5.6.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.6-.8z"/>;
         case 'tag': return <><path d="M4 5h7l9 9-6 6-9-9z"/><circle cx="8.5" cy="8.5" r="1"/></>;
         case 'undo': return <><path d="m9 7-5 5 5 5"/><path d="M5 12h8a6 6 0 0 1 6 6"/></>;
+        case 'users': return <><circle cx="9" cy="9" r="3"/><path d="M4 19v-2a5 5 0 0 1 10 0v2"/><circle cx="17" cy="10" r="2"/><path d="M16 15a4 4 0 0 1 4 4"/></>;
         default: return <><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></>;
     }
 };
@@ -92,7 +114,6 @@ const MailshotIcon = ({ name = 'mail', size = 24, className = '', title, active 
         ? ['#94a3b8', '#64748b']
         : PALETTES[name] || ['#60a5fa', '#2563eb'];
     const gradientId = `mailshot-${rawId}`;
-    const shadowId = `mailshot-shadow-${rawId}`;
 
     return (
         <svg
@@ -109,13 +130,10 @@ const MailshotIcon = ({ name = 'mail', size = 24, className = '', title, active 
                     <stop stopColor={from} />
                     <stop offset="1" stopColor={to} />
                 </linearGradient>
-                <filter id={shadowId} x="-30%" y="-30%" width="160%" height="170%">
-                    <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor={to} floodOpacity=".38" />
-                </filter>
             </defs>
             {isRefresh
-                ? <circle cx="12" cy="12" r="11" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />
-                : <rect x="1" y="1" width="22" height="22" rx="7" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />}
+                ? <circle cx="12" cy="12" r="12" fill={`url(#${gradientId})`} />
+                : <rect width="24" height="24" rx="8" fill={`url(#${gradientId})`} />}
             <path d="M5 5.5c3-2 11-2 14 0" fill="none" stroke="white" strokeOpacity=".25" strokeWidth="1" />
             <g
                 fill="none"

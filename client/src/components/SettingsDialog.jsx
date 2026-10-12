@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bold, Image, Italic, List, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import Dialog from './ui/Dialog';
@@ -201,13 +200,13 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                 <span className="text-sm font-medium text-slate-700">{label}</span>
                 <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
                     <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('bold')} aria-label="Bold">
-                        <Bold className="h-4 w-4" />
+                        <MailshotIcon name="bold" size={20} />
                     </button>
                     <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('italic')} aria-label="Italic">
-                        <Italic className="h-4 w-4" />
+                        <MailshotIcon name="italic" size={20} />
                     </button>
                     <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('insertUnorderedList')} aria-label="Bullet list">
-                        <List className="h-4 w-4" />
+                        <MailshotIcon name="list" size={20} />
                     </button>
                     {allowImages && (
                         <button
@@ -216,7 +215,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                             onClick={() => setShowImageInput((current) => !current)}
                             aria-label="Insert image from URL"
                         >
-                            <Image className="h-4 w-4" />
+                            <MailshotIcon name="image" size={20} />
                         </button>
                     )}
                 </div>
@@ -253,7 +252,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                             setShowImageInput(false);
                         }}
                     >
-                        <X className="h-4 w-4" />
+                        <MailshotIcon name="close" size={20} />
                     </IconButton>
                 </div>
             )}
@@ -663,7 +662,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                         setShowAddEmail(false);
                                     }}
                                 >
-                                    <X className="h-4 w-4" />
+                                    <MailshotIcon name="close" size={20} />
                                 </IconButton>
                             </div>
                         )}

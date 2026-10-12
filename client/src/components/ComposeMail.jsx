@@ -1,6 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Download, Eye, FileText, Mail, Maximize2, Minimize2, Minus, Paperclip, Send, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { MAIL_FROM, MAILBOX_USER } from '../config/env';
@@ -32,7 +31,6 @@ import {
 import { sanitizeComposeHtml } from '../utils/composeHtml';
 import RecipientField from './RecipientField';
 import ConfirmDialog from './common/ConfirmDialog';
-import { Trash2 } from 'lucide-react';
 import MailshotFileIcon from './ui/MailshotFileIcon';
 import MailshotIcon from './ui/MailshotIcon';
 
@@ -923,7 +921,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             onClick={() => removeToRecipient(recipient)}
                                             aria-label={`Remove ${recipient}`}
                                         >
-                                            <X className="h-3 w-3" />
+                                            <MailshotIcon name="close" size={16} />
                                         </button>
                                     </span>
                                 ))}
@@ -1050,7 +1048,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             onClick={() => setForwardedAttachments((current) => current.filter((_, indexToKeep) => indexToKeep !== itemIndex))}
                                             aria-label={`Remove ${attachment.name || attachment.filename || 'attachment'}`}
                                         >
-                                            <X className="h-4 w-4" />
+                                            <MailshotIcon name="close" size={20} />
                                         </button>
                                     </div>
                                 ))}
@@ -1067,7 +1065,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-blue-600"
                                             aria-label={`Download ${attachment.filename}`}
                                         >
-                                            <Download className="h-4 w-4" />
+                                            <MailshotIcon name="eye" size={20} />
                                         </button>
                                         <button
                                             type="button"
@@ -1075,7 +1073,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             onClick={() => removeSavedAttachment(attachment.attachment_id)}
                                             aria-label={`Remove ${attachment.filename}`}
                                         >
-                                            <X className="h-4 w-4" />
+                                            <MailshotIcon name="close" size={20} />
                                         </button>
                                     </div>
                                 ))}
@@ -1092,7 +1090,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             onClick={() => removeNewAttachment(itemIndex)}
                                             aria-label={`Remove ${file.name}`}
                                         >
-                                            <X className="h-4 w-4" />
+                                            <MailshotIcon name="close" size={20} />
                                         </button>
                                     </div>
                                 ))}
@@ -1240,7 +1238,7 @@ const ComposeMail = ({ onSent }) => {
                     className="pointer-events-auto absolute bottom-2 left-2 z-[70] rounded-full bg-slate-800 p-2 text-white shadow-lg hover:bg-slate-700"
                     onClick={() => shelfRef.current?.scrollBy({ left: -Math.max(280, shelfRef.current.clientWidth * 0.75), behavior: 'smooth' })}
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                    <MailshotIcon name="chevron-left" size={20} />
                 </button>
             )}
             <div
@@ -1265,7 +1263,7 @@ const ComposeMail = ({ onSent }) => {
                     className="pointer-events-auto absolute bottom-2 right-2 z-[70] rounded-full bg-slate-800 p-2 text-white shadow-lg hover:bg-slate-700"
                     onClick={() => shelfRef.current?.scrollBy({ left: Math.max(280, shelfRef.current.clientWidth * 0.75), behavior: 'smooth' })}
                 >
-                    <ChevronRight className="h-4 w-4" />
+                    <MailshotIcon name="chevron-right" size={20} />
                 </button>
             )}
         </div>,

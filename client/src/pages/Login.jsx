@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Spinner from '../components/ui/Spinner';
+import MailshotIcon from '../components/ui/MailshotIcon';
 
 const Login = () => {
     const { login, isAuthenticated, isLoading } = useAuth();
@@ -43,9 +43,7 @@ const Login = () => {
         <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-b from-slate-100 to-slate-50 px-4 py-8">
             <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
                 <div className="mb-6 flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white">
-                        <Mail className="h-5 w-5" />
-                    </div>
+                    <MailshotIcon name="mail" size={44} />
                     <div>
                         <h1 className="text-xl font-semibold text-slate-900">Sign in to Mailshot</h1>
                         <p className="text-sm text-slate-500">Use your Mailshot account credentials</p>

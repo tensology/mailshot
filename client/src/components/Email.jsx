@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -286,7 +285,7 @@ const Email = ({
                             }`}
                         >
                             {readSummaryLoading ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <MailshotIcon name="refresh" size={18} active />
                             ) : (
                                 <MailshotIcon name="speaker" size={18} />
                             )}
