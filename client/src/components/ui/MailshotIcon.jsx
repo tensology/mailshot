@@ -85,9 +85,12 @@ const glyph = (name) => {
     }
 };
 
-const MailshotIcon = ({ name = 'mail', size = 24, className = '', title }) => {
+const MailshotIcon = ({ name = 'mail', size = 24, className = '', title, active = false }) => {
     const rawId = useId().replace(/:/g, '');
-    const [from, to] = PALETTES[name] || ['#60a5fa', '#2563eb'];
+    const isRefresh = name === 'refresh';
+    const [from, to] = isRefresh && !active
+        ? ['#94a3b8', '#64748b']
+        : PALETTES[name] || ['#60a5fa', '#2563eb'];
     const gradientId = `mailshot-${rawId}`;
     const shadowId = `mailshot-shadow-${rawId}`;
 
@@ -110,9 +113,19 @@ const MailshotIcon = ({ name = 'mail', size = 24, className = '', title }) => {
                     <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor={to} floodOpacity=".38" />
                 </filter>
             </defs>
-            <rect x="2" y="2" width="20" height="20" rx="6" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />
+            {isRefresh
+                ? <circle cx="12" cy="12" r="10" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />
+                : <rect x="2" y="2" width="20" height="20" rx="6" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />}
             <path d="M5 5.5c3-2 11-2 14 0" fill="none" stroke="white" strokeOpacity=".25" strokeWidth="1" />
-            <g fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <g
+                fill="none"
+                stroke="white"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefresh && active ? 'animate-spin' : undefined}
+                style={isRefresh ? { transformOrigin: '12px 12px' } : undefined}
+            >
                 {glyph(name)}
             </g>
         </svg>

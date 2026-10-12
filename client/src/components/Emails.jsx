@@ -1431,8 +1431,13 @@ const Emails = () => {
                         <span className="inline-flex max-w-full items-center rounded-full border border-blue-100 bg-white px-3 py-1 text-sm font-semibold text-blue-800 shadow-sm">
                             <span className="truncate">{listTitle}</span>
                         </span>
-                        <IconButton label="Refresh" onClick={refreshMailbox} disabled={isRefreshing}>
-                            <MailshotIcon name="refresh" size={22} className={isRefreshing ? 'animate-spin' : ''} />
+                        <IconButton
+                            label="Refresh"
+                            onClick={refreshMailbox}
+                            disabled={isRefreshing}
+                            className="!rounded-full !border-0 !bg-transparent !shadow-none hover:!bg-slate-100 disabled:!opacity-100"
+                        >
+                            <MailshotIcon name="refresh" size={24} active={isRefreshing} />
                         </IconButton>
                         {hasSelection && type !== 'bin' && (
                             <IconButton label="Archive" onClick={archiveSelectedEmails}>
