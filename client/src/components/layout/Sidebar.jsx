@@ -1,5 +1,6 @@
 import { NavLink, useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { SIDEBAR_DATA } from '../../config/sidebar.config';
 import { routes } from '../../routes/routes';
 import { useLayout } from '../../context/LayoutContext';
@@ -88,7 +89,7 @@ const Sidebar = ({ onSent }) => {
                         onClick={handleCompose}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-lg"
                     >
-                        <MailshotIcon name="edit" size={24} />
+                        <Pencil aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} />
                         Compose
                     </button>
                 </div>
