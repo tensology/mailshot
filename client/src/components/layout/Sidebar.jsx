@@ -88,7 +88,7 @@ const Sidebar = ({ onSent }) => {
                         onClick={handleCompose}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-lg"
                     >
-                        <img src="/mailshot-icon-192.png" alt="" className="h-7 w-7 object-contain drop-shadow" />
+                        <MailshotIcon name="edit" size={24} />
                         Compose
                     </button>
                 </div>
