@@ -114,8 +114,8 @@ const MailshotIcon = ({ name = 'mail', size = 24, className = '', title, active 
                 </filter>
             </defs>
             {isRefresh
-                ? <circle cx="12" cy="12" r="10" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />
-                : <rect x="2" y="2" width="20" height="20" rx="6" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />}
+                ? <circle cx="12" cy="12" r="11" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />
+                : <rect x="1" y="1" width="22" height="22" rx="7" fill={`url(#${gradientId})`} filter={`url(#${shadowId})`} />}
             <path d="M5 5.5c3-2 11-2 14 0" fill="none" stroke="white" strokeOpacity=".25" strokeWidth="1" />
             <g
                 fill="none"
