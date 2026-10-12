@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { Archive, Bell, Clock, Mail, MailOpen, OctagonAlert, RefreshCw, Search, Trash2, Undo2, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -25,6 +25,7 @@ import IconButton from './ui/IconButton';
 import Spinner from './ui/Spinner';
 import MoveToLabelMenu from './MoveToLabelMenu';
 import Toast from './ui/Toast';
+import MailshotIcon from './ui/MailshotIcon';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
 import { useCompose } from '../context/ComposeContext';
 import { formatAddressListLabel } from '../utils/emailFormatter';
@@ -1431,46 +1432,46 @@ const Emails = () => {
                             <span className="truncate">{listTitle}</span>
                         </span>
                         <IconButton label="Refresh" onClick={refreshMailbox} disabled={isRefreshing}>
-                            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            <MailshotIcon name="refresh" size={22} className={isRefreshing ? 'animate-spin' : ''} />
                         </IconButton>
                         {hasSelection && type !== 'bin' && (
                             <IconButton label="Archive" onClick={archiveSelectedEmails}>
-                                <Archive className="h-4 w-4" />
+                                <MailshotIcon name="archive" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && (
                             <IconButton label="Mark as read" onClick={() => markSelectedReadState(true)}>
-                                <MailOpen className="h-4 w-4" />
+                                <MailshotIcon name="read" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && (
                             <IconButton label="Mark as unread" onClick={() => markSelectedReadState(false)}>
-                                <Mail className="h-4 w-4" />
+                                <MailshotIcon name="unread" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && type !== 'bin' && type !== 'spam' && (
                             <IconButton label="Mark as spam" onClick={markSelectedAsSpam}>
-                                <OctagonAlert className="h-4 w-4" />
+                                <MailshotIcon name="spam" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && type === 'spam' && (
                             <IconButton label="Not spam" onClick={restoreSelectedFromSpam}>
-                                <Undo2 className="h-4 w-4" />
+                                <MailshotIcon name="undo" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && type !== 'bin' && type !== 'spam' && type !== 'snoozed' && (
                             <IconButton label="Snooze 1 day" onClick={() => snoozeSelectedEmails(24)}>
-                                <Clock className="h-4 w-4" />
+                                <MailshotIcon name="snooze" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && type === 'snoozed' && (
                             <IconButton label="Wake now" onClick={wakeSelectedEmails}>
-                                <Clock className="h-4 w-4" />
+                                <MailshotIcon name="wake" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && type !== 'bin' && type !== 'spam' && (
                             <IconButton label="Mute 7 days" onClick={() => muteSelectedEmails(168)}>
-                                <Bell className="h-4 w-4" />
+                                <MailshotIcon name="mute" size={22} />
                             </IconButton>
                         )}
                         {hasSelection && type !== 'spam' && availableLabels.length > 0 && (
@@ -1485,7 +1486,7 @@ const Emails = () => {
                         )}
                         {hasSelection && (
                             <IconButton label="Delete" onClick={requestDeleteSelectedEmails}>
-                                <Trash2 className="h-4 w-4" />
+                                <MailshotIcon name="delete" size={22} />
                             </IconButton>
                         )}
                         {canSelectAllMatching && (

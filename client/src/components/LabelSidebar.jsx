@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useSearchParams } from 'react-router-dom';
-import { Plus, Tag, Trash2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
 import ConfirmDialog from './common/ConfirmDialog';
 import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
 import Input from './ui/Input';
+import MailshotIcon from './ui/MailshotIcon';
 
 const labelNavClass = (isActive) => (
     `flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-sm transition ${
@@ -67,7 +67,7 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
             <div className="mb-2 flex items-center justify-between px-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
                 <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
-                    <Plus className="h-4 w-4" strokeWidth={2.5} />
+                    <MailshotIcon name="plus" size={20} />
                 </button>
             </div>
             <div className="space-y-1">
@@ -81,9 +81,7 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
                                 onClick={onNavigate}
                                 className={labelNavClass(activeLabel === label.slug)}
                             >
-                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
-                                    <Tag className="h-4 w-4" strokeWidth={2.3} style={{ color: label.color || '#64748b' }} />
-                                </span>
+                                <MailshotIcon name="tag" size={28} />
                                 <span className="min-w-0 flex-1 truncate">{label.name}</span>
                                 {unread > 0 && (
                                     <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
@@ -97,7 +95,7 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
                                 aria-label={`Delete ${label.name}`}
                                 className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                             >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <MailshotIcon name="delete" size={18} />
                             </button>
                         </div>
                     );

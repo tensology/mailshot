@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Tag } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import IconButton from './ui/IconButton';
 import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
 import { getLabelDisplayName } from '../utils/labels';
 import { requestMailboxCountsRefresh } from '../utils/emailListCache';
+import MailshotIcon from './ui/MailshotIcon';
 
 const MoveToLabelMenu = ({
     emailIds = [],
@@ -130,7 +130,7 @@ const MoveToLabelMenu = ({
                     disabled={disabled || !hasSelection}
                     onClick={() => setOpen((value) => !value)}
                 >
-                    <Tag className="h-4 w-4" />
+                    <MailshotIcon name="tag" size={22} />
                 </IconButton>
 
                 {open && (
@@ -145,7 +145,7 @@ const MoveToLabelMenu = ({
                                 onClick={() => moveToLabel(label.slug)}
                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
                             >
-                                <Tag className="h-3.5 w-3.5 shrink-0" style={{ color: label.color || '#64748b' }} />
+                                <span className="h-3.5 w-3.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: label.color || '#64748b' }} />
                                 {getLabelDisplayName(label.slug, new Map([[label.slug, label.name]]))}
                             </button>
                         ))}

@@ -11,6 +11,7 @@ import ContactSidebar from '../ContactSidebar';
 import ComposeMail from '../ComposeMail';
 import { setMailshotFaviconBadge } from '../../utils/faviconBadge';
 import { notifyNewUnreadMail } from '../../utils/desktopNotifications';
+import MailshotIcon from '../ui/MailshotIcon';
 
 const navClass = ({ isActive }) => (
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
@@ -94,7 +95,6 @@ const Sidebar = ({ onSent }) => {
 
                 <nav className="min-w-[16rem] shrink-0 space-y-1 px-3 py-3">
                     {SIDEBAR_DATA.map((item) => {
-                        const Icon = item.icon;
                         const active = type === item.name && !(item.name === 'allmail' && activeLabel);
                         const unread = Number(counts.system_unread?.[item.name] ?? (
                             item.name === 'inbox' ? counts.inbox_unread : 0
@@ -107,9 +107,7 @@ const Sidebar = ({ onSent }) => {
                                 className={navClass({ isActive: active })}
                                 onClick={handleNavigate}
                             >
-                                <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 ring-black/5 ${item.tone}`}>
-                                    <Icon className="h-4 w-4" strokeWidth={2.3} />
-                                </span>
+                                <MailshotIcon name={item.icon} size={32} />
                                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                                 {unread > 0 && (
                                     <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">

@@ -33,6 +33,8 @@ import { sanitizeComposeHtml } from '../utils/composeHtml';
 import RecipientField from './RecipientField';
 import ConfirmDialog from './common/ConfirmDialog';
 import { Trash2 } from 'lucide-react';
+import MailshotFileIcon from './ui/MailshotFileIcon';
+import MailshotIcon from './ui/MailshotIcon';
 
 const getWindowClass = (composeState, isMobile, compactMinimized) => {
     if (composeState === 'minimized') {
@@ -848,7 +850,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
             >
                 {compactMinimized ? (
                     <>
-                        <Mail className="h-4 w-4" />
+                        <MailshotIcon name="mail" size={20} />
                         <span className="ml-1 text-xs font-semibold">{minimizedIndex + 1}</span>
                         <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden max-w-72 overflow-hidden rounded-lg bg-slate-950 px-3 py-2 text-xs shadow-xl group-hover:block group-focus:block">
                             <span className="mailshot-compose-marquee inline-block whitespace-nowrap">{composeTitle}</span>
@@ -865,7 +867,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             className="text-white hover:bg-white/10"
                             onClick={() => setComposeState(composeId, composeState === 'expanded' ? 'normal' : 'expanded')}
                         >
-                            {composeState === 'expanded' ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                            <MailshotIcon name={composeState === 'expanded' ? 'minimize' : 'expand'} size={22} />
                         </IconButton>
                     )}
                     <IconButton
@@ -877,7 +879,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             setComposeState(composeId, isMinimized ? 'normal' : 'minimized');
                         }}
                     >
-                        <Minus className="h-4 w-4" />
+                        <MailshotIcon name="minimize" size={22} />
                     </IconButton>
                     <IconButton
                         label="Close"
@@ -888,7 +890,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             saveDraftAndClose();
                         }}
                     >
-                        <X className="h-4 w-4" />
+                        <MailshotIcon name="close" size={22} />
                     </IconButton>
                 </div>}
             </div>
@@ -1037,7 +1039,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 <div className={isExpanded && !isMobile ? 'grid grid-cols-1 gap-2' : 'grid gap-2 sm:grid-cols-2'}>
                                 {forwardedAttachments.map((attachment, itemIndex) => (
                                     <div key={`${attachment.emailId}-${attachment.attachmentId}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
-                                        <FileText className="h-4 w-4 shrink-0 text-blue-600" />
+                                        <MailshotFileIcon filename={attachment.filename} contentType={attachment.content_type} size={34} />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-xs font-medium text-slate-700">{attachment.name || attachment.filename || 'attachment'}</p>
                                             <p className="text-[11px] text-slate-500">{formatFileSize(attachment.size)}</p>
@@ -1054,7 +1056,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 ))}
                                 {savedAttachments.map((attachment) => (
                                     <div key={attachment.attachment_id} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
-                                        <FileText className="h-4 w-4 shrink-0 text-blue-600" />
+                                        <MailshotFileIcon filename={attachment.filename} contentType={attachment.content_type} size={34} />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-xs font-medium text-slate-700">{attachment.filename}</p>
                                             <p className="text-[11px] text-slate-500">{formatFileSize(attachment.size)}</p>
@@ -1079,7 +1081,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 ))}
                                 {newAttachments.map((file, itemIndex) => (
                                     <div key={`${file.name}-${file.size}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-2 py-2">
-                                        <FileText className="h-4 w-4 shrink-0 text-blue-600" />
+                                        <MailshotFileIcon filename={file.name} contentType={file.type} size={34} />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-xs font-medium text-slate-700">{file.name}</p>
                                             <p className="text-[11px] text-slate-500">{formatFileSize(file.size)} selected</p>
@@ -1104,7 +1106,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             <Button type="submit" disabled={sendQueued || sendEmailService.isLoading} className="rounded-full">
                                 {sendQueued || sendEmailService.isLoading ? <Spinner size={18} className="border-white/30 border-t-white" /> : (
                                     <>
-                                        <Send className="h-4 w-4" />
+                                        <MailshotIcon name="send" size={22} />
                                         {scheduledAt ? 'Schedule' : 'Send'}
                                     </>
                                 )}
@@ -1114,7 +1116,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 className="inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
                                 onClick={() => attachmentInputRef.current?.click()}
                             >
-                                <Paperclip className="h-4 w-4" />
+                                <MailshotIcon name="attach" size={22} />
                                 Attach
                             </button>
                             <input
@@ -1174,7 +1176,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 className="ml-auto border-red-100 bg-red-50 text-red-600 hover:border-red-200 hover:bg-red-100 hover:text-red-700"
                                 onClick={() => setDiscardDialogOpen(true)}
                             >
-                                <Trash2 className="h-5 w-5" strokeWidth={2.3} />
+                                <MailshotIcon name="delete" size={24} />
                             </IconButton>
                         </div>
                     </div>

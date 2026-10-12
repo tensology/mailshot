@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Archive, ArchiveRestore, Loader2, Paperclip, Star, Volume2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -13,6 +13,7 @@ import {
 import { markEmailReadInCache } from '../utils/emailListCache';
 import { getLabelDisplayName } from '../utils/labels';
 import { getEmailMailboxType } from '../utils/mailActions';
+import MailshotIcon from './ui/MailshotIcon';
 
 const MARQUEE_SPEED_PX_PER_SECOND = 46;
 const DOUBLE_TAP_MS = 320;
@@ -179,7 +180,7 @@ const Email = ({
         onArchiveToggle?.(email);
     };
 
-    const ArchiveIcon = isArchiveView ? ArchiveRestore : Archive;
+    const archiveIconName = isArchiveView ? 'unarchive' : 'archive';
     const showArchiveButton = Boolean(onArchiveToggle);
 
     return (
@@ -213,7 +214,7 @@ const Email = ({
                 className="flex min-h-[4.75rem] shrink-0 items-center text-slate-400 transition hover:text-amber-500 sm:min-h-[4.25rem]"
                 aria-label={email.starred ? 'Unstar' : 'Star'}
             >
-                <Star className={`h-4 w-4 ${email.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
+                <MailshotIcon name="star" size={20} className={email.starred ? '' : 'grayscale opacity-55'} />
             </button>
 
             <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-2.5">
@@ -249,7 +250,7 @@ const Email = ({
                                     ({email.thread_count})
                                 </span>
                             )}
-                            {hasAttachments && <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                            {hasAttachments && <MailshotIcon name="attach" size={18} />}
                             {snippet && (
                                 <>
                                     <span className="hidden shrink-0 text-slate-300 sm:inline">-</span>
@@ -287,7 +288,7 @@ const Email = ({
                             {readSummaryLoading ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
-                                <Volume2 className="h-3.5 w-3.5" />
+                                <MailshotIcon name="speaker" size={18} />
                             )}
                             <span className="hidden xl:inline">Read Summary</span>
                         </button>
@@ -304,7 +305,7 @@ const Email = ({
                             aria-label={archiveActionLabel}
                             title={archiveActionLabel}
                         >
-                            <ArchiveIcon className="h-4 w-4" />
+                            <MailshotIcon name={archiveIconName} size={20} />
                         </button>
                     )}
                 </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bold, Check, Image, Italic, List, Plus, Save, Trash2, X } from 'lucide-react';
+import { Bold, Image, Italic, List, X } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import Dialog from './ui/Dialog';
@@ -8,6 +8,7 @@ import IconButton from './ui/IconButton';
 import Input from './ui/Input';
 import Toast from './ui/Toast';
 import { MAIL_FROM } from '../config/env';
+import MailshotIcon from './ui/MailshotIcon';
 
 const DEFAULT_EMAIL = String(MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
 
@@ -242,7 +243,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                         onClick={insertImage}
                         className="text-emerald-600 hover:bg-emerald-50"
                     >
-                        <Check className="h-4 w-4" />
+                        <MailshotIcon name="check" size={20} />
                     </IconButton>
                     <IconButton
                         label="Cancel"
@@ -620,7 +621,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 onClick={removeEmail}
                                 className="shrink-0 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:hover:bg-transparent disabled:hover:text-slate-400"
                             >
-                                <Trash2 className="h-4 w-4" />
+                                <MailshotIcon name="delete" size={20} />
                             </IconButton>
                             <IconButton
                                 label="Add email address"
@@ -628,7 +629,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 onClick={() => setShowAddEmail((current) => !current)}
                                 className={`shrink-0 ${showAddEmail ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
                             >
-                                <Plus className="h-4 w-4" />
+                                <MailshotIcon name="plus" size={20} />
                             </IconButton>
                         </div>
                         {showAddEmail && (
@@ -652,7 +653,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                     onClick={addEmail}
                                     className="text-emerald-600 hover:bg-emerald-50"
                                 >
-                                    <Check className="h-4 w-4" />
+                                    <MailshotIcon name="check" size={20} />
                                 </IconButton>
                                 <IconButton
                                     label="Cancel"
@@ -678,7 +679,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             allowImages
                         />
                         <Button onClick={() => saveGeneral('Signature saved')} disabled={updateGeneralService.isLoading}>
-                            <Save className="h-4 w-4" />
+                            <MailshotIcon name="save" size={22} />
                             Save signature
                         </Button>
                     </div>
@@ -702,7 +703,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             placeholder="Write your auto responder message here…"
                         />
                         <Button onClick={() => saveGeneral('Auto responder saved')} disabled={updateGeneralService.isLoading}>
-                            <Save className="h-4 w-4" />
+                            <MailshotIcon name="save" size={22} />
                             Save auto responder
                         </Button>
                     </div>
@@ -733,7 +734,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                         onClick={() => removeTemplate(template.id)}
                                         className="text-slate-500 hover:bg-red-50 hover:text-red-600"
                                     >
-                                        <Trash2 className="h-4 w-4" />
+                                        <MailshotIcon name="delete" size={20} />
                                     </IconButton>
                                 </div>
                                 <Input
@@ -751,11 +752,11 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         ))}
                         <div className="flex flex-wrap gap-2">
                             <Button variant="secondary" onClick={addTemplate}>
-                                <Plus className="h-4 w-4" />
+                                <MailshotIcon name="plus" size={22} />
                                 Add template
                             </Button>
                             <Button onClick={() => saveGeneral('Templates saved')} disabled={updateGeneralService.isLoading}>
-                                <Save className="h-4 w-4" />
+                                <MailshotIcon name="save" size={22} />
                                 Save templates
                             </Button>
                         </div>
@@ -810,7 +811,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 }}
                             />
                             <Button onClick={saveAiKey} disabled={(!currentProviderKey?.trim() && !providerKeyIsSet) || updateAiService.isLoading || fetchModelsService.isLoading}>
-                                <Save className="h-4 w-4" />
+                                <MailshotIcon name="save" size={22} />
                                 Save key
                             </Button>
                         </div>
@@ -847,7 +848,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             </select>
                         </label>
                         <Button onClick={saveTts} disabled={updateTtsService.isLoading}>
-                            <Save className="h-4 w-4" />
+                            <MailshotIcon name="save" size={22} />
                             Save voice
                         </Button>
                     </div>
@@ -881,7 +882,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         />
                         <div className="flex gap-2">
                             <Button onClick={saveTensology} disabled={updateTensologyService.isLoading}>
-                                <Save className="h-4 w-4" />
+                                <MailshotIcon name="save" size={22} />
                                 Save and verify
                             </Button>
                             {tensology.api_key_set && (

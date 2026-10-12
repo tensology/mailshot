@@ -1,26 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-    Archive,
-    ArchiveRestore,
-    ArrowLeft,
-    Bell,
-    Clock,
-    Download,
-    ExternalLink,
-    FileArchive,
-    FileText,
-    Forward,
-    Loader2,
-    Mail,
-    Play,
-    Reply,
-    ReplyAll,
-    Printer,
-    OctagonAlert,
-    Trash2,
-    Volume2,
-    X
-} from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -45,6 +24,8 @@ import MoveToLabelMenu from './MoveToLabelMenu';
 import ThreadMessage from './ThreadMessage';
 import Button from './ui/Button';
 import IconButton from './ui/IconButton';
+import MailshotFileIcon from './ui/MailshotFileIcon';
+import MailshotIcon from './ui/MailshotIcon';
 import Spinner from './ui/Spinner';
 import Toast from './ui/Toast';
 import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
@@ -58,28 +39,6 @@ import {
     isSafeAttachmentPreviewType,
     loadAttachmentPreview
 } from '../utils/downloadAttachment';
-
-const FileTypeIcon = ({ filename = '', contentType = '', compact = false }) => {
-    const normalizedName = filename.toLowerCase();
-    const normalizedType = contentType.toLowerCase();
-    const isPdf = normalizedType === 'application/pdf' || normalizedName.endsWith('.pdf');
-    const isZip = normalizedType.includes('zip') || normalizedName.endsWith('.zip');
-    const Icon = isZip ? FileArchive : FileText;
-    const tone = isPdf
-        ? 'from-red-500 to-red-700 shadow-red-200'
-        : isZip
-            ? 'from-amber-400 to-orange-600 shadow-amber-200'
-            : 'from-blue-500 to-indigo-700 shadow-blue-200';
-
-    return (
-        <span className={`relative inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md ${tone} ${compact ? 'h-9 w-9' : 'h-14 w-14'}`}>
-            <Icon className={compact ? 'h-5 w-5' : 'h-7 w-7'} strokeWidth={2.3} />
-            <span className={`absolute -bottom-1 rounded bg-white px-1 font-black leading-4 shadow-sm ${isPdf ? 'text-red-600' : isZip ? 'text-orange-600' : 'text-blue-700'} ${compact ? 'text-[7px]' : 'text-[9px]'}`}>
-                {isPdf ? 'PDF' : isZip ? 'ZIP' : 'FILE'}
-            </span>
-        </span>
-    );
-};
 
 const ViewEmail = () => {
     const { openComposeDraft } = useCompose();
@@ -229,7 +188,7 @@ const ViewEmail = () => {
     const canSnoozeOrMute = canToggleSpam && !isSnoozedView;
     const archiveActionLabel = isArchivedView ? 'Unarchive' : 'Archive';
     const spamActionLabel = isSpamView ? 'Not spam' : 'Mark as spam';
-    const ArchiveIcon = isArchivedView ? ArchiveRestore : Archive;
+    const archiveIconName = isArchivedView ? 'unarchive' : 'archive';
     const downloadMessageAttachment = async (path, filename) => {
         const result = await downloadAttachment({
             call: downloadAttachmentService.call,
@@ -509,7 +468,7 @@ const ViewEmail = () => {
                             onClick={() => downloadMessageAttachment(`${message._id}/attachments.zip`, `${message.subject || 'attachments'}.zip`)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
-                            <Download className="h-3.5 w-3.5" />
+                            <MailshotIcon name="download" size={20} />
                             Download all
                         </button>
                     )}
@@ -554,12 +513,7 @@ const ViewEmail = () => {
                                     className="flex h-24 w-full items-center justify-center bg-slate-100 disabled:cursor-default"
                                     aria-label={canPreview ? `Preview ${filename}` : filename}
                                 >
-                                    {isVideo || isAudio ? (
-                                        <div className="flex flex-col items-center gap-1 text-slate-500">
-                                            {isAudio ? <Volume2 className="h-7 w-7" /> : <Play className="h-7 w-7" />}
-                                            <span className="text-[11px]">{isAudio ? 'Audio' : 'Video'}</span>
-                                        </div>
-                                    ) : <FileTypeIcon filename={filename} contentType={contentType} />}
+                                    <MailshotFileIcon filename={filename} contentType={contentType} size={64} />
                                 </button>
                                 <div className="space-y-2 p-2.5">
                                     <div className="min-w-0">
@@ -576,7 +530,7 @@ const ViewEmail = () => {
                                             onClick={() => downloadMessageAttachment(`${attachment.emailId}/attachments/${attachment.attachment_id}`, filename)}
                                             className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
                                         >
-                                            <Download className="h-3.5 w-3.5" />
+                                            <MailshotIcon name="download" size={20} />
                                             Download
                                         </button>
                                         <button
@@ -587,7 +541,7 @@ const ViewEmail = () => {
                                             aria-label={canPreview ? `Preview ${filename}` : `No preview for ${filename}`}
                                             title={canPreview ? `Preview ${filename}` : 'Preview unavailable'}
                                         >
-                                            <ExternalLink className="h-4 w-4" />
+                                            <MailshotIcon name="external" size={20} />
                                         </button>
                                     </div>
                                 </div>
@@ -624,8 +578,8 @@ const ViewEmail = () => {
                                 className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left text-slate-700"
                             >
                                 {link.type === 'youtube'
-                                    ? <Play className="h-6 w-6 shrink-0 text-red-600" />
-                                    : <FileTypeIcon filename={link.label} contentType="application/zip" compact />}
+                                    ? <MailshotFileIcon filename="video.mp4" contentType="video/mp4" size={38} />
+                                    : <MailshotFileIcon filename={link.label} contentType="application/zip" size={38} />}
                                 <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-xs font-semibold" title={link.label}>
                                     <span className="mailshot-compose-marquee inline-block min-w-full">{link.label}</span>
                                 </span>
@@ -640,7 +594,7 @@ const ViewEmail = () => {
                                     aria-label={`Download ${link.label}`}
                                     title="Download"
                                 >
-                                    <Download className="h-4 w-4" />
+                                    <MailshotIcon name="download" size={20} />
                                 </a>
                             )}
                         </article>
@@ -659,7 +613,7 @@ const ViewEmail = () => {
             >
                 <div className="flex shrink-0 items-center gap-1">
                     <IconButton size="touch" label="Back" className={toolbarButtonClass} onClick={() => navigate(backUrl)}>
-                        <ArrowLeft className="h-5 w-5 text-blue-700" strokeWidth={2.3} />
+                        <MailshotIcon name="back" size={24} />
                     </IconButton>
                     {labels.length > 0 && primaryEmail && (
                         <MoveToLabelMenu
@@ -672,38 +626,38 @@ const ViewEmail = () => {
                         />
                     )}
                     <IconButton size="touch" label="Delete" className={toolbarButtonClass} onClick={() => setConfirmDeleteOpen(true)}>
-                        <Trash2 className="h-5 w-5 text-red-600" strokeWidth={2.3} />
+                        <MailshotIcon name="delete" size={24} />
                     </IconButton>
                     <IconButton size="touch" label="Mark as unread" className={toolbarButtonClass} onClick={markAsUnread}>
-                        <Mail className="h-5 w-5 text-indigo-600" strokeWidth={2.3} />
+                        <MailshotIcon name="unread" size={24} />
                     </IconButton>
                     {canToggleArchive && (
                         <IconButton size="touch" label={archiveActionLabel} className={toolbarButtonClass} onClick={toggleArchive}>
-                            <ArchiveIcon className="h-5 w-5 text-cyan-700" strokeWidth={2.3} />
+                            <MailshotIcon name={archiveIconName} size={24} />
                         </IconButton>
                     )}
                     {canToggleSpam && (
                         <IconButton size="touch" label={spamActionLabel} className={toolbarButtonClass} onClick={toggleSpam}>
-                            <OctagonAlert className="h-5 w-5 text-orange-600" strokeWidth={2.3} />
+                            <MailshotIcon name="spam" size={24} />
                         </IconButton>
                     )}
                     {canSnoozeOrMute && (
                         <IconButton size="touch" label="Snooze 1 day" className={toolbarButtonClass} onClick={snoozeCurrent}>
-                            <Clock className="h-5 w-5 text-violet-600" strokeWidth={2.3} />
+                            <MailshotIcon name="snooze" size={24} />
                         </IconButton>
                     )}
                     {isSnoozedView && (
                         <IconButton size="touch" label="Wake now" className={toolbarButtonClass} onClick={wakeCurrent}>
-                            <Clock className="h-5 w-5 text-violet-600" strokeWidth={2.3} />
+                            <MailshotIcon name="wake" size={24} />
                         </IconButton>
                     )}
                     {canSnoozeOrMute && (
                         <IconButton size="touch" label="Mute 7 days" className={toolbarButtonClass} onClick={muteCurrent}>
-                            <Bell className="h-5 w-5 text-fuchsia-600" strokeWidth={2.3} />
+                            <MailshotIcon name="mute" size={24} />
                         </IconButton>
                     )}
                     <IconButton size="touch" label="Print" onClick={() => window.print()} className={`${toolbarButtonClass} print:hidden`}>
-                        <Printer className="h-5 w-5 text-slate-700" strokeWidth={2.3} />
+                        <MailshotIcon name="print" size={24} />
                     </IconButton>
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -715,17 +669,17 @@ const ViewEmail = () => {
                             disabled={readSummaryLoading}
                             className={`${toolbarButtonClass} ${readAloudReady ? 'text-green-600 hover:bg-green-50' : 'text-blue-600 hover:bg-blue-50'}`}
                         >
-                            {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" strokeWidth={2.3} />}
+                            {readSummaryLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <MailshotIcon name="speaker" size={24} />}
                         </IconButton>
                     )}
                     <IconButton size="touch" label="Reply" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('reply')}>
-                        <Reply className="h-5 w-5 text-blue-700" strokeWidth={2.3} />
+                        <MailshotIcon name="reply" size={24} />
                     </IconButton>
                     <IconButton size="touch" label="Reply all" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('reply-all')}>
-                        <ReplyAll className="h-5 w-5 text-indigo-700" strokeWidth={2.3} />
+                        <MailshotIcon name="reply-all" size={24} />
                     </IconButton>
                     <IconButton size="touch" label="Forward" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('forward')}>
-                        <Forward className="h-5 w-5 text-cyan-700" strokeWidth={2.3} />
+                        <MailshotIcon name="forward" size={24} />
                     </IconButton>
                 </div>
             </div>

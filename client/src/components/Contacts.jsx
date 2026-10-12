@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -12,6 +11,7 @@ import Input from './ui/Input';
 import Spinner from './ui/Spinner';
 import Textarea from './ui/Textarea';
 import IconButton from './ui/IconButton';
+import MailshotIcon from './ui/MailshotIcon';
 
 const emptyForm = {
     name: '',
@@ -135,13 +135,13 @@ const Contacts = () => {
                     <p className="text-sm text-slate-500">Manage people you email often.</p>
                 </div>
                 <Button onClick={openCreateDialog}>
-                    <Plus className="h-4 w-4" />
+                    <MailshotIcon name="plus" size={22} />
                     Add contact
                 </Button>
             </div>
 
             <div className="relative mb-5 max-w-md">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <MailshotIcon name="search" size={22} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                     type="search"
                     value={searchQuery}
@@ -182,13 +182,13 @@ const Contacts = () => {
                                         <td className="px-4 py-3">
                                             <div className="flex justify-end gap-1">
                                                 <IconButton label="Compose" onClick={(event) => emailContact(contact, event)}>
-                                                    <Mail className="h-4 w-4" />
+                                                    <MailshotIcon name="send" size={22} />
                                                 </IconButton>
                                                 <IconButton label="Edit" onClick={(event) => { event.stopPropagation(); openEditDialog(contact); }}>
-                                                    <Pencil className="h-4 w-4" />
+                                                    <MailshotIcon name="edit" size={22} />
                                                 </IconButton>
                                                 <IconButton label="Delete" onClick={(event) => { event.stopPropagation(); setContactToDelete(contact); }}>
-                                                    <Trash2 className="h-4 w-4" />
+                                                    <MailshotIcon name="delete" size={22} />
                                                 </IconButton>
                                             </div>
                                         </td>
@@ -228,13 +228,13 @@ const Contacts = () => {
                                     </button>
                                     <div className="flex gap-1">
                                         <IconButton label="Compose" onClick={(event) => emailContact(contact, event)}>
-                                            <Mail className="h-4 w-4" />
+                                            <MailshotIcon name="send" size={22} />
                                         </IconButton>
                                         <IconButton label="Edit" onClick={() => openEditDialog(contact)}>
-                                            <Pencil className="h-4 w-4" />
+                                            <MailshotIcon name="edit" size={22} />
                                         </IconButton>
                                         <IconButton label="Delete" onClick={() => setContactToDelete(contact)}>
-                                            <Trash2 className="h-4 w-4" />
+                                            <MailshotIcon name="delete" size={22} />
                                         </IconButton>
                                     </div>
                                 </div>

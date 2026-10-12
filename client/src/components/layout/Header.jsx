@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Cog, LogOut, Menu } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLayout } from '../../context/LayoutContext';
 import IconButton from '../ui/IconButton';
 import SettingsDialog from '../SettingsDialog';
+import MailshotIcon from '../ui/MailshotIcon';
 
 const Header = () => {
     const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -48,7 +49,7 @@ const Header = () => {
         <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur">
             <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
                 <IconButton label="Open menu" onClick={toggleSidebar}>
-                    <Menu className="h-5 w-5" />
+                    <MailshotIcon name="menu" size={24} />
                 </IconButton>
 
                 <div className="flex min-w-0 items-center gap-2">
@@ -66,7 +67,7 @@ const Header = () => {
                             title={username ? `Signed in as ${username}` : 'Account settings'}
                             className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 sm:flex"
                         >
-                            <Cog className="h-4 w-4" />
+                            <MailshotIcon name="settings" size={20} />
                             <span className="max-w-[140px] truncate">{username || 'Account'}</span>
                             <ChevronDown className="h-4 w-4" />
                         </button>
@@ -75,7 +76,7 @@ const Header = () => {
                             className="sm:hidden"
                             onClick={() => setAccountMenuOpen((value) => !value)}
                         >
-                            <Cog className="h-5 w-5" />
+                            <MailshotIcon name="settings" size={24} />
                         </IconButton>
 
                         {accountMenuOpen && (
@@ -104,7 +105,7 @@ const Header = () => {
                                         }}
                                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
                                     >
-                                        <Cog className="h-4 w-4" />
+                                        <MailshotIcon name="settings" size={20} />
                                         Settings
                                     </button>
                                     <button
@@ -113,7 +114,7 @@ const Header = () => {
                                         onClick={handleLogout}
                                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50"
                                     >
-                                        <LogOut className="h-4 w-4" />
+                                        <MailshotIcon name="logout" size={20} />
                                         Sign out
                                     </button>
                                 </div>

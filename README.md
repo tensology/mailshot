@@ -16,6 +16,8 @@
   A focused mailbox app for Tensology: fast mail triage, categories, undoable deletion, AI summaries, and Kokoro read-aloud audio.
 </p>
 
+Mailshot uses an original multicolor SVG icon family for mailbox navigation, message actions, Compose controls, and file-type previews. PDF, ZIP, image, audio, video, document, and spreadsheet attachments each have a dedicated scalable icon.
+
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-18%2B-green?style=flat-square&logo=node.js" alt="Node.js 18+" />
   <img src="https://img.shields.io/badge/React-18-blue?style=flat-square&logo=react" alt="React 18" />
