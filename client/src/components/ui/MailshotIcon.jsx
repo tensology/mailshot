@@ -114,14 +114,15 @@ const MailshotIcon = ({ name = 'mail', size = 24, className = '', title, active 
         ? ['#94a3b8', '#64748b']
         : PALETTES[name] || ['#60a5fa', '#2563eb'];
     const gradientId = `mailshot-${rawId}`;
+    const tileSize = size + 8;
 
     return (
         <svg
             aria-hidden={title ? undefined : true}
             role={title ? 'img' : undefined}
             viewBox="0 0 24 24"
-            width={size}
-            height={size}
+            width={tileSize}
+            height={tileSize}
             className={`shrink-0 ${className}`}
         >
             {title && <title>{title}</title>}
@@ -135,16 +136,13 @@ const MailshotIcon = ({ name = 'mail', size = 24, className = '', title, active 
                 ? <circle cx="12" cy="12" r="12" fill={`url(#${gradientId})`} />
                 : <rect width="24" height="24" rx="8" fill={`url(#${gradientId})`} />}
             <path d="M5 5.5c3-2 11-2 14 0" fill="none" stroke="white" strokeOpacity=".25" strokeWidth="1" />
-            <g
-                fill="none"
-                stroke="white"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={isRefresh && active ? 'animate-spin' : undefined}
-                style={isRefresh ? { transformOrigin: '12px 12px' } : undefined}
-            >
-                {glyph(name)}
+            <g transform="translate(3 3) scale(.75)" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <g
+                    className={isRefresh && active ? 'animate-spin' : undefined}
+                    style={isRefresh ? { transformOrigin: '12px 12px' } : undefined}
+                >
+                    {glyph(name)}
+                </g>
             </g>
         </svg>
     );

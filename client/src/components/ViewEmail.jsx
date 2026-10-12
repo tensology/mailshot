@@ -73,7 +73,7 @@ const ViewEmail = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const backUrl = `/emails/${type || 'inbox'}${location.search || ''}`;
-    const toolbarButtonClass = 'border-slate-200 bg-white shadow-sm hover:border-blue-200 hover:shadow-md';
+    const toolbarButtonClass = 'border-0 bg-transparent shadow-none hover:bg-transparent hover:shadow-none';
 
     useEffect(() => () => {
         if (previewItem?.objectUrl) {
