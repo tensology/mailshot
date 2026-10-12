@@ -1,10 +1,10 @@
 const unique = (items = []) => {
     const seen = new Set();
     return items.filter((item) => {
-        if (seen.has(item.url)) {
+        if (seen.has(item.embedUrl)) {
             return false;
         }
-        seen.add(item.url);
+        seen.add(item.embedUrl);
         return true;
     });
 };
@@ -42,28 +42,39 @@ const getDrivePreviewUrl = (url) => {
     }
 };
 
-export const getEmbeddableLinks = (email = {}) => unique(extractUrls(`${email.body_html || ''} ${email.body || ''}`)
-    .map((url) => {
-        const youtubeId = getYouTubeId(url);
-        if (youtubeId) {
-            return {
-                type: 'youtube',
-                label: 'YouTube',
-                url,
-                embedUrl: `https://www.youtube.com/embed/${youtubeId}`
-            };
-        }
-
-        const drivePreviewUrl = getDrivePreviewUrl(url);
-        if (drivePreviewUrl) {
-            return {
-                type: 'drive',
-                label: 'Google Drive',
-                url,
-                embedUrl: drivePreviewUrl
-            };
-        }
-
-        return null;
+const getDriveLabels = (html = '') => new Map((String(html || '').match(/<a\b[^>]*>/gi) || [])
+    .map((tag) => {
+        const href = tag.match(/\bhref=(['"])(.*?)\1/i)?.[2]?.replaceAll('&amp;', '&');
+        const label = tag.match(/\baria-label=(['"])(.*?)\1/i)?.[2];
+        return [getDrivePreviewUrl(href), label];
     })
-    .filter(Boolean));
+    .filter(([url, label]) => url && label));
+
+export const getEmbeddableLinks = (email = {}) => {
+    const driveLabels = getDriveLabels(email.body_html);
+    return unique(extractUrls(`${email.body_html || ''} ${email.body || ''}`)
+        .map((url) => {
+            const youtubeId = getYouTubeId(url);
+            if (youtubeId) {
+                return {
+                    type: 'youtube',
+                    label: 'YouTube',
+                    url,
+                    embedUrl: `https://www.youtube.com/embed/${youtubeId}`
+                };
+            }
+
+            const drivePreviewUrl = getDrivePreviewUrl(url);
+            if (drivePreviewUrl) {
+                return {
+                    type: 'drive',
+                    label: driveLabels.get(drivePreviewUrl) || 'Google Drive',
+                    url,
+                    embedUrl: drivePreviewUrl
+                };
+            }
+
+            return null;
+        })
+        .filter(Boolean));
+};

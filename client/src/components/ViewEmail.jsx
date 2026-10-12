@@ -590,7 +590,7 @@ const ViewEmail = () => {
                 <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
                     {messageLinks.map((link) => (
                         <button
-                            key={link.url}
+                            key={link.embedUrl}
                             type="button"
                             onClick={() => setPreviewItem({
                                 kind: 'embed',
