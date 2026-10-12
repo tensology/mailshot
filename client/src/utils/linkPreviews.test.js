@@ -21,4 +21,13 @@ test('labels Gmail Drive chips and deduplicates equivalent file URLs', () => {
 
     assert.equal(links.length, 1);
     assert.equal(links[0].label, 'Handover.zip');
+    assert.equal(links[0].downloadUrl, 'https://drive.google.com/uc?export=download&id=file123');
+});
+
+test('does not repeat linked files from folded quoted messages', () => {
+    const links = getEmbeddableLinks({
+        body_html: '<a href="https://drive.google.com/file/d/new-file/view" aria-label="New.zip">New.zip</a><div class="gmail_quote"><a href="https://drive.google.com/file/d/old-file/view" aria-label="Old.zip">Old.zip</a></div>'
+    });
+
+    assert.deepEqual(links.map((link) => link.label), ['New.zip']);
 });

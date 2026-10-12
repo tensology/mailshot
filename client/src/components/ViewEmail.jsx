@@ -7,6 +7,7 @@ import {
     Clock,
     Download,
     ExternalLink,
+    FileArchive,
     FileText,
     Forward,
     Loader2,
@@ -587,22 +588,41 @@ const ViewEmail = () => {
         return (
             <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-xl sm:border">
                 <h2 className="mb-3 text-sm font-semibold text-slate-900">Linked media</h2>
-                <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {messageLinks.map((link) => (
-                        <button
+                        <article
                             key={link.embedUrl}
-                            type="button"
-                            onClick={() => setPreviewItem({
-                                kind: 'embed',
-                                title: link.label,
-                                url: link.embedUrl,
-                                sourceUrl: link.url
-                            })}
-                            className="flex h-24 flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+                            className="group flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
                         >
-                            {link.type === 'youtube' ? <Play className="h-7 w-7 text-red-600" /> : <ExternalLink className="h-7 w-7 text-blue-600" />}
-                            <span className="text-xs font-semibold">{link.label}</span>
-                        </button>
+                            <button
+                                type="button"
+                                onClick={() => setPreviewItem({
+                                    kind: 'embed',
+                                    title: link.label,
+                                    url: link.embedUrl,
+                                    sourceUrl: link.url
+                                })}
+                                className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left text-slate-700"
+                            >
+                                {link.type === 'youtube' ? <Play className="h-6 w-6 shrink-0 text-red-600" /> : <FileArchive className="h-6 w-6 shrink-0 text-blue-600" />}
+                                <span className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-xs font-semibold" title={link.label}>
+                                    <span className="mailshot-compose-marquee inline-block min-w-full">{link.label}</span>
+                                </span>
+                            </button>
+                            {link.downloadUrl && (
+                                <a
+                                    href={link.downloadUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    download
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-blue-600 hover:bg-blue-50"
+                                    aria-label={`Download ${link.label}`}
+                                    title="Download"
+                                >
+                                    <Download className="h-4 w-4" />
+                                </a>
+                            )}
+                        </article>
                     ))}
                 </div>
             </footer>

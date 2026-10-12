@@ -1,3 +1,5 @@
+import { splitHtmlQuotedContent, splitPlainQuotedContent } from './quoteSplitter.js';
+
 const unique = (items = []) => {
     const seen = new Set();
     return items.filter((item) => {
@@ -28,18 +30,22 @@ const getYouTubeId = (url) => {
     return '';
 };
 
-const getDrivePreviewUrl = (url) => {
+const getDriveFileId = (url) => {
     try {
         const parsed = new URL(url);
         if (!parsed.hostname.includes('drive.google.com')) {
             return '';
         }
         const fileIndex = parsed.pathname.split('/').indexOf('d');
-        const fileId = fileIndex >= 0 ? parsed.pathname.split('/')[fileIndex + 1] : parsed.searchParams.get('id');
-        return fileId ? `https://drive.google.com/file/d/${fileId}/preview` : url;
+        return fileIndex >= 0 ? parsed.pathname.split('/')[fileIndex + 1] : parsed.searchParams.get('id') || '';
     } catch {
         return '';
     }
+};
+
+const getDrivePreviewUrl = (url) => {
+    const fileId = getDriveFileId(url);
+    return fileId ? `https://drive.google.com/file/d/${fileId}/preview` : '';
 };
 
 const getDriveLabels = (html = '') => new Map((String(html || '').match(/<a\b[^>]*>/gi) || [])
@@ -51,8 +57,10 @@ const getDriveLabels = (html = '') => new Map((String(html || '').match(/<a\b[^>
     .filter(([url, label]) => url && label));
 
 export const getEmbeddableLinks = (email = {}) => {
-    const driveLabels = getDriveLabels(email.body_html);
-    return unique(extractUrls(`${email.body_html || ''} ${email.body || ''}`)
+    const html = splitHtmlQuotedContent(email.body_html).main;
+    const body = splitPlainQuotedContent(email.body).main;
+    const driveLabels = getDriveLabels(html);
+    return unique(extractUrls(`${html} ${body}`)
         .map((url) => {
             const youtubeId = getYouTubeId(url);
             if (youtubeId) {
@@ -66,11 +74,13 @@ export const getEmbeddableLinks = (email = {}) => {
 
             const drivePreviewUrl = getDrivePreviewUrl(url);
             if (drivePreviewUrl) {
+                const fileId = getDriveFileId(url);
                 return {
                     type: 'drive',
                     label: driveLabels.get(drivePreviewUrl) || 'Google Drive',
                     url,
-                    embedUrl: drivePreviewUrl
+                    embedUrl: drivePreviewUrl,
+                    downloadUrl: `https://drive.google.com/uc?export=download&id=${fileId}`
                 };
             }
 
