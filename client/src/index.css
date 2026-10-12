@@ -45,6 +45,10 @@
     line-height: 1.6;
   }
 
+  .mailshot-email-content .gmail_drive_chip {
+    display: none;
+  }
+
   .mailshot-email-content :where(p, div, span, li, td, th, blockquote) {
     font-family: inherit !important;
     line-height: inherit !important;
