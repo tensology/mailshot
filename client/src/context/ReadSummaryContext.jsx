@@ -103,7 +103,7 @@ const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 
             aria-label="Move read summary panel"
             title="Move"
         >
-            <MailshotIcon name="menu" size={18} />
+            <span className="h-1 w-8 rounded-full bg-current" />
         </button>
         {children}
     </div>
