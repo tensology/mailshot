@@ -31,6 +31,8 @@ import {
 } from '../utils/contactSuggestions';
 import { sanitizeComposeHtml } from '../utils/composeHtml';
 import RecipientField from './RecipientField';
+import ConfirmDialog from './common/ConfirmDialog';
+import { Trash2 } from 'lucide-react';
 
 const getWindowClass = (composeState, isMobile, compactMinimized) => {
     if (composeState === 'minimized') {
@@ -175,6 +177,8 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
     const getContactsService = useApi(API_URLS.getContacts);
     const getSettingsService = useApi(API_URLS.getSettings);
     const downloadAttachmentService = useApi(API_URLS.downloadAttachment);
+    const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+    const [discarding, setDiscarding] = useState(false);
     const [contactOptions, setContactOptions] = useState([]);
     const [signatureOptions, setSignatureOptions] = useState([]);
     const [selectedSignatureEmail, setSelectedSignatureEmail] = useState('');
@@ -773,6 +777,29 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
         resetForm();
     };
 
+    const discardDraft = async () => {
+        setDiscarding(true);
+        const result = await saveQueueRef.current.enqueueExclusive(async () => {
+            if (!draftIdRef.current) {
+                return { error: '' };
+            }
+            return deleteEmailsService.call([draftIdRef.current], '', { silent: true });
+        });
+
+        if (result?.error) {
+            setDiscarding(false);
+            setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
+        }
+
+        saveQueueRef.current.close();
+        setDiscardDialogOpen(false);
+        setDiscarding(false);
+        closeCompose(composeId);
+        resetForm();
+        window.dispatchEvent(new CustomEvent('mailshot:draft-saved'));
+    };
+
     const removeSavedAttachment = (attachmentId) => {
         hasUserEditedRef.current = true;
         replaceSavedAttachments((current) => current.filter((attachment) => attachment.attachment_id !== attachmentId));
@@ -1142,11 +1169,27 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     </select>
                                 </label>
                             )}
+                            <IconButton
+                                label="Delete draft"
+                                className="ml-auto border-red-100 bg-red-50 text-red-600 hover:border-red-200 hover:bg-red-100 hover:text-red-700"
+                                onClick={() => setDiscardDialogOpen(true)}
+                            >
+                                <Trash2 className="h-5 w-5" strokeWidth={2.3} />
+                            </IconButton>
                         </div>
                     </div>
                 </form>
             )}
 
+            <ConfirmDialog
+                open={discardDialogOpen}
+                title="Delete this draft?"
+                message="This draft and its attachments will be permanently deleted."
+                confirmLabel="Delete draft"
+                loading={discarding}
+                onConfirm={discardDraft}
+                onCancel={() => setDiscardDialogOpen(false)}
+            />
             <Toast
                 open={snackbar.open}
                 message={snackbar.message}

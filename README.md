@@ -1,7 +1,7 @@
 # Mailshot
 
 <p align="center">
-  <img src="docs/assets/mailshot-icon-concept-1.png" alt="Mailshot 3D revolver launching an envelope" width="180" />
+  <img src="docs/assets/mailshot-envelope-bullet.png" alt="Mailshot white envelope with a bullet cutting through its left edge" width="180" />
 </p>
 
 <p align="center">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useSearchParams } from 'react-router-dom';
-import { Tag } from 'lucide-react';
+import { Plus, Tag, Trash2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { routes } from '../routes/routes';
@@ -66,8 +66,8 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
         <div className="mt-4 px-1">
             <div className="mb-2 flex items-center justify-between px-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
-                <button type="button" onClick={() => setOpen(true)} className="text-sm font-medium text-blue-600">
-                    +
+                <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
+                    <Plus className="h-4 w-4" strokeWidth={2.5} />
                 </button>
             </div>
             <div className="space-y-1">
@@ -81,7 +81,9 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
                                 onClick={onNavigate}
                                 className={labelNavClass(activeLabel === label.slug)}
                             >
-                                <Tag className="h-4 w-4 shrink-0" style={{ color: label.color || '#64748b' }} />
+                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                                    <Tag className="h-4 w-4" strokeWidth={2.3} style={{ color: label.color || '#64748b' }} />
+                                </span>
                                 <span className="min-w-0 flex-1 truncate">{label.name}</span>
                                 {unread > 0 && (
                                     <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
@@ -93,9 +95,9 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
                                 type="button"
                                 onClick={() => setLabelToDelete(label)}
                                 aria-label={`Delete ${label.name}`}
-                                className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                             >
-                                ×
+                                <Trash2 className="h-3.5 w-3.5" />
                             </button>
                         </div>
                     );

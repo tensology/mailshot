@@ -107,7 +107,9 @@ const Sidebar = ({ onSent }) => {
                                 className={navClass({ isActive: active })}
                                 onClick={handleNavigate}
                             >
-                                <Icon className="h-4 w-4 shrink-0" />
+                                <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 ring-black/5 ${item.tone}`}>
+                                    <Icon className="h-4 w-4" strokeWidth={2.3} />
+                                </span>
                                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                                 {unread > 0 && (
                                     <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
