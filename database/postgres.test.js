@@ -83,6 +83,8 @@ test('bootstraps the mailbox schema with the required tables', async () => {
     assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_date_value_idx/i);
     assert.match(queries[0], /CREATE INDEX IF NOT EXISTS emails_thread_subject_idx/i);
     assert.match(queries[0], /CREATE INDEX IF NOT EXISTS attachments_email_id_idx/i);
+    assert.match(queries[0], /CREATE TABLE IF NOT EXISTS integration_audit_events/i);
+    assert.match(queries[0], /CREATE INDEX IF NOT EXISTS integration_audit_events_resource_idx/i);
     const migrationSql = queries.slice(1).join('\n');
     assert.match(migrationSql, /muted_until/i);
     assert.match(migrationSql, /snoozed_until/i);

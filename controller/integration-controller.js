@@ -1,5 +1,10 @@
 import { getEmailById, getEmails, saveDraftEmail, sendEmail } from './email-controller.js';
 import { runIdempotent } from '../services/integration-idempotency.js';
+import {
+    MESSAGE_STATE_UPDATES,
+    recordMessageStateAudit,
+    updateMessageStateWithAudit
+} from '../services/integration-message-state.js';
 
 const invoke = async (handler, request) => {
     let status = 200;
@@ -69,6 +74,56 @@ export const getMessage = async (request, response) => envelope(
     response,
     await invoke(getEmailById, { ...request, params: { id: request.params.id } })
 );
+
+export const createMessageStateHandler = ({
+    idempotent = runIdempotent,
+    updateState = updateMessageStateWithAudit,
+    recordAudit = recordMessageStateAudit
+} = {}) => async (request, response) => {
+    const messageId = String(request.params.id || '').trim();
+    const action = String(request.body?.action || '').trim().toLowerCase();
+    if (!Object.hasOwn(MESSAGE_STATE_UPDATES, action)) {
+        await recordAudit(request, 'mail.message.state.invalid', messageId, 400, { requested_action: action });
+        return response.status(400).json({
+            error: {
+                code: 'invalid_action',
+                message: 'Action must be read, unread, archive, or unarchive.'
+            }
+        });
+    }
+
+    try {
+        const record = await idempotent(request, `mail.message.state.${messageId}`, async () => {
+            const state = await updateState(request, messageId, action);
+            if (!state) {
+                const error = new Error('Message not found');
+                error.status = 404;
+                throw error;
+            }
+            return {
+                status: 200,
+                data: {
+                    id: String(state.id || messageId),
+                    action,
+                    read: Boolean(state.read),
+                    archived: Boolean(state.archived),
+                    in_inbox: state.in_inbox !== false
+                }
+            };
+        });
+        return envelope(response, record, { idempotent_replay: Boolean(record.replay) });
+    } catch (error) {
+        const status = error.status || 500;
+        return response.status(status).json({
+            error: {
+                code: status === 404 ? 'not_found' : 'mail_state_failed',
+                message: error.message || 'Could not change message state'
+            }
+        });
+    }
+};
+
+export const updateMessageState = createMessageStateHandler();
 
 export const listDrafts = async (request, response) => {
     const result = await invoke(getEmails, { ...request, params: { type: 'drafts' } });

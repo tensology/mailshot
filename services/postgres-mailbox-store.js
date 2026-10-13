@@ -41,7 +41,12 @@ export const getMailboxStoreStatus = () => ({
     error: lastError?.message || null
 });
 
-export const __setMailboxStoreForTests = ({ repository: nextRepository = null, ready: nextReady = false } = {}) => {
+export const __setMailboxStoreForTests = ({
+    pool: nextPool = null,
+    repository: nextRepository = null,
+    ready: nextReady = false
+} = {}) => {
+    pool = nextPool;
     repository = nextRepository;
     ready = nextReady;
     lastError = null;

@@ -54,13 +54,13 @@ test('inserts and replaces a signature before quoted reply html', () => {
     assert.equal(applySignatureHtml(signed, second, first), `<div><br></div><br>${second}${quoted}`);
 });
 
-test('normalizes signature images to a responsive 460px width', () => {
+test('normalizes signature images to the responsive 490px default width', () => {
     assert.equal(
         normalizeSignatureHtml('<img src="x" style="max-width:240px;width:100%;height:auto;display:block;">'),
-        '<img src="x" style="width:460px;max-width:100%;height:auto;display:block;">'
+        '<img src="x" style="width:490px;max-width:100%;height:auto;display:block;">'
     );
     assert.equal(
         normalizeSignatureHtml('<img src="x">'),
-        '<img src="x" style="width:460px;max-width:100%;height:auto;display:block;">'
+        '<img src="x" style="width:490px;max-width:100%;height:auto;display:block;">'
     );
 });

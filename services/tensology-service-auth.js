@@ -55,3 +55,20 @@ export const requireTensologyService = async (request, response, next) => {
         return response.status(502).json({ error: { code: 'authority_unavailable', message: error.message || 'Tensology is unavailable' } });
     }
 };
+
+export const hasMailStateScope = (identity = {}) => {
+    const scopes = Array.isArray(identity.scopes) ? identity.scopes : [];
+    return identity.audience === 'mailshot' && scopes.includes('mail.service');
+};
+
+export const requireMailStateScope = (request, response, next) => {
+    if (!hasMailStateScope(request.tensologyService)) {
+        return response.status(403).json({
+            error: {
+                code: 'insufficient_scope',
+                message: 'Changing message state requires Mailshot service authority.'
+            }
+        });
+    }
+    return next();
+};

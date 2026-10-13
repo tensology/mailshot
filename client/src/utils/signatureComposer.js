@@ -26,7 +26,7 @@ export const htmlToPlainText = (html = '') => {
 const trimHtml = (html = '') => String(html || '').trim();
 
 const normalizeSignatureImageSizing = (tag = '') => {
-    const sizing = ['width:460px', 'max-width:100%', 'height:auto', 'display:block'];
+    const sizing = ['width:490px', 'max-width:100%', 'height:auto', 'display:block'];
     const normalized = tag.replace(/\sstyle=(["'])(.*?)\1/i, (match, quote, style) => {
         const declarations = style
             .split(';')

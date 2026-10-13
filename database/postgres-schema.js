@@ -96,6 +96,22 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     settings_json JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+CREATE TABLE IF NOT EXISTS integration_audit_events (
+    id BIGSERIAL PRIMARY KEY,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    request_id TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'api',
+    credential_audience TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL DEFAULT '',
+    resource_id TEXT NOT NULL DEFAULT '',
+    status_code INTEGER NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS integration_audit_events_resource_idx
+ON integration_audit_events (resource_type, resource_id, occurred_at DESC);
 `;
 
 const MAILBOX_SCHEMA_MIGRATIONS = [

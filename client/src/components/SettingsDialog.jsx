@@ -8,6 +8,7 @@ import Input from './ui/Input';
 import Toast from './ui/Toast';
 import { MAIL_FROM } from '../config/env';
 import MailshotIcon from './ui/MailshotIcon';
+import { normalizeSignatureHtml } from '../utils/signatureComposer';
 
 const DEFAULT_EMAIL = String(MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
 
@@ -123,7 +124,10 @@ const normalizeGeneral = (settings = {}) => {
             ? settings.signatures
             : [emptySignature(selectedEmail)],
         emptySignature
-    );
+    ).map((entry) => ({
+        ...entry,
+        signature_html: normalizeSignatureHtml(entry.signature_html || '')
+    }));
     const autoresponders = uniqueEntriesByEmail(
         Array.isArray(settings.autoresponders) && settings.autoresponders.length
             ? settings.autoresponders
@@ -186,7 +190,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
         }
 
         editorRef.current?.focus();
-        const imageHtml = `<img src="${url.replace(/"/g, '&quot;')}" alt="" style="height:auto;display:block;margin-top:8px;" />`;
+        const imageHtml = `<img src="${url.replace(/"/g, '&quot;')}" alt="" style="width:490px;max-width:100%;height:auto;display:block;margin-top:8px;" />`;
         document.execCommand('insertHTML', false, imageHtml);
         syncEditor();
         setImageUrl('');
@@ -259,7 +263,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
             <div
                 ref={editorRef}
                 contentEditable
-                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:rounded-md"
+                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:w-[490px] [&_img]:max-w-full [&_img]:rounded-md"
                 onInput={syncEditor}
                 role="textbox"
                 aria-multiline="true"
