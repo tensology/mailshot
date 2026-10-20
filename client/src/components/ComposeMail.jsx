@@ -23,7 +23,7 @@ import {
     resolveCapturedAttachmentIntent
 } from '../utils/attachmentEvents';
 import { createDraftSaveQueue } from '../utils/draftSaveQueue';
-import { downloadAttachment } from '../utils/downloadAttachment';
+import { isSafeAttachmentPreviewType, loadAttachmentPreview } from '../utils/downloadAttachment';
 import {
     cleanContactName,
     filterContactSuggestions
@@ -169,6 +169,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
     const [savedAttachments, setSavedAttachments] = useState([]);
     const [newAttachments, setNewAttachments] = useState([]);
     const [forwardedAttachments, setForwardedAttachments] = useState([]);
+    const [previewItem, setPreviewItem] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [sendQueued, setSendQueued] = useState(false);
     const sendEmailService = useApi(API_URLS.sendEmail);
@@ -570,6 +571,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
             draftPayload.append('in_reply_to', saveState.in_reply_to);
             draftPayload.append('references', JSON.stringify(saveState.references));
             draftPayload.append('retained_attachments', JSON.stringify(draftSnapshot.retained_attachments));
+            draftPayload.append('attachments_loaded', 'true');
             if (scheduledAt) {
                 draftPayload.append('scheduled_send_at', new Date(scheduledAt).toISOString());
             }
@@ -810,15 +812,55 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
         replaceNewAttachments((current) => current.filter((_, itemIndex) => itemIndex !== targetIndex));
     };
 
-    const downloadSavedAttachment = async (attachment) => {
-        const result = await downloadAttachment({
+    const viewSavedAttachment = async (attachment) => {
+        const filename = attachment.filename || 'attachment';
+        const contentType = String(attachment.content_type || (filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : '')).toLowerCase();
+        if (!isSafeAttachmentPreviewType(contentType)) {
+            setSnackbar({ open: true, message: 'This file cannot be previewed', severity: 'error' });
+            return;
+        }
+        const result = await loadAttachmentPreview({
             call: downloadAttachmentService.call,
-            path: `${draftIdRef.current}/attachments/${attachment.attachment_id}`,
-            filename: attachment.filename || 'attachment'
+            path: `${draftIdRef.current}/attachments/${attachment.attachment_id}`
         });
         if (result.error) {
             setSnackbar({ open: true, message: result.error, severity: 'error' });
+            return;
         }
+        const kind = contentType === 'application/pdf'
+            ? 'pdf'
+            : contentType.startsWith('image/')
+                ? 'image'
+                : contentType.startsWith('audio/')
+                    ? 'audio'
+                    : 'video';
+        setPreviewItem({ kind, title: filename, url: result.data, objectUrl: result.data });
+    };
+
+    const viewNewAttachment = (file) => {
+        const contentType = String(file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : '')).toLowerCase();
+        if (!isSafeAttachmentPreviewType(contentType)) {
+            setSnackbar({ open: true, message: 'This file cannot be previewed', severity: 'error' });
+            return;
+        }
+        const url = URL.createObjectURL(file);
+        const kind = contentType === 'application/pdf'
+            ? 'pdf'
+            : contentType.startsWith('image/')
+                ? 'image'
+                : contentType.startsWith('audio/')
+                    ? 'audio'
+                    : 'video';
+        setPreviewItem({ kind, title: file.name, url, objectUrl: url });
+    };
+
+    const closePreview = () => {
+        setPreviewItem((current) => {
+            if (current?.objectUrl) {
+                URL.revokeObjectURL(current.objectUrl);
+            }
+            return null;
+        });
     };
 
     const isMinimized = composeState === 'minimized';
@@ -1061,9 +1103,9 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => downloadSavedAttachment(attachment)}
+                                            onClick={() => viewSavedAttachment(attachment)}
                                             className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-blue-600"
-                                            aria-label={`Download ${attachment.filename}`}
+                                            aria-label={`View ${attachment.filename}`}
                                         >
                                             <MailshotIcon name="eye" size={20} />
                                         </button>
@@ -1084,6 +1126,14 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             <p className="truncate text-xs font-medium text-slate-700">{file.name}</p>
                                             <p className="text-[11px] text-slate-500">{formatFileSize(file.size)} selected</p>
                                         </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => viewNewAttachment(file)}
+                                            className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-blue-600"
+                                            aria-label={`View ${file.name}`}
+                                        >
+                                            <MailshotIcon name="eye" size={20} />
+                                        </button>
                                         <button
                                             type="button"
                                             className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-red-600"
@@ -1196,6 +1246,25 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                 severity={snackbar.severity}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
             />
+            {previewItem && createPortal(
+                <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 p-4" onClick={closePreview}>
+                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+                            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{previewItem.title}</p>
+                            <button type="button" className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100" onClick={closePreview} aria-label="Close preview">
+                                <MailshotIcon name="close" size={20} />
+                            </button>
+                        </div>
+                        <div className="min-h-0 flex-1 bg-slate-100">
+                            {previewItem.kind === 'image' && <img src={previewItem.url} alt="" className="h-full w-full object-contain" />}
+                            {previewItem.kind === 'pdf' && <iframe src={`${previewItem.url}#page=1&view=FitH`} title={previewItem.title} className="h-full w-full border-0 bg-white" />}
+                            {previewItem.kind === 'video' && <video src={previewItem.url} controls className="h-full w-full bg-black" />}
+                            {previewItem.kind === 'audio' && <div className="flex h-full items-center justify-center p-8"><audio src={previewItem.url} controls className="w-full max-w-2xl" /></div>}
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

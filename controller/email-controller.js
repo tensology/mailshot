@@ -556,7 +556,8 @@ const normalizeDraftPayload = (payload = {}) => {
 
 export const saveDraftEmail = async (request, response) => {
     try {
-        const retainedSelectionSpecified = Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
+        const attachmentsLoaded = ['true', '1', 'yes'].includes(String(request.body.attachments_loaded || '').toLowerCase());
+        const retainedSelectionSpecified = attachmentsLoaded && Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
         const retainedAttachmentIds = parseJsonArray(request.body.retained_attachments);
         const uploadedFiles = request.files || [];
         if (!hasDraftContent(request.body) && !retainedAttachmentIds.length && !uploadedFiles.length) {
@@ -1545,7 +1546,8 @@ export const sendEmail = async (request, response) => {
         const mailboxStoreReady = isMailboxStoreReady();
         const draftId = request.body.draftId || '';
         const draftRecord = draftId ? await findStoredEmail(draftId) : null;
-        const retainedSelectionSpecified = Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
+        const attachmentsLoaded = ['true', '1', 'yes'].includes(String(request.body.attachments_loaded || '').toLowerCase());
+        const retainedSelectionSpecified = attachmentsLoaded && Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
         const retainedAttachmentIds = parseJsonArray(request.body.retained_attachments);
 
         const rate = assertOutboundSendAllowed({

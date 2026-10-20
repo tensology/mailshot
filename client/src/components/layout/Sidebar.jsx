@@ -110,7 +110,7 @@ const Sidebar = ({ onSent }) => {
                             >
                                 <MailshotIcon name={item.icon} size={28} />
                                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                                {unread > 0 && (
+                                {item.name !== 'bin' && unread > 0 && (
                                     <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
                                         {unread}
                                     </span>
