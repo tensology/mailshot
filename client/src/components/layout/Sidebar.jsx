@@ -126,7 +126,7 @@ const Sidebar = ({ onSent }) => {
                     </button>
                 </div>
 
-                <nav className="scrollbar-thin min-h-0 min-w-[16rem] flex-1 space-y-1 overflow-y-auto px-3 py-3">
+                <nav className="scrollbar-thin min-h-0 min-w-[16rem] max-h-[70%] shrink-0 space-y-1 overflow-y-auto px-3 py-3">
                     {PRIMARY_SIDEBAR.map(renderFolder)}
                     <button
                         type="button"
@@ -140,7 +140,7 @@ const Sidebar = ({ onSent }) => {
                     {showMore && MORE_SIDEBAR.map(renderFolder)}
                 </nav>
 
-                <div className="scrollbar-thin min-w-[16rem] max-h-[30%] shrink-0 overflow-y-auto border-t border-slate-200 px-3 pb-3">
+                <div className="scrollbar-thin min-h-0 min-w-[16rem] flex-1 overflow-y-auto border-t border-slate-200 px-3 pb-3">
                     <div>
                         <LabelSidebar
                             counts={counts.label_unread || {}}
