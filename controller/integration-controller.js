@@ -1,4 +1,4 @@
-import { getEmailById, getEmails, saveDraftEmail, sendEmail } from './email-controller.js';
+import { getEmailById, getEmailThread, getEmails, saveDraftEmail, sendEmail } from './email-controller.js';
 import { runIdempotent } from '../services/integration-idempotency.js';
 import {
     MESSAGE_STATE_UPDATES,
@@ -70,10 +70,23 @@ export const listMessages = async (request, response) => {
     return envelope(response, compactMessageList(result));
 };
 
-export const getMessage = async (request, response) => envelope(
-    response,
-    await invoke(getEmailById, { ...request, params: { id: request.params.id } })
-);
+export const createGetMessageHandler = ({
+    getOne = getEmailById,
+    getThread = getEmailThread
+} = {}) => async (request, response) => {
+    const includeThread = ['1', 'true', 'yes', 'thread'].includes(
+        String(request.query?.include_thread || '').trim().toLowerCase()
+    );
+    return envelope(
+        response,
+        await invoke(includeThread ? getThread : getOne, {
+            ...request,
+            params: { id: request.params.id }
+        })
+    );
+};
+
+export const getMessage = createGetMessageHandler();
 
 export const createMessageStateHandler = ({
     idempotent = runIdempotent,

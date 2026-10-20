@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
     __integrationSerializersForTests,
+    createGetMessageHandler,
     createMessageStateHandler
 } from './integration-controller.js';
 import {
@@ -43,6 +44,32 @@ test('integration mail lists return compact summaries without message bodies', (
 test('integration mail list leaves upstream errors untouched', () => {
     const result = { status: 503, data: 'Mailbox is unavailable' };
     assert.equal(compactMessageList(result), result);
+});
+
+test('integration message detail can return the complete requested thread', async () => {
+    const calls = [];
+    const handler = createGetMessageHandler({
+        getOne: async (request, response) => {
+            calls.push(['message', request.params.id]);
+            return response.status(200).json({ _id: request.params.id, body: 'one message' });
+        },
+        getThread: async (request, response) => {
+            calls.push(['thread', request.params.id]);
+            return response.status(200).json([
+                { _id: 'mail-1', body: 'first complete body' },
+                { _id: 'mail-2', body: 'second complete body' }
+            ]);
+        }
+    });
+    const response = createResponse();
+
+    await handler({ params: { id: 'mail-2' }, query: { include_thread: 'true' } }, response);
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(calls, [['thread', 'mail-2']]);
+    assert.equal(response.body.data.length, 2);
+    assert.equal(response.body.data[0].body, 'first complete body');
+    assert.equal(response.body.data[1].body, 'second complete body');
 });
 
 const createResponse = () => ({
