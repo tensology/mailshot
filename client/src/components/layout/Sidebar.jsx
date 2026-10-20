@@ -128,7 +128,6 @@ const Sidebar = ({ onSent }) => {
 
                 <nav className="scrollbar-thin min-h-0 min-w-[16rem] flex-1 space-y-1 overflow-y-auto px-3 py-3">
                     {PRIMARY_SIDEBAR.map(renderFolder)}
-                    {showMore && MORE_SIDEBAR.map(renderFolder)}
                     <button
                         type="button"
                         aria-expanded={showMore}
@@ -138,6 +137,7 @@ const Sidebar = ({ onSent }) => {
                         <ChevronDown aria-hidden="true" className={`h-5 w-5 shrink-0 transition-transform ${showMore ? 'rotate-180' : ''}`} />
                         <span>{showMore ? 'Hide' : 'Show more'}</span>
                     </button>
+                    {showMore && MORE_SIDEBAR.map(renderFolder)}
                 </nav>
 
                 <div className="scrollbar-thin min-w-[16rem] max-h-[45%] shrink-0 overflow-y-auto border-t border-slate-200 px-3 pb-3">
