@@ -1,7 +1,7 @@
 import { NavLink, useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { Pencil } from 'lucide-react';
-import { SIDEBAR_DATA } from '../../config/sidebar.config';
+import { ChevronDown, Pencil } from 'lucide-react';
+import { MORE_SIDEBAR, PRIMARY_SIDEBAR } from '../../config/sidebar.config';
 import { routes } from '../../routes/routes';
 import { useLayout } from '../../context/LayoutContext';
 import { useCompose } from '../../context/ComposeContext';
@@ -29,6 +29,14 @@ const Sidebar = ({ onSent }) => {
     const getMailboxCountsService = useApi(API_URLS.getMailboxCounts);
     const [counts, setCounts] = useState({ inbox_unread: 0 });
     const previousUnreadRef = useRef(0);
+    const moreFolderActive = MORE_SIDEBAR.some((item) => item.name === type);
+    const [showMore, setShowMore] = useState(moreFolderActive);
+
+    useEffect(() => {
+        if (moreFolderActive) {
+            setShowMore(true);
+        }
+    }, [moreFolderActive]);
 
     useEffect(() => {
         const refreshCounts = () => getMailboxCountsService.call({}, '', { silent: true }).then((result) => {
@@ -65,6 +73,30 @@ const Sidebar = ({ onSent }) => {
         }
     };
 
+    const renderFolder = (item) => {
+        const active = type === item.name && !(item.name === 'allmail' && activeLabel);
+        const unread = Number(counts.system_unread?.[item.name] ?? (
+            item.name === 'inbox' ? counts.inbox_unread : 0
+        ));
+
+        return (
+            <NavLink
+                key={item.name}
+                to={`${routes.emails.path}/${item.name}`}
+                className={navClass({ isActive: active })}
+                onClick={handleNavigate}
+            >
+                <MailshotIcon name={item.icon} size={28} />
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                {item.name !== 'bin' && unread > 0 && (
+                    <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {unread}
+                    </span>
+                )}
+            </NavLink>
+        );
+    };
+
     return (
         <>
             {sidebarOpen && isMobile && (
@@ -94,34 +126,21 @@ const Sidebar = ({ onSent }) => {
                     </button>
                 </div>
 
-                <nav className="min-w-[16rem] shrink-0 space-y-1 px-3 py-3">
-                    {SIDEBAR_DATA.map((item) => {
-                        const active = type === item.name && !(item.name === 'allmail' && activeLabel);
-                        const unread = Number(counts.system_unread?.[item.name] ?? (
-                            item.name === 'inbox' ? counts.inbox_unread : 0
-                        ));
-
-                        return (
-                            <NavLink
-                                key={item.name}
-                                to={`${routes.emails.path}/${item.name}`}
-                                className={navClass({ isActive: active })}
-                                onClick={handleNavigate}
-                            >
-                                <MailshotIcon name={item.icon} size={28} />
-                                <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                                {item.name !== 'bin' && unread > 0 && (
-                                    <span className="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
-                                        {unread}
-                                    </span>
-                                )}
-                            </NavLink>
-                        );
-                    })}
-
+                <nav className="scrollbar-thin min-h-0 min-w-[16rem] flex-1 space-y-1 overflow-y-auto px-3 py-3">
+                    {PRIMARY_SIDEBAR.map(renderFolder)}
+                    {showMore && MORE_SIDEBAR.map(renderFolder)}
+                    <button
+                        type="button"
+                        aria-expanded={showMore}
+                        onClick={() => setShowMore((open) => !open)}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200"
+                    >
+                        <ChevronDown aria-hidden="true" className={`h-5 w-5 shrink-0 transition-transform ${showMore ? 'rotate-180' : ''}`} />
+                        <span>{showMore ? 'Hide' : 'Show more'}</span>
+                    </button>
                 </nav>
 
-                <div className="scrollbar-thin min-h-0 min-w-[16rem] flex-1 overflow-y-auto border-t border-slate-100 px-3 pb-3">
+                <div className="scrollbar-thin min-w-[16rem] max-h-[45%] shrink-0 overflow-y-auto border-t border-slate-200 px-3 pb-3">
                     <div>
                         <LabelSidebar
                             counts={counts.label_unread || {}}

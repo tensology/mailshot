@@ -5,9 +5,15 @@ import QuotedContent from './common/QuotedContent';
 const ThreadMessage = ({ message, isLatest = false }) => {
     const senderName = parseSenderName(message.from);
     const senderEmail = parseSenderEmail(message.from);
+    const isDraft = message.type === 'drafts';
+    const frameClass = isDraft
+        ? 'rounded-xl border border-green-300 bg-green-50 px-3 shadow-sm shadow-green-100/60'
+        : isLatest
+            ? 'rounded-xl border border-blue-200 bg-blue-50/70 px-3 shadow-sm shadow-blue-100/60'
+            : 'border-slate-100';
 
     return (
-        <article className={`border-t py-5 first:border-t-0 ${isLatest ? 'rounded-xl border border-green-200 bg-green-50/35 px-3 shadow-sm shadow-green-100/60' : 'border-slate-100'}`}>
+        <article className={`border-t py-5 first:border-t-0 ${frameClass}`}>
             <div className="mx-auto flex w-fit max-w-full gap-3">
                 <img
                     src={emptyProfilePic}
@@ -29,8 +35,13 @@ const ThreadMessage = ({ message, isLatest = false }) => {
                             </p>
                         </div>
                         <time className="text-xs text-slate-500">
-                            {isLatest && (
-                                <span className="mb-1 inline-flex rounded-full border border-green-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                            {isDraft && (
+                                <span className="mb-1 inline-flex rounded-full border border-green-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                                    Draft
+                                </span>
+                            )}
+                            {isLatest && !isDraft && (
+                                <span className="mb-1 inline-flex rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-blue-700">
                                     Latest
                                 </span>
                             )}

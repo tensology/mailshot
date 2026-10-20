@@ -190,8 +190,14 @@ const Email = ({
             onKeyDown={openEmailFromKeyboard}
             data-email-row-id={email._id}
             aria-selected={isHighlighted}
-            className={`group flex w-full items-stretch gap-0 border-b border-slate-100 text-left transition hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
-                isHighlighted ? 'bg-blue-50/90' : rowTone === 'muted' ? 'bg-slate-50/70' : 'bg-white'
+            className={`group flex w-full items-stretch gap-0 border-b border-slate-100 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
+                isDraft
+                    ? isHighlighted ? 'bg-green-100/80 hover:bg-green-100' : 'bg-green-50/80 hover:bg-green-50'
+                    : isHighlighted
+                        ? 'bg-blue-50/90 hover:bg-blue-50/40'
+                        : rowTone === 'muted'
+                            ? 'bg-slate-50/70 hover:bg-blue-50/40'
+                            : 'bg-white hover:bg-blue-50/40'
             }`}
         >
             <div
@@ -241,7 +247,11 @@ const Email = ({
 
                         <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5 sm:flex-1">
                             <span className={`min-w-0 shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
-                                {isDraft && <span className="font-semibold text-red-600">Draft </span>}
+                                {isDraft && (
+                                    <span className="mr-1.5 inline-flex rounded-full bg-green-100 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-green-700 ring-1 ring-inset ring-green-200">
+                                        Draft
+                                    </span>
+                                )}
                                 {subject}
                             </span>
                             {email.thread_count > 1 && (

@@ -688,9 +688,15 @@ const ViewEmail = () => {
                 <div className="mx-auto w-full max-w-[min(100%,72rem)]">
                     <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-center">
                         <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{subject}</h1>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                            {primaryEmail.type || 'inbox'}
-                        </span>
+                        {primaryEmail.type === 'drafts' ? (
+                            <span className="rounded-full border border-green-300 bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                                Draft
+                            </span>
+                        ) : (
+                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                                {primaryEmail.type || 'inbox'}
+                            </span>
+                        )}
                     </div>
 
                     <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
