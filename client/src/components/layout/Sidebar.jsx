@@ -140,7 +140,7 @@ const Sidebar = ({ onSent }) => {
                     {showMore && MORE_SIDEBAR.map(renderFolder)}
                 </nav>
 
-                <div className="scrollbar-thin min-w-[16rem] max-h-[45%] shrink-0 overflow-y-auto border-t border-slate-200 px-3 pb-3">
+                <div className="scrollbar-thin min-w-[16rem] max-h-[30%] shrink-0 overflow-y-auto border-t border-slate-200 px-3 pb-3">
                     <div>
                         <LabelSidebar
                             counts={counts.label_unread || {}}
