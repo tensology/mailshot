@@ -1,4 +1,7 @@
-import { getEmailById, getEmailThread, getEmails, saveDraftEmail, sendEmail } from './email-controller.js';
+import { deleteEmails, getEmailById, getEmailThread, getEmails, moveEmailsToBin, saveDraftEmail, searchEmails, sendEmail } from './email-controller.js';
+import { getLabels, updateEmailLabels } from './label-controller.js';
+import { findEmailRecord } from '../services/mail-sync.js';
+import { getMailboxRepository, isMailboxStoreReady } from '../services/postgres-mailbox-store.js';
 import { runIdempotent } from '../services/integration-idempotency.js';
 import {
     MESSAGE_STATE_UPDATES,
@@ -62,8 +65,16 @@ const compactMessageList = (result) => {
 
 export const __integrationSerializersForTests = { messageSummary, compactMessageList };
 
+// Section aliases accepted by the integration API (`folder` or `section`).
+const SECTION_ALIASES = Object.freeze({ incoming: 'inbox', received: 'inbox', outgoing: 'sent', draft: 'drafts', trash: 'bin', archive: 'archived', all: 'allmail' });
+export const resolveSection = (query = {}) => {
+    const raw = String(query.folder || query.section || 'inbox').trim().toLowerCase();
+    return SECTION_ALIASES[raw] || raw;
+};
+
 export const listMessages = async (request, response) => {
-    const folder = String(request.query.folder || 'inbox').toLowerCase();
+    const folder = resolveSection(request.query);
+    if (request.query.tag && !request.query.label) request.query.label = request.query.tag;
     const allowed = new Set(['inbox', 'sent', 'drafts', 'archived', 'spam', 'bin', 'starred', 'allmail']);
     if (!allowed.has(folder)) return response.status(400).json({ error: { code: 'invalid_folder', message: 'Unknown mail folder' } });
     const result = await invoke(getEmails, { ...request, params: { type: folder } });
@@ -193,3 +204,119 @@ export const sendMessage = async (request, response) => {
         return response.status(error.status || 500).json({ error: { code: 'mail_send_failed', message: error.message } });
     }
 };
+
+// ---------------------------------------------------------------------------
+// Additive integration endpoints (2026-10-22): search, labels, delete.
+// None of these send mail. Deletes only ever target the single id in the URL.
+// ---------------------------------------------------------------------------
+
+const errorBody = (code, message) => ({ error: { code, message } });
+
+/** Look up one record without the read-marking side effect of getEmailById. */
+export const createRecordLookup = ({
+    storeReady = isMailboxStoreReady,
+    repository = getMailboxRepository,
+    findRecord = findEmailRecord
+} = {}) => async (id) => {
+    if (storeReady()) return (await repository().findById(String(id))) || null;
+    const resolved = await findRecord(String(id));
+    return resolved?.email || null;
+};
+const lookupRecord = createRecordLookup();
+
+export const isDraftRecord = (record = {}) => String(record?.type || '').toLowerCase() === 'drafts';
+
+export const searchMessages = async (request, response) => {
+    const q = String(request.query.q || request.query.search || '').trim();
+    if (!q) return response.status(400).json(errorBody('invalid_query', 'q is required'));
+    const result = await invoke(searchEmails, { ...request, query: { ...request.query, q } });
+    if (Array.isArray(result.data)) {
+        return envelope(response, { ...result, data: { emails: result.data.map(__integrationSerializersForTests.messageSummary), total: result.data.length } });
+    }
+    return envelope(response, compactMessageList(result));
+};
+
+export const listLabels = async (request, response) => {
+    const result = await invoke(getLabels, request);
+    return envelope(response, result);
+};
+
+export const createLabelsHandler = ({ idempotent = runIdempotent, lookup = lookupRecord, update = updateEmailLabels } = {}) => async (request, response) => {
+    const messageId = String(request.params.id || '').trim();
+    const labels = request.body?.labels;
+    if (!Array.isArray(labels) || labels.some((label) => typeof label !== 'string')) {
+        return response.status(400).json(errorBody('invalid_labels', 'labels must be an array of label names/slugs'));
+    }
+    try {
+        const record = await idempotent(request, `mail.message.labels.${messageId}`, async () => {
+            if (!(await lookup(messageId))) {
+                const error = new Error('Message not found'); error.status = 404; throw error;
+            }
+            const result = await invoke(update, { ...request, params: { id: messageId }, body: { labels } });
+            if (result.status >= 400) {
+                const error = new Error(typeof result.data === 'string' ? result.data : 'Could not update labels');
+                error.status = result.status; throw error;
+            }
+            const data = result.data || {};
+            return { status: 200, data: { id: messageId, labels: Array.isArray(data.labels) ? data.labels : labels } };
+        });
+        return envelope(response, record, { idempotent_replay: Boolean(record.replay) });
+    } catch (error) {
+        const status = error.status || 500;
+        return response.status(status).json(errorBody(status === 404 ? 'not_found' : 'mail_labels_failed', error.message));
+    }
+};
+export const updateMessageLabels = createLabelsHandler();
+
+export const createDeleteDraftHandler = ({ idempotent = runIdempotent, lookup = lookupRecord, remove = deleteEmails } = {}) => async (request, response) => {
+    const draftId = String(request.params.id || '').trim();
+    try {
+        const record = await idempotent(request, `mail.draft.delete.${draftId}`, async () => {
+            const existing = await lookup(draftId);
+            if (!existing) { const error = new Error('Draft not found'); error.status = 404; throw error; }
+            if (!isDraftRecord(existing)) { const error = new Error('Only draft records can be deleted here'); error.status = 409; throw error; }
+            const result = await invoke(remove, { ...request, body: { ids: [draftId] } });
+            if (result.status >= 400) {
+                const error = new Error(typeof result.data === 'string' ? result.data : 'Could not delete draft');
+                error.status = result.status; throw error;
+            }
+            return { status: 200, data: { id: draftId, deleted: true } };
+        });
+        return envelope(response, record, { idempotent_replay: Boolean(record.replay) });
+    } catch (error) {
+        const status = error.status || 500;
+        const code = status === 404 ? 'not_found' : status === 409 ? 'not_a_draft' : 'mail_draft_delete_failed';
+        return response.status(status).json(errorBody(code, error.message));
+    }
+};
+export const deleteDraft = createDeleteDraftHandler();
+
+/**
+ * DELETE /messages/:id moves one message to Bin (recoverable).
+ * ?permanent=true permanently removes it, but only when it is already in Bin.
+ */
+export const createDeleteMessageHandler = ({ idempotent = runIdempotent, lookup = lookupRecord, toBin = moveEmailsToBin, remove = deleteEmails } = {}) => async (request, response) => {
+    const messageId = String(request.params.id || '').trim();
+    const permanent = String(request.query?.permanent || '').toLowerCase() === 'true';
+    try {
+        const record = await idempotent(request, `mail.message.delete.${permanent ? 'permanent' : 'bin'}.${messageId}`, async () => {
+            const existing = await lookup(messageId);
+            if (!existing) { const error = new Error('Message not found'); error.status = 404; throw error; }
+            if (permanent && !existing.bin) {
+                const error = new Error('Permanent delete is only allowed for messages already in Bin'); error.status = 409; throw error;
+            }
+            const result = await invoke(permanent ? remove : toBin, { ...request, body: { ids: [messageId] } });
+            if (result.status >= 400) {
+                const error = new Error(typeof result.data === 'string' ? result.data : 'Could not delete message');
+                error.status = result.status; throw error;
+            }
+            return { status: 200, data: { id: messageId, deleted: permanent, bin: !permanent } };
+        });
+        return envelope(response, record, { idempotent_replay: Boolean(record.replay) });
+    } catch (error) {
+        const status = error.status || 500;
+        const code = status === 404 ? 'not_found' : status === 409 ? 'not_in_bin' : 'mail_delete_failed';
+        return response.status(status).json(errorBody(code, error.message));
+    }
+};
+export const deleteMessage = createDeleteMessageHandler();
