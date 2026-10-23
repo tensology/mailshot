@@ -72,3 +72,23 @@ export const requireMailStateScope = (request, response, next) => {
     }
     return next();
 };
+
+/**
+ * Require one integration scope on the introspected credential.
+ * The first-party Mailshot service credential (audience=mailshot + mail.service)
+ * keeps full authority; Tensology Incoming replies are sent with it.
+ */
+export const requireScope = (scope) => (request, response, next) => {
+    const identity = request.tensologyService || {};
+    const scopes = Array.isArray(identity.scopes) ? identity.scopes : [];
+    if (hasMailStateScope(identity) || scopes.includes(scope)) return next();
+    return response.status(403).json({
+        data: null,
+        error: {
+            code: 'insufficient_scope',
+            message: `This API key does not grant ${scope}.`,
+            required: [scope]
+        },
+        meta: {}
+    });
+};

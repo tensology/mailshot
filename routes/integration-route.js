@@ -13,7 +13,7 @@ import {
     updateMessageLabels,
     updateMessageState
 } from '../controller/integration-controller.js';
-import { requireMailStateScope, requireTensologyService } from '../services/tensology-service-auth.js';
+import { requireMailStateScope, requireScope, requireTensologyService } from '../services/tensology-service-auth.js';
 
 const routes = express.Router();
 routes.use(requireTensologyService);
@@ -29,6 +29,6 @@ routes.get('/drafts/:id', getMessage);
 routes.post('/drafts', saveDraft);
 routes.patch('/drafts/:id', saveDraft);
 routes.delete('/drafts/:id', deleteDraft);
-routes.post('/send', sendMessage);
+routes.post('/send', requireScope('mail.send'), sendMessage);
 
 export default routes;
