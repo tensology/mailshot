@@ -97,6 +97,9 @@ app.get('*', (req, res, next) => {
 });
 
 const PORT = process.env.PORT || 8000;
+// Bind to loopback by default: nginx is the only intended entry point.
+// Set HOST=0.0.0.0 only if a public listener is genuinely required.
+const HOST = process.env.HOST || '127.0.0.1';
 
 const boot = async () => {
     Connection();
@@ -153,7 +156,7 @@ const boot = async () => {
         console.error('Email summary worker failed to start:', error.message || error);
     });
 
-    app.listen(PORT, () => console.log(`Server started on PORT ${PORT}`));
+    app.listen(PORT, HOST, () => console.log(`Server started on ${HOST}:${PORT}`));
 };
 
 boot().catch((error) => {
