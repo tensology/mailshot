@@ -1,0 +1,10 @@
+{
+  "identities": [
+    {
+      "email": "all@tensology.co.za",
+      "name": "Tensology",
+      "can_send": false,
+      "note": "Draft-only From address. Real sending needs an SMTP mailbox for all@tensology.co.za (or send-as rights on the current mailbox) plus SPF/DKIM/DMARC for tensology.co.za."
+    }
+  ]
+}

@@ -56,6 +56,8 @@ app.use(cors({ origin(origin, callback) {
     return callback(new Error('Origin not allowed'));
 } }));
 app.use(express.urlencoded({ extended: true }));
+// Integration drafts may carry base64 attachments (10MB/file, 15MB total decoded); browser routes keep the 100kb default.
+app.use('/api/integrations/v1', express.json({ limit: process.env.MAILSHOT_INTEGRATION_JSON_LIMIT || '22mb' }));
 app.use(express.json());
 
 const isBrowserNavigation = (req) => {

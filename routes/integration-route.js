@@ -7,6 +7,7 @@ import {
     listDrafts,
     listLabels,
     listMessages,
+    listSenders,
     saveDraft,
     searchMessages,
     sendMessage,
@@ -20,6 +21,7 @@ routes.use(requireTensologyService);
 routes.get('/messages', listMessages);
 routes.get('/search', searchMessages);
 routes.get('/labels', listLabels);
+routes.get('/senders', listSenders);
 routes.get('/messages/:id', getMessage);
 routes.patch('/messages/:id/state', requireMailStateScope, updateMessageState);
 routes.put('/messages/:id/labels', updateMessageLabels);
