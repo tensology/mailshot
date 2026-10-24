@@ -14,6 +14,20 @@ const extractBearer = (request) => {
     return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
 };
 
+const hasAnyMailScope = (scopes) => Array.isArray(scopes) && scopes.some((scope) => typeof scope === 'string' && scope.startsWith('mail.'));
+
+/**
+ * Admission check for introspected Tensology credentials.
+ * - audience=mailshot: admitted with any mail.* scope (mail.service = full authority;
+ *   narrower keys are then gated per route by requireScope / requireReadScope).
+ * - audience=decisionsai: admitted with any mail.* scope (unchanged).
+ */
+export const isAdmittedServiceIdentity = (identity) => {
+    if (!identity || !identity.active) return false;
+    if (identity.audience === 'mailshot' || identity.audience === 'decisionsai') return hasAnyMailScope(identity.scopes);
+    return false;
+};
+
 export const requireTensologyService = async (request, response, next) => {
     const rawKey = extractBearer(request);
     if (!rawKey) return response.status(401).json({ error: { code: 'unauthorized', message: 'Service API key required' } });
@@ -43,9 +57,7 @@ export const requireTensologyService = async (request, response, next) => {
         });
         const body = await result.json().catch(() => ({}));
         const identity = body?.data;
-        const isMailshotService = identity?.audience === 'mailshot' && identity.scopes?.includes('mail.service');
-        const isDecisionsMail = identity?.audience === 'decisionsai' && identity.scopes?.some((scope) => scope.startsWith('mail.'));
-        if (!result.ok || !identity?.active || (!isMailshotService && !isDecisionsMail)) {
+        if (!result.ok || !identity?.active || !isAdmittedServiceIdentity(identity)) {
             return response.status(403).json({ error: { code: 'forbidden', message: 'Invalid Mailshot service credential' } });
         }
         cache.set(rawKey, { identity, expiresAt: Date.now() + CACHE_MS });
@@ -91,4 +103,15 @@ export const requireScope = (scope) => (request, response, next) => {
         },
         meta: {}
     });
+};
+
+/**
+ * Read routes require mail.read for scoped Mailshot-audience keys.
+ * mail.service keeps full authority, and DecisionsAI keys keep their existing
+ * behaviour (admitted with any mail.* scope) so current callers are not locked out.
+ */
+export const requireReadScope = (request, response, next) => {
+    const identity = request.tensologyService || {};
+    if (identity.audience !== 'mailshot') return next();
+    return requireScope('mail.read')(request, response, next);
 };
