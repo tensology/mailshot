@@ -129,6 +129,7 @@ const Emails = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const activeTab = EMPTY_TABS[type] ? type : 'inbox';
     const { openComposeDraft } = useCompose();
+    const draftLoadsInFlight = useRef(new Set());
     const {
         enabled: readSummaryEnabled,
         pendingEmailId: readSummaryPendingEmailId,
@@ -893,7 +894,18 @@ const Emails = () => {
     };
 
     const openDraftEmail = async (email) => {
-        const result = await getEmailByIdService.call({}, email._id, { silent: true });
+        // Ignore a second click while this draft is still loading.
+        const draftLoadKey = String(email._id);
+        if (draftLoadsInFlight.current.has(draftLoadKey)) {
+            return;
+        }
+        draftLoadsInFlight.current.add(draftLoadKey);
+        let result;
+        try {
+            result = await getEmailByIdService.call({}, email._id, { silent: true });
+        } finally {
+            draftLoadsInFlight.current.delete(draftLoadKey);
+        }
         if (result.error || !result.data) {
             showActionToast(result.error || 'Could not load this draft', 'error');
             return;

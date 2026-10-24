@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
+import { upsertDraftComposer } from '../utils/composeItems.js';
 
 const ComposeContext = createContext(null);
 
@@ -44,7 +45,8 @@ export const ComposeProvider = ({ children }) => {
     };
 
     const openComposeDraft = (nextDraft = {}) => {
-        setComposeItems((current) => [...current, createComposeItem(nextDraft)]);
+        // One composer per draft id: re-opening focuses/restores the existing one.
+        setComposeItems((current) => upsertDraftComposer(current, nextDraft, createComposeItem));
     };
 
     const closeCompose = (id) => {
