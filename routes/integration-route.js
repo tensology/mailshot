@@ -24,13 +24,13 @@ routes.get('/labels', listLabels);
 routes.get('/senders', listSenders);
 routes.get('/messages/:id', getMessage);
 routes.patch('/messages/:id/state', requireMailStateScope, updateMessageState);
-routes.put('/messages/:id/labels', updateMessageLabels);
-routes.delete('/messages/:id', deleteMessage);
+routes.put('/messages/:id/labels', requireScope('mail.manage'), updateMessageLabels);
+routes.delete('/messages/:id', requireScope('mail.manage'), deleteMessage);
 routes.get('/drafts', listDrafts);
 routes.get('/drafts/:id', getMessage);
-routes.post('/drafts', saveDraft);
-routes.patch('/drafts/:id', saveDraft);
-routes.delete('/drafts/:id', deleteDraft);
+routes.post('/drafts', requireScope('mail.drafts.write'), saveDraft);
+routes.patch('/drafts/:id', requireScope('mail.drafts.write'), saveDraft);
+routes.delete('/drafts/:id', requireScope('mail.drafts.write'), deleteDraft);
 routes.post('/send', requireScope('mail.send'), sendMessage);
 
 export default routes;
