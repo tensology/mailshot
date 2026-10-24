@@ -1,4 +1,5 @@
 import Email from "../model/email.js";
+import { findSenderIdentity, loadSenderIdentities } from '../services/sender-identities.js';
 import Label from '../model/label.js';
 import { sendMail } from '../services/mailer.js';
 import {
@@ -1540,6 +1541,16 @@ export const restoreArchivedEmails = async (request, response) => {
     }
 };
 
+// A draft whose From is a draft-only sender identity (can_send false) must not silently go out from the
+// SMTP mailbox address instead.
+export const draftOnlySenderBlock = (draftRecord, identities = loadSenderIdentities()) => {
+    const identity = draftRecord?.from ? findSenderIdentity(draftRecord.from, identities) : null;
+    if (identity && !identity.can_send) {
+        return `This draft is from ${identity.email}, which Mailshot cannot send from yet. Change the From address or configure that mailbox for sending.`;
+    }
+    return '';
+};
+
 export const sendEmail = async (request, response) => {
     const attachmentOwnership = createSendAttachmentOwnership();
     try {
@@ -1549,6 +1560,11 @@ export const sendEmail = async (request, response) => {
         const attachmentsLoaded = ['true', '1', 'yes'].includes(String(request.body.attachments_loaded || '').toLowerCase());
         const retainedSelectionSpecified = attachmentsLoaded && Object.prototype.hasOwnProperty.call(request.body, 'retained_attachments');
         const retainedAttachmentIds = parseJsonArray(request.body.retained_attachments);
+
+        const senderBlock = draftOnlySenderBlock(draftRecord);
+        if (senderBlock) {
+            return response.status(409).json(senderBlock);
+        }
 
         const rate = assertOutboundSendAllowed({
             actor: request.auth?.username || request.integration?.key_id || 'anonymous',

@@ -3,6 +3,8 @@ import { getLabels, updateEmailLabels } from './label-controller.js';
 import { findEmailRecord } from '../services/mail-sync.js';
 import { getMailboxRepository, isMailboxStoreReady } from '../services/postgres-mailbox-store.js';
 import { runIdempotent } from '../services/integration-idempotency.js';
+import { ALLOWED_ATTACHMENT_TYPES, DRAFT_ATTACHMENT_LIMITS, DraftAttachmentError, parseDraftAttachments } from '../services/draft-attachments.js';
+import { findSenderIdentity, formatSender, loadSenderIdentities } from '../services/sender-identities.js';
 import {
     MESSAGE_STATE_UPDATES,
     recordMessageStateAudit,
@@ -154,19 +156,36 @@ export const listDrafts = async (request, response) => {
     return envelope(response, compactMessageList(result));
 };
 
-export const saveDraft = async (request, response) => {
+// Draft create/update. Never sends. Accepts optional base64 `attachments` and a `from` that must be a
+// configured sender identity (see services/sender-identities.js).
+export const createSaveDraftHandler = ({
+    idempotent = runIdempotent,
+    save = saveDraftEmail,
+    identities = () => loadSenderIdentities()
+} = {}) => async (request, response) => {
     try {
-        const record = await runIdempotent(request, `mail.draft.${request.params.id || 'new'}`, async () => {
+        const { attachments: rawAttachments, from: rawFrom, ...rest } = request.body || {};
+        const files = parseDraftAttachments(rawAttachments);
+        let from;
+        if (rawFrom !== undefined && rawFrom !== null && String(rawFrom).trim()) {
+            const identity = findSenderIdentity(rawFrom, identities());
+            if (!identity) {
+                return response.status(400).json({ error: { code: 'invalid_sender', message: `"${String(rawFrom).slice(0, 120)}" is not a configured Mailshot sender identity.` } });
+            }
+            from = formatSender(identity);
+        }
+        const record = await idempotent(request, `mail.draft.${request.params.id || 'new'}`, async () => {
             const body = {
-                ...request.body,
+                ...rest,
                 ...(request.params.id ? { _id: request.params.id } : {}),
-                to: normalizeRecipients(request.body.to),
-                cc: normalizeRecipients(request.body.cc),
-                bcc: normalizeRecipients(request.body.bcc),
-                body: request.body.text ?? request.body.body ?? '',
-                body_html: request.body.html ?? request.body.body_html ?? ''
+                ...(from ? { from } : {}),
+                to: normalizeRecipients(rest.to),
+                cc: normalizeRecipients(rest.cc),
+                bcc: normalizeRecipients(rest.bcc),
+                body: rest.text ?? rest.body ?? '',
+                body_html: rest.html ?? rest.body_html ?? ''
             };
-            const result = await invoke(saveDraftEmail, { ...request, body });
+            const result = await invoke(save, { ...request, body, files });
             if (result.status >= 400) {
                 const error = new Error(typeof result.data === 'string' ? result.data : 'Could not save draft');
                 error.status = result.status;
@@ -176,9 +195,18 @@ export const saveDraft = async (request, response) => {
         });
         return envelope(response, record, { idempotent_replay: Boolean(record.replay) });
     } catch (error) {
-        return response.status(error.status || 500).json({ error: { code: 'mail_draft_failed', message: error.message } });
+        const code = error instanceof DraftAttachmentError ? error.code : 'mail_draft_failed';
+        return response.status(error.status || 500).json({ error: { code, message: error.message } });
     }
 };
+
+export const saveDraft = createSaveDraftHandler();
+
+export const listSenders = async (_request, response) => response.status(200).json({
+    data: loadSenderIdentities().map(({ email, name, primary, can_send, note }) => ({ email, name, primary, can_send, note })),
+    error: null,
+    meta: { attachment_limits: DRAFT_ATTACHMENT_LIMITS, attachment_types: ALLOWED_ATTACHMENT_TYPES }
+});
 
 export const sendMessage = async (request, response) => {
     try {
