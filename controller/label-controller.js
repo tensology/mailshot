@@ -13,6 +13,7 @@ import {
 } from '../services/label-store.js';
 import { createLabelRules, extractEmailAddress, getLabelRules } from '../services/label-rule-store.js';
 import { slugify } from '../utils/slug.js';
+import { WORK_LABEL_ARCHIVE_UPDATES, WORK_LABEL_SLUG, workLabelArchiveUpdates } from '../services/work-label.js';
 import { isMailboxStoreReady, getMailboxPool, getMailboxRepository } from '../services/postgres-mailbox-store.js';
 import { createPostgresLabelStore } from '../services/postgres-metadata-store.js';
 
@@ -188,8 +189,9 @@ export const updateEmailLabels = async (request, response) => {
             if (!email) {
                 return response.status(404).json('Email not found');
             }
-            await repository.updateMany([emailId], { labels });
-            return response.status(200).json({ ...email, labels });
+            const updates = { labels, ...workLabelArchiveUpdates(email.labels, labels, email) };
+            await repository.updateMany([emailId], updates);
+            return response.status(200).json({ ...email, ...updates });
         }
 
         const resolved = await findEmailRecord(emailId);
@@ -197,14 +199,16 @@ export const updateEmailLabels = async (request, response) => {
             return response.status(404).json('Email not found');
         }
 
+        const updates = { labels, ...workLabelArchiveUpdates(resolved.email?.labels, labels, resolved.email) };
+
         if (resolved.source === 'cache') {
-            const cached = updateCachedEmail(emailId, { labels });
+            const cached = updateCachedEmail(emailId, updates);
             return response.status(200).json(cached);
         }
 
         const email = await Email.findByIdAndUpdate(
             emailId,
-            { $set: { labels } },
+            { $set: updates },
             { new: true }
         );
         if (!email) {
@@ -296,6 +300,10 @@ export const moveEmailsToLabel = async (request, response) => {
                 updates.spam = false;
                 updates.archived = false;
                 updates.type = '';
+            }
+
+            if (label.slug === WORK_LABEL_SLUG) {
+                Object.assign(updates, WORK_LABEL_ARCHIVE_UPDATES);
             }
 
             if (current.source === 'cache') {
