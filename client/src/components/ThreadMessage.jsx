@@ -7,9 +7,9 @@ const ThreadMessage = ({ message, isLatest = false }) => {
     const senderEmail = parseSenderEmail(message.from);
     const isDraft = message.type === 'drafts';
     const frameClass = isDraft
-        ? 'rounded-xl border border-green-300 bg-green-50 px-3 shadow-sm shadow-green-100/60'
+        ? 'rounded-md border border-green-300 bg-green-50 px-3 shadow-sm shadow-green-100/60'
         : isLatest
-            ? 'rounded-xl border border-blue-200 bg-blue-50/70 px-3 shadow-sm shadow-blue-100/60'
+            ? 'rounded-md border border-blue-200 bg-blue-50/70 px-3 shadow-sm shadow-blue-100/60'
             : 'border-slate-100';
 
     return (
@@ -36,12 +36,12 @@ const ThreadMessage = ({ message, isLatest = false }) => {
                         </div>
                         <time className="text-xs text-slate-500">
                             {isDraft && (
-                                <span className="mb-1 inline-flex rounded-full border border-green-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                                <span className="mb-1 inline-flex rounded-full border border-green-300 bg-white px-2 py-0.5 text-xs font-semibold text-green-700">
                                     Draft
                                 </span>
                             )}
                             {isLatest && !isDraft && (
-                                <span className="mb-1 inline-flex rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                <span className="mb-1 inline-flex rounded-full border border-blue-200 bg-white px-2 py-0.5 text-xs font-semibold text-blue-700">
                                     Latest
                                 </span>
                             )}

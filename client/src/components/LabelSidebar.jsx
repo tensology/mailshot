@@ -9,7 +9,7 @@ import Input from './ui/Input';
 import MailshotIcon from './ui/MailshotIcon';
 
 const labelNavClass = (isActive) => (
-    `flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-sm transition ${
+    `flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-sm transition ${
         isActive ? 'bg-blue-100 font-medium text-blue-800' : 'text-slate-700 hover:bg-slate-100'
     }`
 );
@@ -66,7 +66,7 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
         <div className="mt-4 px-1">
             <div className="mb-2 flex items-center justify-between px-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
-                <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
+                <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
                     <MailshotIcon name="plus" size={20} />
                 </button>
             </div>

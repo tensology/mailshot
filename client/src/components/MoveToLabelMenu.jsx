@@ -135,7 +135,7 @@ const MoveToLabelMenu = ({
                 </IconButton>
 
                 {open && (
-                    <div className="absolute left-0 top-full z-20 mt-1 min-w-[12rem] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                    <div className="absolute left-0 top-full z-20 mt-1 min-w-[12rem] overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
                         <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                             {buttonLabel}
                         </p>
@@ -186,7 +186,7 @@ const MoveToLabelMenu = ({
                     </label>
                 )}
                 {pendingRule?.senders?.length > 1 && (
-                    <div className="mt-3 max-h-32 overflow-y-auto rounded-xl bg-slate-50 p-2 text-xs text-slate-600">
+                    <div className="mt-3 max-h-32 overflow-y-auto rounded-md bg-slate-50 p-2 text-xs text-slate-600">
                         {pendingRule.senders.map((sender) => (
                             <div key={sender} className="truncate py-0.5">{sender}</div>
                         ))}

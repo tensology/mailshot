@@ -202,20 +202,20 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
         <div>
             <div className="mb-1.5 flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-slate-700">{label}</span>
-                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('bold')} aria-label="Bold">
+                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
+                    <button type="button" className="rounded-md p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('bold')} aria-label="Bold">
                         <MailshotIcon name="bold" size={20} />
                     </button>
-                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('italic')} aria-label="Italic">
+                    <button type="button" className="rounded-md p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('italic')} aria-label="Italic">
                         <MailshotIcon name="italic" size={20} />
                     </button>
-                    <button type="button" className="rounded-lg p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('insertUnorderedList')} aria-label="Bullet list">
+                    <button type="button" className="rounded-md p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('insertUnorderedList')} aria-label="Bullet list">
                         <MailshotIcon name="list" size={20} />
                     </button>
                     {allowImages && (
                         <button
                             type="button"
-                            className={`rounded-lg p-1.5 hover:bg-white ${showImageInput ? 'bg-white text-blue-600' : 'text-slate-600'}`}
+                            className={`rounded-md p-1.5 hover:bg-white ${showImageInput ? 'bg-white text-blue-600' : 'text-slate-600'}`}
                             onClick={() => setShowImageInput((current) => !current)}
                             aria-label="Insert image from URL"
                         >
@@ -225,7 +225,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                 </div>
             </div>
             {allowImages && showImageInput && (
-                <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                <div className="mb-2 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
                     <input
                         type="url"
                         value={imageUrl}
@@ -237,7 +237,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                             }
                         }}
                         placeholder="https://example.com/logo.png"
-                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
                     <IconButton
                         label="Insert image"
@@ -263,7 +263,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
             <div
                 ref={editorRef}
                 contentEditable
-                className="min-h-40 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:w-[490px] [&_img]:max-w-full [&_img]:rounded-md"
+                className="min-h-40 max-h-72 overflow-y-auto rounded-md border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:w-[490px] [&_img]:max-w-full [&_img]:rounded-md"
                 onInput={syncEditor}
                 role="textbox"
                 aria-multiline="true"
@@ -611,7 +611,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             <select
                                 value={selectedEmail}
                                 onChange={(event) => setSelectedEmail(event.target.value)}
-                                className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
                                 {emailOptions.map((email) => (
                                     <option key={email} value={email}>{email}</option>
@@ -636,7 +636,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             </IconButton>
                         </div>
                         {showAddEmail && (
-                            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
                                 <input
                                     type="email"
                                     value={newEmail}
@@ -648,7 +648,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                         }
                                     }}
                                     placeholder="name@example.com"
-                                    className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 />
                                 <IconButton
                                     label="Confirm add email"
@@ -718,12 +718,12 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             Templates appear in Compose. Name, optional subject, and body.
                         </p>
                         {(general.templates || []).length === 0 && (
-                            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                            <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
                                 No templates yet.
                             </p>
                         )}
                         {(general.templates || []).map((template) => (
-                            <div key={template.id} className="space-y-3 rounded-xl border border-slate-200 p-3">
+                            <div key={template.id} className="space-y-3 rounded-md border border-slate-200 p-3">
                                 <div className="flex items-start gap-2">
                                     <Input
                                         value={template.name}
@@ -784,7 +784,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                     setModels([]);
                                     setModelsLoaded(false);
                                 }}
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
                                 {providerOptions.map(([key, provider]) => (
                                     <option key={key} value={key}>{provider.label}</option>
@@ -792,7 +792,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             </select>
                         </label>
                         {ai.provider === 'nvidia' && (
-                            <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">
+                            <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">
                                 NVIDIA is free and fast for read summaries and background speech. Get a key at
                                 {' '}
                                 <a href="https://build.nvidia.com/models" target="_blank" rel="noopener noreferrer" className="font-semibold underline">build.nvidia.com</a>.
@@ -824,7 +824,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 <select
                                     value={ai.model}
                                     onChange={(event) => saveModel(event.target.value)}
-                                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 >
                                     <option value="">Select a model</option>
                                     {models.map((model) => (
@@ -843,7 +843,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             <select
                                 value={tts.voice}
                                 onChange={(event) => setTts({ ...tts, voice: event.target.value })}
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
                                 {KOKORO_VOICES.map((voice) => (
                                     <option key={voice.id} value={voice.id}>{voice.label}</option>
@@ -859,7 +859,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
                 {activeTab === 'tensology' && isSuperuser && (
                     <div className="space-y-4">
-                        <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-5 text-blue-900">
+                        <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-5 text-blue-900">
                             Connect Mailshot to the central Tensology API. Generate a Mailshot key in the Tensology admin and paste it here.
                         </p>
                         <label className="flex items-center gap-3 text-sm font-medium text-slate-800">

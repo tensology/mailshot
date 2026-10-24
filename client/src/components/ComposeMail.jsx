@@ -100,7 +100,7 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, placeholder = 'Write yo
                 role="textbox"
                 aria-multiline="true"
                 aria-label={placeholder}
-                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6"
+                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6"
                 onInput={syncEditor}
                 onBlur={syncEditor}
                 onPaste={pasteHtml}
@@ -892,7 +892,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                     <>
                         <MailshotIcon name="mail" size={20} />
                         <span className="ml-1 text-xs font-semibold">{minimizedIndex + 1}</span>
-                        <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden max-w-72 overflow-hidden rounded-lg bg-slate-950 px-3 py-2 text-xs shadow-xl group-hover:block group-focus:block">
+                        <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden max-w-72 overflow-hidden rounded-md bg-slate-950 px-3 py-2 text-xs shadow-xl group-hover:block group-focus:block">
                             <span className="mailshot-compose-marquee inline-block whitespace-nowrap">{composeTitle}</span>
                         </div>
                     </>
@@ -978,12 +978,12 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     role="combobox"
                                     aria-expanded={toSuggestions.length > 0}
                                     aria-autocomplete="list"
-                                    className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none"
+                                    className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
                                 />
                                 {toSuggestions.length > 0 && (
                                     <ul
                                         role="listbox"
-                                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
                                     >
                                         {toSuggestions.map((contact, index) => {
                                             const displayName = cleanContactName(contact.name);
@@ -1054,7 +1054,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 placeholder="Subject"
                                 value={data.subject}
                                 onChange={onValueChange}
-                                className="w-full bg-transparent text-sm outline-none"
+                                className="w-full bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
                             />
                         </div>
                     </div>
@@ -1078,11 +1078,11 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 </p>
                                 <div className={isExpanded && !isMobile ? 'grid grid-cols-1 gap-2' : 'grid gap-2 sm:grid-cols-2'}>
                                 {forwardedAttachments.map((attachment, itemIndex) => (
-                                    <div key={`${attachment.emailId}-${attachment.attachmentId}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+                                    <div key={`${attachment.emailId}-${attachment.attachmentId}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
                                         <MailshotFileIcon filename={attachment.filename} contentType={attachment.content_type} size={34} />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-xs font-medium text-slate-700">{attachment.name || attachment.filename || 'attachment'}</p>
-                                            <p className="text-[11px] text-slate-500">{formatFileSize(attachment.size)}</p>
+                                            <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
                                         </div>
                                         <button
                                             type="button"
@@ -1095,11 +1095,11 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     </div>
                                 ))}
                                 {savedAttachments.map((attachment) => (
-                                    <div key={attachment.attachment_id} className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+                                    <div key={attachment.attachment_id} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
                                         <MailshotFileIcon filename={attachment.filename} contentType={attachment.content_type} size={34} />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-xs font-medium text-slate-700">{attachment.filename}</p>
-                                            <p className="text-[11px] text-slate-500">{formatFileSize(attachment.size)}</p>
+                                            <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
                                         </div>
                                         <button
                                             type="button"
@@ -1120,11 +1120,11 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     </div>
                                 ))}
                                 {newAttachments.map((file, itemIndex) => (
-                                    <div key={`${file.name}-${file.size}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-2 py-2">
+                                    <div key={`${file.name}-${file.size}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-2 py-2">
                                         <MailshotFileIcon filename={file.name} contentType={file.type} size={34} />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-xs font-medium text-slate-700">{file.name}</p>
-                                            <p className="text-[11px] text-slate-500">{formatFileSize(file.size)} selected</p>
+                                            <p className="text-xs text-slate-500">{formatFileSize(file.size)} selected</p>
                                         </div>
                                         <button
                                             type="button"
@@ -1183,7 +1183,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                         hasUserEditedRef.current = true;
                                         setScheduledAt(event.target.value);
                                     }}
-                                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500"
+                                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 focus:border-blue-500"
                                 />
                             </label>
                             {templates.length > 0 && (
@@ -1196,7 +1196,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             applyTemplate(template);
                                             event.target.value = '';
                                         }}
-                                        className="h-8 max-w-[13rem] rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500"
+                                        className="h-8 max-w-[13rem] rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 focus:border-blue-500"
                                     >
                                         <option value="">Insert…</option>
                                         {templates.map((template) => (
@@ -1211,7 +1211,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     <select
                                         value={selectedSignatureEmail}
                                         onChange={(event) => changeSignature(event.target.value)}
-                                        className="h-8 max-w-[13rem] rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                        className="h-8 max-w-[13rem] rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                     >
                                         {signatureOptions.map((option) => (
                                             <option key={option.email} value={option.email}>{option.email}</option>
@@ -1248,7 +1248,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
             />
             {previewItem && createPortal(
                 <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 p-4" onClick={closePreview}>
-                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
                             <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{previewItem.title}</p>
                             <button type="button" className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100" onClick={closePreview} aria-label="Close preview">

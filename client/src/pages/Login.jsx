@@ -41,7 +41,7 @@ const Login = () => {
 
     return (
         <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-b from-slate-100 to-slate-50 px-4 py-8">
-            <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+            <div className="w-full max-w-md rounded-md border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
                 <div className="mb-6 flex items-center gap-3">
                     <MailshotIcon name="mail" size={44} />
                     <div>

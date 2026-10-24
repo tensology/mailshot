@@ -147,7 +147,7 @@ const Contacts = () => {
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search contacts"
-                    className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none ring-blue-500 transition focus:border-blue-500 focus:ring-2"
+                    className="w-full rounded-md border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none ring-blue-500 transition focus:border-blue-500 focus:ring-2"
                 />
             </div>
 
@@ -157,7 +157,7 @@ const Contacts = () => {
                 </div>
             ) : (
                 <>
-                    <div className="hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
+                    <div className="hidden overflow-hidden rounded-md border border-slate-200 md:block">
                         <table className="min-w-full text-sm">
                             <thead className="bg-slate-50 text-left text-slate-600">
                                 <tr>
@@ -214,7 +214,7 @@ const Contacts = () => {
 
                     <div className="space-y-3 md:hidden">
                         {visibleContacts.map((contact) => (
-                            <div key={contact._id} className="rounded-2xl border border-slate-200 p-4">
+                            <div key={contact._id} className="rounded-md border border-slate-200 p-4">
                                 <div className="flex items-start justify-between gap-3">
                                     <button
                                         type="button"
@@ -241,12 +241,12 @@ const Contacts = () => {
                             </div>
                         ))}
                         {contacts.length === 0 && (
-                            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                            <div className="rounded-md border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
                                 No contacts yet. Add your first contact to quickly compose messages.
                             </div>
                         )}
                         {contacts.length > 0 && visibleContacts.length === 0 && (
-                            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                            <div className="rounded-md border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
                                 No contacts match your search.
                             </div>
                         )}

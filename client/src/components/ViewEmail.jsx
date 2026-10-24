@@ -453,7 +453,7 @@ const ViewEmail = () => {
         }
 
         return (
-            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-xl sm:border">
+            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-md sm:border">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
                         <h2 className="text-sm font-semibold text-slate-900">Attachments</h2>
@@ -465,7 +465,7 @@ const ViewEmail = () => {
                         <button
                             type="button"
                             onClick={() => downloadMessageAttachment(`${message._id}/attachments.zip`, `${message.subject || 'attachments'}.zip`)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                         >
                             <MailshotIcon name="download" size={20} />
                             Download all
@@ -502,7 +502,7 @@ const ViewEmail = () => {
                         return (
                             <article
                                 key={`${attachment.emailId}-${attachment.attachment_id}`}
-                                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                                className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm"
                                 onDoubleClick={openPreview}
                             >
                                 <button
@@ -519,7 +519,7 @@ const ViewEmail = () => {
                                         <p className="truncate text-xs font-semibold text-slate-800" title={filename}>
                                             {filename}
                                         </p>
-                                        <p className="text-[11px] text-slate-500">
+                                        <p className="text-xs text-slate-500">
                                             {attachment.size ? `${Math.round(Number(attachment.size) / 1024)} KB` : contentType || 'File'}
                                         </p>
                                     </div>
@@ -558,13 +558,13 @@ const ViewEmail = () => {
         }
 
         return (
-            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-xl sm:border">
+            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-md sm:border">
                 <h2 className="mb-3 text-sm font-semibold text-slate-900">Linked media</h2>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {messageLinks.map((link) => (
                         <article
                             key={link.embedUrl}
-                            className="group flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+                            className="group flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
                         >
                             <button
                                 type="button"
@@ -726,19 +726,19 @@ const ViewEmail = () => {
 
             {previewItem && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4" onClick={() => setPreviewItem(null)}>
-                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
                         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-semibold text-slate-900">{previewItem.title}</p>
                                 {previewItem.sourceUrl && <p className="truncate text-xs text-slate-500">{previewItem.sourceUrl}</p>}
                             </div>
                             {previewItem.sourceUrl && (
-                                <a href={previewItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                <a href={previewItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                     Open source
                                 </a>
                             )}
                             {previewItem.objectUrl && (
-                                <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                     Open in new tab
                                 </a>
                             )}

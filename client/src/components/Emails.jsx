@@ -1582,7 +1582,7 @@ const Emails = () => {
                                 placeholder={sectionOnlySearch
                                     ? `Search ${tabTitles[activeTab] || 'section'} (from: is:unread has:attachment)`
                                     : 'Search all mail (from: to: subject: is:unread has:attachment)'}
-                                className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                                className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 placeholder:text-slate-400"
                             />
                             {searchFilter && (
                                 <button
@@ -1665,7 +1665,7 @@ const Emails = () => {
                             <select
                                 value={page}
                                 onChange={(event) => setPage(Number(event.target.value))}
-                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
                                 {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
                                     <option key={pageNumber} value={pageNumber}>

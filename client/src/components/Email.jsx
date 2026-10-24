@@ -248,7 +248,7 @@ const Email = ({
                         <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5 sm:flex-1">
                             <span className={`min-w-0 shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
                                 {isDraft && (
-                                    <span className="mr-1.5 inline-flex rounded-full bg-green-100 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-green-700 ring-1 ring-inset ring-green-200">
+                                    <span className="mr-1.5 inline-flex rounded-full bg-green-100 px-1.5 py-0.5 align-middle text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-200">
                                         Draft
                                     </span>
                                 )}
@@ -274,7 +274,7 @@ const Email = ({
                             {(email.labels || []).slice(0, 2).map((label) => (
                                 <span
                                     key={label}
-                                    className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
                                 >
                                     {getLabelDisplayName(label, labelNameMap)}
                                 </span>

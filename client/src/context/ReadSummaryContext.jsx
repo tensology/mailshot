@@ -88,7 +88,7 @@ const storePanelPosition = (position) => {
 const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 'default' }) => (
     <div
         ref={panelRef}
-        className={`fixed z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border bg-white p-3 shadow-2xl ${
+        className={`fixed z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-md border bg-white p-3 shadow-2xl ${
             tone === 'preparing' ? 'border-blue-100' : 'border-slate-200'
         }`}
         style={{
@@ -99,7 +99,7 @@ const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 
         <button
             type="button"
             onPointerDown={onPointerDown}
-            className="mb-2 flex h-5 w-full touch-none cursor-grab items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-50 hover:text-slate-500 active:cursor-grabbing"
+            className="mb-2 flex h-5 w-full touch-none cursor-grab items-center justify-center rounded-md text-slate-300 transition hover:bg-slate-50 hover:text-slate-500 active:cursor-grabbing"
             aria-label="Move read summary panel"
             title="Move"
         >
@@ -157,7 +157,7 @@ const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose, panelRef, posi
                 <select
                     value={rate}
                     onChange={updateRate}
-                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
                     {playbackRates.map((value) => (
                         <option key={value} value={value}>{value}x</option>

@@ -95,13 +95,13 @@ const RecipientField = ({
                     aria-expanded={suggestions.length > 0}
                     aria-controls={listId}
                     aria-autocomplete="list"
-                    className="w-full min-w-0 bg-transparent text-sm outline-none"
+                    className="w-full min-w-0 bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
                 />
                 {suggestions.length > 0 && (
                     <ul
                         id={listId}
                         role="listbox"
-                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
                     >
                         {suggestions.map((contact, index) => {
                             const displayName = cleanContactName(contact.name);

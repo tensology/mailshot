@@ -46,11 +46,11 @@ const QuotedContent = ({ body, bodyHtml }) => {
                             View folded message
                         </button>
                     ) : (
-                        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-slate-600">
+                        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50/70 p-3 text-slate-600">
                             <IconButton
                                 label="Hide folded message"
                                 size="sm"
-                                className="mb-2 rounded-xl border border-slate-200 bg-white"
+                                className="mb-2 rounded-md border border-slate-200 bg-white"
                                 onClick={() => setExpanded(false)}
                             >
                                 <MailshotIcon name="chevron-up" size={20} />
