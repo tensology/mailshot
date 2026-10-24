@@ -11,6 +11,7 @@ import { sendMail } from './mailer.js';
 import { findSettingsForEmail, getSettings, markAutoresponderSent } from './settings-store.js';
 import { findEmailsBySubject, mergeThreadEmails } from '../utils/thread-subject.js';
 import { findLabelRuleForMessage } from './label-rule-store.js';
+import { hasWorkLabel, WORK_LABEL_ARCHIVE_UPDATES } from './work-label.js';
 import { enqueueEmailSummary } from './email-summary-service.js';
 import { getMailboxRepository, isMailboxStoreReady } from './postgres-mailbox-store.js';
 import { applyParsedSearchToFilter, parseSearchQuery } from './search-query.js';
@@ -86,7 +87,8 @@ const applyLabelRule = async (payload = {}) => {
 
     return {
         labels: [rule.label],
-        in_inbox: false
+        in_inbox: false,
+        ...(hasWorkLabel([rule.label]) ? WORK_LABEL_ARCHIVE_UPDATES : {})
     };
 };
 
