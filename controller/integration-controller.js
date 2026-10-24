@@ -4,6 +4,7 @@ import { findEmailRecord } from '../services/mail-sync.js';
 import { getMailboxRepository, isMailboxStoreReady } from '../services/postgres-mailbox-store.js';
 import { runIdempotent } from '../services/integration-idempotency.js';
 import { ALLOWED_ATTACHMENT_TYPES, DRAFT_ATTACHMENT_LIMITS, DraftAttachmentError, parseDraftAttachments } from '../services/draft-attachments.js';
+import { applySenderSignature } from '../services/integration-signature.js';
 import { findSenderIdentity, formatSender, loadSenderIdentities } from '../services/sender-identities.js';
 import {
     MESSAGE_STATE_UPDATES,
@@ -161,10 +162,11 @@ export const listDrafts = async (request, response) => {
 export const createSaveDraftHandler = ({
     idempotent = runIdempotent,
     save = saveDraftEmail,
-    identities = () => loadSenderIdentities()
+    identities = () => loadSenderIdentities(),
+    signature = applySenderSignature
 } = {}) => async (request, response) => {
     try {
-        const { attachments: rawAttachments, from: rawFrom, ...rest } = request.body || {};
+        const { attachments: rawAttachments, from: rawFrom, signature: signatureFlag, include_signature: includeSignature, ...rest } = request.body || {};
         const files = parseDraftAttachments(rawAttachments);
         let from;
         if (rawFrom !== undefined && rawFrom !== null && String(rawFrom).trim()) {
@@ -175,6 +177,11 @@ export const createSaveDraftHandler = ({
             from = formatSender(identity);
         }
         const record = await idempotent(request, `mail.draft.${request.params.id || 'new'}`, async () => {
+            let parts = { text: rest.text ?? rest.body ?? '', html: rest.html ?? rest.body_html ?? '' };
+            // Signature only on draft CREATE; updates (PATCH /drafts/:id) are left untouched.
+            if (!request.params.id) {
+                parts = await signature({ from: from || rawFrom, signature: signatureFlag, include_signature: includeSignature }, parts);
+            }
             const body = {
                 ...rest,
                 ...(request.params.id ? { _id: request.params.id } : {}),
@@ -182,8 +189,8 @@ export const createSaveDraftHandler = ({
                 to: normalizeRecipients(rest.to),
                 cc: normalizeRecipients(rest.cc),
                 bcc: normalizeRecipients(rest.bcc),
-                body: rest.text ?? rest.body ?? '',
-                body_html: rest.html ?? rest.body_html ?? ''
+                body: parts.text,
+                body_html: parts.html
             };
             const result = await invoke(save, { ...request, body, files });
             if (result.status >= 400) {
@@ -208,18 +215,30 @@ export const listSenders = async (_request, response) => response.status(200).js
     meta: { attachment_limits: DRAFT_ATTACHMENT_LIMITS, attachment_types: ALLOWED_ATTACHMENT_TYPES }
 });
 
-export const sendMessage = async (request, response) => {
+export const createSendMessageHandler = ({
+    idempotent = runIdempotent,
+    send = sendEmail,
+    signature = applySenderSignature
+} = {}) => async (request, response) => {
     try {
-        const record = await runIdempotent(request, 'mail.send', async () => {
+        const record = await idempotent(request, 'mail.send', async () => {
+            const { signature: signatureFlag, include_signature: includeSignature, ...input } = request.body || {};
+            // Idempotent: skipped when text/html already contain the signature (e.g. sending an existing draft).
+            const original = { text: input.text ?? input.body ?? '', html: input.html || '' };
+            const emptySendOfDraft = input.draftId && !String(original.text).trim() && !String(original.html).trim();
+            const parts = emptySendOfDraft ? original : await signature(
+                { from: input.from, signature: signatureFlag, include_signature: includeSignature },
+                original
+            );
             const body = {
-                ...request.body,
-                to: normalizeRecipients(request.body.to),
-                cc: normalizeRecipients(request.body.cc),
-                bcc: normalizeRecipients(request.body.bcc),
-                body: request.body.text ?? request.body.body ?? '',
-                html: request.body.html || ''
+                ...input,
+                to: normalizeRecipients(input.to),
+                cc: normalizeRecipients(input.cc),
+                bcc: normalizeRecipients(input.bcc),
+                body: parts.text,
+                html: parts.html
             };
-            const result = await invoke(sendEmail, { ...request, body, files: [] });
+            const result = await invoke(send, { ...request, body, files: [] });
             if (result.status >= 400) {
                 const error = new Error(typeof result.data === 'string' ? result.data : 'Could not send mail');
                 error.status = result.status;
@@ -232,6 +251,8 @@ export const sendMessage = async (request, response) => {
         return response.status(error.status || 500).json({ error: { code: 'mail_send_failed', message: error.message } });
     }
 };
+
+export const sendMessage = createSendMessageHandler();
 
 // ---------------------------------------------------------------------------
 // Additive integration endpoints (2026-10-22): search, labels, delete.
