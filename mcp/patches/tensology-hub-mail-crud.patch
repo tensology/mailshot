@@ -1,0 +1,111 @@
+diff -ruN -x __pycache__ www.tensology.com.orig/backend/webapp/apps/integrations/models.py www.tensology.com/backend/webapp/apps/integrations/models.py
+--- a/backend/webapp/apps/integrations/models.py	2026-10-22 09:31:35.181605080 +0200
++++ b/backend/webapp/apps/integrations/models.py	2026-10-22 09:33:32.903702166 +0200
+@@ -10,6 +10,7 @@
+     "mail.drafts.read",
+     "mail.drafts.write",
+     "mail.send",
++    "mail.manage",
+     "customers.read",
+     "projects.read",
+     "projects.write",
+diff -ruN -x __pycache__ www.tensology.com.orig/backend/webapp/apps/integrations/urls.py www.tensology.com/backend/webapp/apps/integrations/urls.py
+--- a/backend/webapp/apps/integrations/urls.py	2026-10-22 09:31:35.181605080 +0200
++++ b/backend/webapp/apps/integrations/urls.py	2026-10-22 09:33:32.903702166 +0200
+@@ -27,6 +27,9 @@
+     path("invoices/<int:invoice_id>", views.invoices, name="invoice"),
+     path("mail/messages", views.mail_messages, name="mail_messages"),
+     path("mail/messages/<str:message_id>", views.mail_messages, name="mail_message"),
++    path("mail/messages/<str:message_id>/labels", views.mail_message_labels, name="mail_message_labels"),
++    path("mail/search", views.mail_search, name="mail_search"),
++    path("mail/labels", views.mail_labels, name="mail_labels"),
+     path("mail/drafts", views.mail_drafts, name="mail_drafts"),
+     path("mail/drafts/<str:draft_id>", views.mail_drafts, name="mail_draft"),
+     path("mail/send", views.mail_send, name="mail_send"),
+diff -ruN -x __pycache__ www.tensology.com.orig/backend/webapp/apps/integrations/views.py www.tensology.com/backend/webapp/apps/integrations/views.py
+--- a/backend/webapp/apps/integrations/views.py	2026-10-22 09:31:35.181605080 +0200
++++ b/backend/webapp/apps/integrations/views.py	2026-10-22 09:33:32.903702166 +0200
+@@ -1054,6 +1054,16 @@
+ @csrf_exempt
+ @require_integration_scopes("mail.read", audiences=[IntegrationCredential.AUDIENCE_DECISIONSAI])
+ def mail_messages(request, message_id=None):
++    if request.method == "DELETE" and message_id:
++        # Moves one message to Bin (or ?permanent=true for a message already in Bin).
++        if not request.integration_credential.has_scopes(["mail.manage"]):
++            return api_error("insufficient_scope", "Deleting mail requires mail.manage.", 403)
++        try:
++            status, result = call_mailshot(request, "DELETE", f"messages/{message_id}")
++            audit(request, "mail.delete", status, "mail_message", message_id)
++            return api_response(request, result, status)
++        except RuntimeError as exc:
++            return api_error("mailshot_unavailable", str(exc), 502)
+     if request.method != "GET":
+         return api_error("method_not_allowed", "Method not allowed.", 405)
+     try:
+@@ -1075,8 +1085,17 @@
+             return api_response(request, result, status)
+         except RuntimeError as exc:
+             return api_error("mailshot_unavailable", str(exc), 502)
+-    if request.method not in ("POST", "PATCH") or not request.integration_credential.has_scopes(["mail.drafts.write"]):
++    if request.method not in ("POST", "PATCH", "DELETE") or not request.integration_credential.has_scopes(["mail.drafts.write"]):
+         return api_error("insufficient_scope", "Changing drafts requires mail.drafts.write.", 403)
++    if request.method == "DELETE":
++        if not draft_id:
++            return api_error("method_not_allowed", "DELETE needs a draft id.", 405)
++        try:
++            status, result = call_mailshot(request, "DELETE", f"drafts/{draft_id}")
++            audit(request, "mail.draft.delete", status, "mail_draft", draft_id)
++            return api_response(request, result, status)
++        except RuntimeError as exc:
++            return api_error("mailshot_unavailable", str(exc), 502)
+     try:
+         body = payload(request)
+         path = f"drafts/{draft_id}" if draft_id else "drafts"
+@@ -1085,6 +1104,47 @@
+         return api_response(request, result, status)
+     except ValueError as exc:
+         return api_error("invalid_request", str(exc), 400)
++    except RuntimeError as exc:
++        return api_error("mailshot_unavailable", str(exc), 502)
++
++
++@csrf_exempt
++@require_integration_scopes("mail.read", audiences=[IntegrationCredential.AUDIENCE_DECISIONSAI])
++def mail_search(request):
++    if request.method != "GET":
++        return api_error("method_not_allowed", "Method not allowed.", 405)
++    try:
++        status, result = call_mailshot(request, "GET", "search")
++        audit(request, "mail.search", status, "mail_message", "search")
++        return api_response(request, result, status)
++    except RuntimeError as exc:
++        return api_error("mailshot_unavailable", str(exc), 502)
++
++
++@csrf_exempt
++@require_integration_scopes("mail.read", audiences=[IntegrationCredential.AUDIENCE_DECISIONSAI])
++def mail_labels(request):
++    if request.method != "GET":
++        return api_error("method_not_allowed", "Method not allowed.", 405)
++    try:
++        status, result = call_mailshot(request, "GET", "labels")
++        return api_response(request, result, status)
++    except RuntimeError as exc:
++        return api_error("mailshot_unavailable", str(exc), 502)
++
++
++@csrf_exempt
++@require_integration_scopes("mail.manage", audiences=[IntegrationCredential.AUDIENCE_DECISIONSAI])
++def mail_message_labels(request, message_id):
++    if request.method != "PUT":
++        return api_error("method_not_allowed", "Method not allowed.", 405)
++    try:
++        body = payload(request)
++        status, result = call_mailshot(request, "PUT", f"messages/{message_id}/labels", body)
++        audit(request, "mail.labels.write", status, "mail_message", message_id)
++        return api_response(request, result, status)
++    except ValueError as exc:
++        return api_error("invalid_request", str(exc), 400)
+     except RuntimeError as exc:
+         return api_error("mailshot_unavailable", str(exc), 502)
+ 

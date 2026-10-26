@@ -115,7 +115,8 @@ Write-abouts found on 24 Oct 2026 (verified live against the Decisions key):
 
 ## MCP server (Cursor + Codex)
 
-File: `~/development/TENSOLOGY/tools/mailshot-mcp/mailshot_mcp.py` (Python stdlib, stdio). **No send tool.**
+File: `~/development/TENSOLOGY/DONE/mailshot/mcp/mailshot_mcp.py` (Python stdlib, stdio). **No send tool.**
+It ships with this repo under `mcp/` (see `mcp/README.md`).
 
 ### Key + base URL resolution (updated 2026-10-22)
 
