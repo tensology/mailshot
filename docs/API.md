@@ -1,7 +1,7 @@
 # Mailshot Integration API
 
-_Last updated 2026-10-22. Applies to Mailshot commit `e361a5b27` plus the staged patch
-`mailshot-integration-crud.patch` (routes marked **[patch]** only exist once that patch is applied
+_Last updated 2026-10-22 (key resolution added). Applies to Mailshot commit `e361a5b27` plus the staged patch
+`mailshot-integration-crud.patch` (routes marked **[patch]** are LIVE since 2026-10-22: Mailshot ec3b0e86, hub 87650f57; originally they only existed once that patch was applied
 and `mailshot-ui` is restarted; the matching hub routes need `tensology-hub-mail-crud.patch`)._
 
 ## Topology
@@ -94,6 +94,17 @@ curl -s -X PUT -H "$AUTH" -H "Content-Type: application/json" -H "Idempotency-Ke
 Draft body fields: `to`, `cc`, `bcc` (string or list), `subject`, `text` (or `body`), `html` (or `body_html`),
 `inReplyTo`, `references`.
 
+Write-abouts found on 24 Oct 2026 (verified live against the Decisions key):
+
+- `POST mail/drafts` **strips newlines** from `text`: a multi-paragraph body arrives as one
+  line. `PATCH mail/drafts/<id>` with the same `text` keeps them. Create, then patch the body.
+- The thread field is **`in_reply_to`** (snake_case) and it stores the RFC `Message-ID`.
+  `inReplyTo` is accepted and silently dropped; `references` accepts a list but stays empty.
+- A PATCH with a wrongly typed field (`references` as a string) **wipes the other draft
+  fields**: subject, to, cc and in_reply_to came back empty. Send one PATCH with every field
+  in the right shape, then read the draft back and check.
+
+
 ## How DecisionsAI uses it
 
 `distr/core/agent/tools/integrations/tensology_workspace.py` (tool `tensology_workspace`) via
@@ -104,20 +115,43 @@ Draft body fields: `to`, `cc`, `bcc` (string or list), `subject`, `text` (or `bo
 
 ## MCP server (Cursor + Codex)
 
-File: `~/development/TENSOLOGY/mailshot-mcp/mailshot_mcp.py` (Python stdlib, stdio). **No send tool.**
-Config: `MAILSHOT_API_BASE` (default `https://www.tensology.com/api/integrations/v1`), key from
-`TENSOLOGY_MAIL_API_KEY` or `~/.config/mailshot-mcp/token`.
+File: `~/development/TENSOLOGY/tools/mailshot-mcp/mailshot_mcp.py` (Python stdlib, stdio). **No send tool.**
 
-| Tool | Calls |
-|---|---|
-| `mailshot_list_messages` (section, label, search, participant, unread, page, limit) | GET mail/messages |
-| `mailshot_search` (q) | GET mail/search **[patch]** |
-| `mailshot_get_message` (id, include_thread) | GET mail/messages/<id> |
-| `mailshot_list_drafts`, `mailshot_get_draft` | GET mail/drafts[/id] |
-| `mailshot_create_draft`, `mailshot_update_draft` | POST / PATCH mail/drafts |
-| `mailshot_delete_draft` | DELETE mail/drafts/<id> **[patch]** |
-| `mailshot_trash_message` (id, permanent) | DELETE mail/messages/<id> **[patch]** |
-| `mailshot_list_labels`, `mailshot_set_labels` | GET mail/labels, PUT mail/messages/<id>/labels **[patch]** |
+### Key + base URL resolution (updated 2026-10-22)
+
+1. env `TENSOLOGY_MAIL_API_KEY`
+2. file `MAILSHOT_MCP_TOKEN_FILE` (default `~/.config/mailshot-mcp/token`, chmod 600)
+3. **DecisionsAI's own key**, read at runtime (no copy, so key rotation in Decisions carries over):
+   SQLite `~/development/TENSOLOGY/DECISIONS/DecisionsAI/db/settings.db` (fallback
+   `~/Library/Application Support/DecisionsAI/db/settings.db`; override `MAILSHOT_DECISIONS_DB`),
+   table `settings`, columns `tensology_enabled`, `tensology_url`, `tensology_key`. The key is stored
+   encrypted (`enc:v1:` = nonce + HMAC-SHA256 stream cipher + MAC, key = sha256 of
+   `DECISIONSAI_SETTINGS_SECRET` or `"<home>|<hostname>|decisionsai-settings"`); the MCP decrypts it the
+   same way DecisionsAI does, opening the DB read-only. Disable with `MAILSHOT_USE_DECISIONS_KEY=0`.
+
+Base URL: env `MAILSHOT_API_BASE` → Decisions `tensology_url` + `/api/integrations/v1` → default
+`https://www.tensology.com/api/integrations/v1`. The key is never logged or returned; `mailshot_whoami`
+reports only the key source, audience, scopes and active flag.
+
+Verified 2026-10-22 with the Decisions key: introspect HTTP 200, audience `decisionsai`, active, no expiry,
+scopes `mail.read, mail.drafts.read, mail.drafts.write, mail.send` (+ customers/projects/time/invoices/
+repositories/tickets/discussions). `mail.manage` was added to credential pk 5 ("Paul DecisionsAI") on 2026-10-22 09:48 SAST (backup `/root/mailshot-api-staging-20261022/credential-5-before.json`).
+
+Errors: since hub commit `a3ba861` (2026-10-22 09:53 SAST) Mailshot 4xx answers are passed through with the
+same status, code and message (e.g. `404 not_found "Message not found"`, `409 not_in_bin`). **HTTP 502
+`mailshot_unavailable`** now only means Mailshot was unreachable, timed out or returned a 5xx.
+
+| Tool | Calls | Works with Decisions key today? |
+|---|---|---|
+| `mailshot_whoami` | POST auth/introspect | yes |
+| `mailshot_list_messages` (section, label, search, participant, unread, page, limit) | GET mail/messages | yes |
+| `mailshot_search` (q) | GET mail/search **[patch]** | yes |
+| `mailshot_get_message` (id, include_thread) | GET mail/messages/<id> | yes (marks read) |
+| `mailshot_list_drafts`, `mailshot_get_draft` | GET mail/drafts[/id] | yes |
+| `mailshot_create_draft`, `mailshot_update_draft` | POST / PATCH mail/drafts | yes |
+| `mailshot_delete_draft` | DELETE mail/drafts/<id> **[patch]** | yes |
+| `mailshot_trash_message` (id, permanent) | DELETE mail/messages/<id> **[patch]** | yes |
+| `mailshot_list_labels`, `mailshot_set_labels` | GET mail/labels, PUT mail/messages/<id>/labels **[patch]** | yes |
 
 Registered as `mailshot` in `~/.cursor/mcp.json` (`mcpServers.mailshot`) and `~/.codex/config.toml`
 (`[mcp_servers.mailshot]`). In Cursor/Codex just ask e.g. "list my 5 newest Mailshot inbox mails" or
@@ -139,3 +173,12 @@ systemctl restart mailshot-ui && systemctl is-active mailshot-ui
 ```
 Rollback: restore the `.bak-20261022` files and restart again. Commit through the normal git flow afterwards
 (prod deploy runs `git pull` on main, so uncommitted edits would block or be overwritten).
+
+## Attachment download routes (added 2026-10-24)
+
+Base URL (via Mac tunnel): `http://127.0.0.1:18000/api/integrations/v1` — use the Mailshot-audience key (`MAILSHOT_TENSOLOGY_API_KEY`); the hub route returns `wrong_audience`.
+
+- `GET /messages/:id/attachments/:attachmentId` — scope: read (`requireReadScope`)
+- `GET /drafts/:id/attachments/:attachmentId` — scope: read (`requireReadScope`)
+
+Returns the raw file with its stored Content-Type and `Content-Disposition: attachment` (`?disposition=inline` for safe types). 404 on unknown email/attachment/missing file. Handler: `downloadAttachment` from `controller/email-controller.js`.
