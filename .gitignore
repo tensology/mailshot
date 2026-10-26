@@ -16,3 +16,8 @@ auth.config.json
 /data
 # Generated frontend output
 /client/build/
+
+# Local reference material (email backups) - keep out of git
+REFERENCE/
+# Scratch scripts
+scripts/_tmp-*
