@@ -7,25 +7,35 @@ import { providerDefaults } from './ai-provider.js';
 import { isMailboxStoreReady, getMailboxPool } from './postgres-mailbox-store.js';
 import { createPostgresSettingsStore } from './postgres-metadata-store.js';
 import { decryptSecret, encryptSecret } from './secret-store.js';
+import { getActiveAccount } from './account-context.js';
+import { accountCacheFile } from './account-paths.js';
+import { isSuperUser as isAccountSuperUser } from './accounts-config.js';
 
-const CACHE_DIR = path.join(process.cwd(), 'data');
-const CACHE_FILE = path.join(CACHE_DIR, 'app-settings.json');
 const SETTINGS_KEY = 'global';
-export const SUPERUSER_EMAIL = String(process.env.MAILSHOT_SUPERUSER || process.env.MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
+
+const activeAccountEmail = () => {
+    const account = getActiveAccount();
+    if (account?.email) {
+        return String(account.email).trim().toLowerCase();
+    }
+    return String(process.env.MAILSHOT_SUPERUSER || process.env.MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
+};
+
+export const superuserEmail = () => activeAccountEmail();
 
 const defaultSettings = () => ({
     general: {
-        email: SUPERUSER_EMAIL,
-        selected_email: SUPERUSER_EMAIL,
+        email: superuserEmail(),
+        selected_email: superuserEmail(),
         signatures: [
             {
-                email: SUPERUSER_EMAIL,
+                email: superuserEmail(),
                 signature_html: ''
             }
         ],
         autoresponders: [
             {
-                email: SUPERUSER_EMAIL,
+                email: superuserEmail(),
                 enabled: false,
                 html: '',
                 subject: 'Re: {{subject}}'
@@ -58,24 +68,38 @@ const defaultSettings = () => ({
     autoresponder_log: []
 });
 
-let settingsCache = defaultSettings();
-let postgresSettingsStore = null;
+const settingsCaches = new Map();
+const postgresSettingsStores = new Map();
 
-const getCachedSettings = () => settingsCache;
+const cacheKey = () => getActiveAccount()?.id || '__default__';
+
+const getCachedSettings = () => {
+    const key = cacheKey();
+    if (!settingsCaches.has(key)) {
+        settingsCaches.set(key, defaultSettings());
+    }
+    return settingsCaches.get(key);
+};
+
+const setCachedSettings = (value) => {
+    settingsCaches.set(cacheKey(), value);
+    return value;
+};
 
 const getPostgresSettingsStore = () => {
     if (!isMailboxStoreReady()) {
         return null;
     }
 
-    if (!postgresSettingsStore) {
-        postgresSettingsStore = createPostgresSettingsStore({
+    const key = cacheKey();
+    if (!postgresSettingsStores.has(key)) {
+        postgresSettingsStores.set(key, createPostgresSettingsStore({
             pool: getMailboxPool(),
             getCachedSettings
-        });
+        }));
     }
 
-    return postgresSettingsStore;
+    return postgresSettingsStores.get(key);
 };
 
 const normalizeEmail = (value = '') => {
@@ -85,7 +109,7 @@ const normalizeEmail = (value = '') => {
 };
 
 const normalizeSignatureEntries = (general = {}) => {
-    const legacyEmail = normalizeEmail(general.email) || SUPERUSER_EMAIL;
+    const legacyEmail = normalizeEmail(general.email) || superuserEmail();
     const source = Array.isArray(general.signatures) && general.signatures.length
         ? general.signatures
         : [{ email: legacyEmail, signature_html: general.signature_html || '' }];
@@ -101,14 +125,14 @@ const normalizeSignatureEntries = (general = {}) => {
     });
 
     if (!byEmail.size) {
-        byEmail.set(SUPERUSER_EMAIL, { email: SUPERUSER_EMAIL, signature_html: '' });
+        byEmail.set(superuserEmail(), { email: superuserEmail(), signature_html: '' });
     }
 
     return [...byEmail.values()];
 };
 
 const normalizeAutoresponderEntries = (general = {}) => {
-    const legacyEmail = normalizeEmail(general.email) || SUPERUSER_EMAIL;
+    const legacyEmail = normalizeEmail(general.email) || superuserEmail();
     const source = Array.isArray(general.autoresponders) && general.autoresponders.length
         ? general.autoresponders
         : [{
@@ -131,8 +155,8 @@ const normalizeAutoresponderEntries = (general = {}) => {
     });
 
     if (!byEmail.size) {
-        byEmail.set(SUPERUSER_EMAIL, {
-            email: SUPERUSER_EMAIL,
+        byEmail.set(superuserEmail(), {
+            email: superuserEmail(),
             enabled: false,
             html: '',
             subject: 'Re: {{subject}}'
@@ -144,7 +168,7 @@ const normalizeAutoresponderEntries = (general = {}) => {
 
 export const findSettingsForEmail = (general = {}, address = '') => {
     const wanted = normalizeEmail(address);
-    const selected = normalizeEmail(general.selected_email || general.email) || SUPERUSER_EMAIL;
+    const selected = normalizeEmail(general.selected_email || general.email) || superuserEmail();
     const signatures = normalizeSignatureEntries(general);
     const autoresponders = normalizeAutoresponderEntries(general);
 
@@ -166,7 +190,7 @@ const mergeSettings = (value = {}) => {
 
     const signatures = normalizeSignatureEntries(rawGeneral);
     const autoresponders = normalizeAutoresponderEntries(rawGeneral);
-    const selectedEmail = normalizeEmail(rawGeneral.selected_email || rawGeneral.email) || signatures[0]?.email || SUPERUSER_EMAIL;
+    const selectedEmail = normalizeEmail(rawGeneral.selected_email || rawGeneral.email) || signatures[0]?.email || superuserEmail();
     const selectedSettings = findSettingsForEmail({ ...rawGeneral, signatures, autoresponders, selected_email: selectedEmail }, selectedEmail);
     const general = {
         ...rawGeneral,
@@ -257,15 +281,16 @@ const serializeSettings = (settings = {}) => {
     return serialized;
 };
 
-export const isSuperUser = (username = '') => String(username || '').trim().toLowerCase() === SUPERUSER_EMAIL;
+export const isSuperUser = (username = '') => isAccountSuperUser(username);
 
 export const loadSettingsFromDisk = () => {
     try {
-        if (!fs.existsSync(CACHE_FILE)) {
+        const file = accountCacheFile('app-settings.json');
+        if (!fs.existsSync(file)) {
             return 0;
         }
 
-        settingsCache = mergeSettings(JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'))?.settings || {});
+        setCachedSettings(mergeSettings(JSON.parse(fs.readFileSync(file, 'utf8'))?.settings || {}));
         return 1;
     } catch (error) {
         console.error('Failed to load app settings from disk:', error.message);
@@ -275,10 +300,11 @@ export const loadSettingsFromDisk = () => {
 
 export const saveSettingsToDisk = () => {
     try {
-        fs.mkdirSync(CACHE_DIR, { recursive: true });
-        fs.writeFileSync(CACHE_FILE, JSON.stringify({
+        const file = accountCacheFile('app-settings.json');
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, JSON.stringify({
             saved_at: new Date().toISOString(),
-            settings: serializeSettings(settingsCache)
+            settings: serializeSettings(getCachedSettings())
         }));
         return true;
     } catch (error) {
@@ -290,29 +316,27 @@ export const saveSettingsToDisk = () => {
 export const getSettings = async () => {
     const postgresStore = getPostgresSettingsStore();
     if (postgresStore) {
-        settingsCache = mergeSettings(await postgresStore.get());
-        return settingsCache;
+        return setCachedSettings(mergeSettings(await postgresStore.get()));
     }
 
     if (isDbConnected()) {
         const doc = await Setting.findOne({ key: SETTINGS_KEY });
         if (doc?.value) {
-            settingsCache = mergeSettings(doc.value);
-            return settingsCache;
+            return setCachedSettings(mergeSettings(doc.value));
         }
     }
 
-    return settingsCache;
+    return getCachedSettings();
 };
 
 export const saveSettings = async (nextSettings = {}) => {
-    settingsCache = mergeSettings(nextSettings);
-    const persistedSettings = serializeSettings(settingsCache);
+    setCachedSettings(mergeSettings(nextSettings));
+    const persistedSettings = serializeSettings(getCachedSettings());
     const postgresStore = getPostgresSettingsStore();
     if (postgresStore) {
-        settingsCache = mergeSettings(await postgresStore.save(persistedSettings));
+        setCachedSettings(mergeSettings(await postgresStore.save(persistedSettings)));
         saveSettingsToDisk();
-        return settingsCache;
+        return getCachedSettings();
     }
 
     if (isDbConnected()) {
@@ -323,7 +347,7 @@ export const saveSettings = async (nextSettings = {}) => {
         );
     }
     saveSettingsToDisk();
-    return settingsCache;
+    return getCachedSettings();
 };
 
 export const updateSettingsSection = async (section, updates = {}) => {

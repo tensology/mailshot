@@ -1,53 +1,10 @@
-import fs from 'fs';
-import path from 'path';
-import dotenv from 'dotenv';
+import { getAccountsState } from './accounts-config.js';
 
-dotenv.config();
-
-const CONFIG_PATH = path.resolve(process.cwd(), 'auth.config.json');
-
-const readJsonConfig = () => {
-    if (!fs.existsSync(CONFIG_PATH)) {
-        return null;
-    }
-
-    try {
-        const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (!parsed?.username || !parsed?.password) {
-            return null;
-        }
-        return {
-            username: String(parsed.username),
-            password: String(parsed.password)
-        };
-    } catch (error) {
-        console.error('Failed to read auth.config.json:', error.message);
-        return null;
-    }
-};
+// Authentication is considered configured when at least one user exists,
+// either from accounts.config.json or the legacy AUTH_USERNAME/AUTH_PASSWORD env.
+export const isAuthConfigured = () => getAccountsState().users.length > 0;
 
 export const getAuthCredentials = () => {
-    const envUsername = process.env.AUTH_USERNAME;
-    const envPassword = process.env.AUTH_PASSWORD;
-
-    if (envUsername && envPassword) {
-        return {
-            username: envUsername,
-            password: envPassword,
-            source: 'env'
-        };
-    }
-
-    const jsonConfig = readJsonConfig();
-    if (jsonConfig) {
-        return {
-            ...jsonConfig,
-            source: 'file'
-        };
-    }
-
-    return null;
+    const user = getAccountsState().users[0];
+    return user ? { username: user.username, password: user.password, source: 'accounts' } : null;
 };
-
-export const isAuthConfigured = () => Boolean(getAuthCredentials());

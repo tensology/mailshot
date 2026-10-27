@@ -5,6 +5,8 @@
 !**/.env.example
 auth.config.json
 /auth.config.json
+accounts.config.json
+/accounts.config.json
 
 /node_modules
 /package-lock.json

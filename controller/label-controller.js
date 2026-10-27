@@ -16,24 +16,26 @@ import { slugify } from '../utils/slug.js';
 import { WORK_LABEL_ARCHIVE_UPDATES, WORK_LABEL_SLUG, workLabelArchiveUpdates } from '../services/work-label.js';
 import { isMailboxStoreReady, getMailboxPool, getMailboxRepository } from '../services/postgres-mailbox-store.js';
 import { createPostgresLabelStore } from '../services/postgres-metadata-store.js';
+import { getActiveAccount } from '../services/account-context.js';
 
 const RESERVED_LABEL_SLUGS = new Set(['archived', 'archive', 'spam']);
 const visibleLabels = (labels = []) => labels.filter((label) => !RESERVED_LABEL_SLUGS.has(label.slug));
-let postgresLabelStore = null;
+const postgresLabelStores = new Map();
 
 const getPostgresLabelStore = () => {
     if (!isMailboxStoreReady()) {
         return null;
     }
 
-    if (!postgresLabelStore) {
-        postgresLabelStore = createPostgresLabelStore({
+    const key = getActiveAccount()?.id || '__default__';
+    if (!postgresLabelStores.has(key)) {
+        postgresLabelStores.set(key, createPostgresLabelStore({
             pool: getMailboxPool(),
             getCachedLabels
-        });
+        }));
     }
 
-    return postgresLabelStore;
+    return postgresLabelStores.get(key);
 };
 
 export const getLabels = async (_, response) => {

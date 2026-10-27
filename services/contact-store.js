@@ -1,37 +1,47 @@
 import fs from 'fs';
 import path from 'path';
+import { getActiveAccount } from './account-context.js';
+import { accountCacheFile } from './account-paths.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
-const CACHE_FILE = path.join(CACHE_DIR, 'contacts-cache.json');
 
-const contactCache = [];
+const contactCaches = new Map();
+const activeContactKey = () => getActiveAccount()?.id || '__default__';
+const contactCache = () => {
+    const key = activeContactKey();
+    if (!contactCaches.has(key)) {
+        contactCaches.set(key, []);
+    }
+    return contactCaches.get(key);
+};
+const contactCacheFile = () => accountCacheFile('contacts-cache.json');
 
-export const getCachedContacts = () => [...contactCache].sort((a, b) => a.name.localeCompare(b.name));
+export const getCachedContacts = () => [...contactCache()].sort((a, b) => a.name.localeCompare(b.name));
 
-export const getCachedContactById = (id) => contactCache.find((item) => item._id === id) || null;
+export const getCachedContactById = (id) => contactCache().find((item) => item._id === id) || null;
 
 export const getCachedContactByEmail = (email) => {
     const normalized = String(email || '').trim().toLowerCase();
-    return contactCache.find((item) => item.email === normalized) || null;
+    return contactCache().find((item) => item.email === normalized) || null;
 };
 
 export const loadContactsFromDisk = () => {
     try {
-        if (!fs.existsSync(CACHE_FILE)) {
+        if (!fs.existsSync(contactCacheFile())) {
             return 0;
         }
 
-        const parsed = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        const parsed = JSON.parse(fs.readFileSync(contactCacheFile(), 'utf8'));
         if (!Array.isArray(parsed?.contacts)) {
             return 0;
         }
 
-        contactCache.length = 0;
+        contactCache().length = 0;
         parsed.contacts.forEach((item) => {
             if (!item?.email) {
                 return;
             }
-            contactCache.push({
+            contactCache().push({
                 _id: item._id || `contact-${item.email}`,
                 name: String(item.name || '').trim() || item.email,
                 email: String(item.email).trim().toLowerCase(),
@@ -41,7 +51,7 @@ export const loadContactsFromDisk = () => {
             });
         });
 
-        return contactCache.length;
+        return contactCache().length;
     } catch (error) {
         console.error('Failed to load contacts cache from disk:', error.message);
         return 0;
@@ -51,11 +61,11 @@ export const loadContactsFromDisk = () => {
 export const saveContactsToDisk = () => {
     try {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
-        fs.writeFileSync(CACHE_FILE, JSON.stringify({
+        fs.writeFileSync(contactCacheFile(), JSON.stringify({
             saved_at: new Date().toISOString(),
-            contacts: contactCache
+            contacts: contactCache()
         }));
-        return contactCache.length;
+        return contactCache().length;
     } catch (error) {
         console.error('Failed to save contacts cache to disk:', error.message);
         return 0;
@@ -82,7 +92,7 @@ export const createCachedContact = (payload = {}) => {
         notes: String(payload.notes || '').trim()
     };
 
-    contactCache.push(contact);
+    contactCache().push(contact);
     saveContactsToDisk();
     return contact;
 };
@@ -106,32 +116,32 @@ export const upsertCachedContact = (payload = {}) => {
 };
 
 export const updateCachedContact = (id, updates = {}) => {
-    const index = contactCache.findIndex((item) => item._id === id);
+    const index = contactCache().findIndex((item) => item._id === id);
     if (index < 0) {
         return null;
     }
 
-    contactCache[index] = {
-        ...contactCache[index],
+    contactCache()[index] = {
+        ...contactCache()[index],
         ...updates,
-        name: updates.name !== undefined ? String(updates.name).trim() : contactCache[index].name,
-        email: updates.email !== undefined ? String(updates.email).trim().toLowerCase() : contactCache[index].email,
-        phone: updates.phone !== undefined ? String(updates.phone).trim() : contactCache[index].phone,
-        company: updates.company !== undefined ? String(updates.company).trim() : contactCache[index].company,
-        notes: updates.notes !== undefined ? String(updates.notes).trim() : contactCache[index].notes
+        name: updates.name !== undefined ? String(updates.name).trim() : contactCache()[index].name,
+        email: updates.email !== undefined ? String(updates.email).trim().toLowerCase() : contactCache()[index].email,
+        phone: updates.phone !== undefined ? String(updates.phone).trim() : contactCache()[index].phone,
+        company: updates.company !== undefined ? String(updates.company).trim() : contactCache()[index].company,
+        notes: updates.notes !== undefined ? String(updates.notes).trim() : contactCache()[index].notes
     };
 
     saveContactsToDisk();
-    return contactCache[index];
+    return contactCache()[index];
 };
 
 export const deleteCachedContact = (id) => {
-    const index = contactCache.findIndex((item) => item._id === id);
+    const index = contactCache().findIndex((item) => item._id === id);
     if (index < 0) {
         return null;
     }
 
-    const [removed] = contactCache.splice(index, 1);
+    const [removed] = contactCache().splice(index, 1);
     saveContactsToDisk();
     return removed;
 };

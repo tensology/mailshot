@@ -15,9 +15,11 @@ import { hasWorkLabel, WORK_LABEL_ARCHIVE_UPDATES } from './work-label.js';
 import { enqueueEmailSummary } from './email-summary-service.js';
 import { getMailboxRepository, isMailboxStoreReady } from './postgres-mailbox-store.js';
 import { applyParsedSearchToFilter, parseSearchQuery } from './search-query.js';
+import { getActiveAccount, runWithAccount } from './account-context.js';
+import { accountCacheFile } from './account-paths.js';
+import { listAccounts } from './accounts-config.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
-const CACHE_FILE = path.join(CACHE_DIR, 'mailbox-cache.json');
 
 const buildStableId = (prefix, messageId) => {
     if (!messageId) {
@@ -92,48 +94,83 @@ const applyLabelRule = async (payload = {}) => {
     };
 };
 
-const getSyncConfig = () => ({
-    host: process.env.MAIL_IMAP_HOST,
-    port: Number(process.env.MAIL_IMAP_PORT || 993),
-    secure: true,
-    auth: {
-        user: process.env.MAILBOX_USER || process.env.MAIL_USERNAME || process.env.MAIL_IMAP_USERNAME,
-        pass: process.env.MAILBOX_PASSWORD || process.env.MAIL_PASSWORD || process.env.MAIL_IMAP_PASSWORD
+const getSyncConfig = () => {
+    const account = getActiveAccount();
+    if (account?.imap?.host && account.imap.user && account.imap.password) {
+        return {
+            host: account.imap.host,
+            port: Number(account.imap.port || 993),
+            secure: account.imap.secure !== false,
+            auth: {
+                user: account.imap.user,
+                pass: account.imap.password
+            }
+        };
     }
-});
+
+    return {
+        host: process.env.MAIL_IMAP_HOST,
+        port: Number(process.env.MAIL_IMAP_PORT || 993),
+        secure: true,
+        auth: {
+            user: process.env.MAILBOX_USER || process.env.MAIL_USERNAME || process.env.MAIL_IMAP_USERNAME,
+            pass: process.env.MAILBOX_PASSWORD || process.env.MAIL_PASSWORD || process.env.MAIL_IMAP_PASSWORD
+        }
+    };
+};
 
 let syncInterval;
-const mailboxCache = [];
-const suppressedMessageIds = new Set();
+const mailboxCaches = new Map();
+const suppressedMessageIdSets = new Map();
+
+const activeCacheKey = () => getActiveAccount()?.id || '__default__';
+
+const mailboxCache = () => {
+    const key = activeCacheKey();
+    if (!mailboxCaches.has(key)) {
+        mailboxCaches.set(key, []);
+    }
+    return mailboxCaches.get(key);
+};
+
+const suppressedMessageIds = () => {
+    const key = activeCacheKey();
+    if (!suppressedMessageIdSets.has(key)) {
+        suppressedMessageIdSets.set(key, new Set());
+    }
+    return suppressedMessageIdSets.get(key);
+};
+
+const mailboxCacheFile = () => accountCacheFile('mailbox-cache.json');
 
 /**
  * Load persisted mailbox cache from disk (used when MongoDB is unavailable).
  */
 export const loadMailboxCacheFromDisk = () => {
     try {
-        if (!fs.existsSync(CACHE_FILE)) {
+        if (!fs.existsSync(mailboxCacheFile())) {
             return 0;
         }
 
-        const raw = fs.readFileSync(CACHE_FILE, 'utf8');
+        const raw = fs.readFileSync(mailboxCacheFile(), 'utf8');
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed?.emails)) {
             return 0;
         }
 
-        mailboxCache.length = 0;
+        mailboxCache().length = 0;
         for (const item of parsed.emails) {
-            mailboxCache.push({
+            mailboxCache().push({
                 ...item,
                 date: new Date(item.date || Date.now())
             });
         }
 
         if (Array.isArray(parsed.suppressed_message_ids)) {
-            parsed.suppressed_message_ids.forEach((id) => suppressedMessageIds.add(String(id)));
+            parsed.suppressed_message_ids.forEach((id) => suppressedMessageIds().add(String(id)));
         }
 
-        return mailboxCache.length;
+        return mailboxCache().length;
     } catch (error) {
         console.error('Failed to load mailbox cache from disk:', error.message);
         return 0;
@@ -146,12 +183,12 @@ export const loadMailboxCacheFromDisk = () => {
 export const saveMailboxCacheToDisk = () => {
     try {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
-        fs.writeFileSync(CACHE_FILE, JSON.stringify({
+        fs.writeFileSync(mailboxCacheFile(), JSON.stringify({
             saved_at: new Date().toISOString(),
-            emails: mailboxCache,
-            suppressed_message_ids: [...suppressedMessageIds]
+            emails: mailboxCache(),
+            suppressed_message_ids: [...suppressedMessageIds()]
         }));
-        return mailboxCache.length;
+        return mailboxCache().length;
     } catch (error) {
         console.error('Failed to save mailbox cache to disk:', error.message);
         return 0;
@@ -160,12 +197,12 @@ export const saveMailboxCacheToDisk = () => {
 
 export const suppressMessageId = (messageId) => {
     if (messageId) {
-        suppressedMessageIds.add(String(messageId));
+        suppressedMessageIds().add(String(messageId));
     }
 };
 
 export const isMessageSuppressed = (messageId) => {
-    return messageId ? suppressedMessageIds.has(String(messageId)) : false;
+    return messageId ? suppressedMessageIds().has(String(messageId)) : false;
 };
 
 const parseNameFromAddress = (value = '') => {
@@ -257,13 +294,13 @@ const sendAutoResponderIfNeeded = async (payload = {}) => {
 
 const persistCachedEmail = (payload = {}) => {
     const existingIndex = payload._id
-        ? mailboxCache.findIndex(item => item._id === payload._id)
-        : mailboxCache.findIndex(item => item.messageId && item.messageId === payload.messageId);
+        ? mailboxCache().findIndex(item => item._id === payload._id)
+        : mailboxCache().findIndex(item => item.messageId && item.messageId === payload.messageId);
 
-    const existing = existingIndex >= 0 ? mailboxCache[existingIndex] : null;
+    const existing = existingIndex >= 0 ? mailboxCache()[existingIndex] : null;
 
     if (existingIndex >= 0) {
-        const current = mailboxCache[existingIndex];
+        const current = mailboxCache()[existingIndex];
         const merged = {
             ...current,
             ...payload,
@@ -276,7 +313,7 @@ const persistCachedEmail = (payload = {}) => {
             labels: current.labels?.length ? current.labels : (payload.labels || []),
             date: new Date(payload.date || current.date || Date.now())
         };
-        mailboxCache[existingIndex] = merged;
+        mailboxCache()[existingIndex] = merged;
         return merged;
     }
 
@@ -296,7 +333,7 @@ const persistCachedEmail = (payload = {}) => {
         date: new Date(payload.date || Date.now())
     };
 
-    mailboxCache.push(normalized);
+    mailboxCache().push(normalized);
     return normalized;
 };
 
@@ -336,13 +373,13 @@ const matchesFilter = (item, filter = {}) => {
 };
 
 export const getCachedEmails = (filter = {}) => {
-    return mailboxCache
+    return mailboxCache()
         .filter((item) => matchesFilter(item, filter))
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
 export const getCachedEmailById = (id) => {
-    return mailboxCache.find((item) => item._id === id) || null;
+    return mailboxCache().find((item) => item._id === id) || null;
 };
 
 export const findEmailRecord = async (id) => {
@@ -372,20 +409,20 @@ export const findEmailRecord = async (id) => {
 };
 
 export const updateCachedEmail = (id, updates = {}) => {
-    const index = mailboxCache.findIndex((item) => item._id === id);
+    const index = mailboxCache().findIndex((item) => item._id === id);
     if (index < 0) return null;
-    mailboxCache[index] = { ...mailboxCache[index], ...updates };
-    return mailboxCache[index];
+    mailboxCache()[index] = { ...mailboxCache()[index], ...updates };
+    return mailboxCache()[index];
 };
 
 export const deleteCachedEmails = (ids = []) => {
     const idSet = new Set(ids);
-    for (let i = mailboxCache.length - 1; i >= 0; i -= 1) {
-        if (idSet.has(mailboxCache[i]._id)) {
-            if (mailboxCache[i].messageId) {
-                suppressMessageId(mailboxCache[i].messageId);
+    for (let i = mailboxCache().length - 1; i >= 0; i -= 1) {
+        if (idSet.has(mailboxCache()[i]._id)) {
+            if (mailboxCache()[i].messageId) {
+                suppressMessageId(mailboxCache()[i].messageId);
             }
-            mailboxCache.splice(i, 1);
+            mailboxCache().splice(i, 1);
         }
     }
 };
@@ -903,7 +940,7 @@ const importMessageFromImap = async ({
         return { synced: true, uid: msg.uid };
     }
 
-    const existing = mailboxCache.find((item) => item.messageId === messageId);
+    const existing = mailboxCache().find((item) => item.messageId === messageId);
     if (existing) {
         persistCachedEmail({
             ...payload,
@@ -1075,25 +1112,32 @@ export const startMailboxSync = (options = {}) => {
         return;
     }
 
-    const loaded = loadMailboxCacheFromDisk();
-    if (loaded > 0) {
-        console.log(`Loaded ${loaded} emails from disk cache`);
-    }
-
     const tick = async () => {
-        try {
-            await syncOnce();
-        } catch (err) {
-            console.error('Mail sync failed:', err.message);
-        }
-        try {
-            const { processDueScheduledSends } = await import('./scheduled-send.js');
-            const result = await processDueScheduledSends();
-            if (result.sent > 0) {
-                console.log(`Sent ${result.sent} scheduled message(s)`);
-            }
-        } catch (err) {
-            console.error('Scheduled send sweep failed:', err.message);
+        const accounts = listAccounts();
+
+        for (const account of accounts) {
+            await runWithAccount(account, async () => {
+                const loaded = loadMailboxCacheFromDisk();
+                if (loaded > 0) {
+                    console.log(`Loaded ${loaded} emails from disk cache for ${account.id}`);
+                }
+
+                try {
+                    await syncOnce();
+                } catch (err) {
+                    console.error(`Mail sync failed for ${account.id}:`, err.message);
+                }
+
+                try {
+                    const { processDueScheduledSends } = await import('./scheduled-send.js');
+                    const result = await processDueScheduledSends();
+                    if (result.sent > 0) {
+                        console.log(`Sent ${result.sent} scheduled message(s) for ${account.id}`);
+                    }
+                } catch (err) {
+                    console.error(`Scheduled send sweep failed for ${account.id}:`, err.message);
+                }
+            });
         }
     };
 
@@ -1108,7 +1152,7 @@ export const getThreadForEmail = (anchorEmail) => {
         return [];
     }
 
-    const allEmails = [...mailboxCache];
+    const allEmails = [...mailboxCache()];
     const relatedIds = new Set(
         [anchorEmail.messageId, anchorEmail.in_reply_to, ...(anchorEmail.references || [])].filter(Boolean)
     );

@@ -4,12 +4,26 @@ import path from 'path';
 import Setting from '../model/setting.js';
 import { isDbConnected } from '../database/db.js';
 import { slugify } from '../utils/slug.js';
+import { getActiveAccount } from './account-context.js';
+import { accountCacheFile } from './account-paths.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
-const CACHE_FILE = path.join(CACHE_DIR, 'label-rules.json');
 const SETTINGS_KEY = 'label-rules';
 
-let ruleCache = [];
+const ruleCaches = new Map();
+const activeRuleKey = () => getActiveAccount()?.id || '__default__';
+const ruleCache = () => {
+    const key = activeRuleKey();
+    if (!ruleCaches.has(key)) {
+        ruleCaches.set(key, []);
+    }
+    return ruleCaches.get(key);
+};
+const setRuleCache = (value) => {
+    ruleCaches.set(activeRuleKey(), Array.isArray(value) ? value : []);
+    return ruleCache();
+};
+const ruleCacheFile = () => accountCacheFile('label-rules.json');
 
 export const extractEmailAddress = (value = '') => {
     const raw = String(value || '').trim().toLowerCase();
@@ -71,9 +85,9 @@ const ruleMatchesMessage = (rule, { from = '', subject = '' } = {}) => {
 const saveRulesToDisk = () => {
     try {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
-        fs.writeFileSync(CACHE_FILE, JSON.stringify({
+        fs.writeFileSync(ruleCacheFile(), JSON.stringify({
             saved_at: new Date().toISOString(),
-            rules: ruleCache
+            rules: ruleCache()
         }));
     } catch (error) {
         console.error('Failed to save label rules:', error.message);
@@ -82,17 +96,17 @@ const saveRulesToDisk = () => {
 
 export const loadLabelRulesFromDisk = () => {
     try {
-        if (!fs.existsSync(CACHE_FILE)) {
+        if (!fs.existsSync(ruleCacheFile())) {
             return 0;
         }
 
-        const parsed = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        const parsed = JSON.parse(fs.readFileSync(ruleCacheFile(), 'utf8'));
         if (!Array.isArray(parsed?.rules)) {
             return 0;
         }
 
-        ruleCache = parsed.rules.map(normalizeRule).filter(Boolean);
-        return ruleCache.length;
+        setRuleCache(parsed.rules.map(normalizeRule).filter(Boolean));
+        return ruleCache().length;
     } catch (error) {
         console.error('Failed to load label rules:', error.message);
         return 0;
@@ -103,7 +117,7 @@ const saveRules = async () => {
     if (isDbConnected()) {
         await Setting.findOneAndUpdate(
             { key: SETTINGS_KEY },
-            { $set: { value: { rules: ruleCache } } },
+            { $set: { value: { rules: ruleCache() } } },
             { upsert: true, new: true }
         );
     }
@@ -114,11 +128,11 @@ export const getLabelRules = async () => {
     if (isDbConnected()) {
         const doc = await Setting.findOne({ key: SETTINGS_KEY });
         if (Array.isArray(doc?.value?.rules)) {
-            ruleCache = doc.value.rules.map(normalizeRule).filter(Boolean);
+            setRuleCache(doc.value.rules.map(normalizeRule).filter(Boolean));
         }
     }
 
-    return [...ruleCache].sort((a, b) => {
+    return [...ruleCache()].sort((a, b) => {
         const left = a.from || a.from_domain || a.subject_contains || '';
         const right = b.from || b.from_domain || b.subject_contains || '';
         return left.localeCompare(right);
@@ -141,7 +155,7 @@ export const createLabelRules = async ({
     }
 
     await getLabelRules();
-    const existingKeys = new Set(ruleCache.map((rule) => (
+    const existingKeys = new Set(ruleCache().map((rule) => (
         `${rule.from}|${rule.from_domain}|${rule.subject_contains}|${rule.label}`
     )));
     const created = [];
@@ -155,7 +169,7 @@ export const createLabelRules = async ({
         if (existingKeys.has(key)) {
             return;
         }
-        ruleCache.push(rule);
+        ruleCache().push(rule);
         created.push(rule);
         existingKeys.add(key);
     };

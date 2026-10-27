@@ -1,5 +1,7 @@
 import { getSession } from '../services/auth-store.js';
 import { isAuthConfigured } from '../services/auth-config.js';
+import { getAccount, accountsForUser } from '../services/accounts-config.js';
+import { runWithAccount } from '../services/account-context.js';
 
 const extractToken = (request) => {
     const header = request.headers.authorization || '';
@@ -21,10 +23,26 @@ export const requireAuth = (request, response, next) => {
         return response.status(401).json('Unauthorized');
     }
 
+    const allowed = accountsForUser(session.username);
+    if (!allowed.length) {
+        return response.status(403).json('No mailbox accounts are assigned to this user');
+    }
+
+    const requestedId = String(
+        request.headers['x-account-id'] || request.query?.account_id || ''
+    ).trim();
+
+    let account = requestedId ? getAccount(requestedId) : null;
+    if (account && !allowed.some((entry) => entry.id === account.id)) {
+        account = null;
+    }
+    account = account || allowed[0];
+
     request.auth = {
         username: session.username,
-        token
+        token,
+        accountId: account.id
     };
 
-    return next();
+    return runWithAccount(account, () => next());
 };

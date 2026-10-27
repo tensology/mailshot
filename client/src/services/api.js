@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { clearAuthToken, getAuthToken } from '../context/AuthContext';
+import { clearAuthToken, getActiveAccountId, getAuthToken } from '../context/AuthContext';
 import { API_URL } from '../config/env';
 
 let logoutInFlight = false;
@@ -44,13 +44,15 @@ const API_GMAIL = async (urlObject, payload, type = '') => {
     }
 
     const token = getAuthToken();
+    const accountId = getActiveAccountId();
     const config = {
         method: urlObject.method,
         url,
         data: urlObject.method === 'GET' ? undefined : payload,
         headers: {
             Accept: 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(accountId ? { 'X-Account-Id': accountId } : {})
         }
     };
 

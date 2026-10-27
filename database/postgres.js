@@ -35,10 +35,15 @@ export const getPostgresConfig = (env = process.env) => {
 
 export const isPostgresConfigured = (env = process.env) => Boolean(getPostgresConfig(env));
 
-export const createPostgresPool = ({ env = process.env, PoolImpl = Pool } = {}) => {
+export const createPostgresPool = ({ env = process.env, PoolImpl = Pool, schema = '' } = {}) => {
     const config = getPostgresConfig(env);
     if (!config) {
         throw new Error('Postgres is not configured. Set DATABASE_URL or PGHOST/PGDATABASE.');
+    }
+
+    const normalizedSchema = String(schema || '').trim().toLowerCase();
+    if (/^[a-z_][a-z0-9_]*$/.test(normalizedSchema)) {
+        config.options = `-c search_path=${normalizedSchema}`;
     }
 
     return new PoolImpl(config);

@@ -9,22 +9,24 @@ import {
 } from '../services/contact-store.js';
 import { isMailboxStoreReady, getMailboxPool } from '../services/postgres-mailbox-store.js';
 import { createPostgresContactStore } from '../services/postgres-metadata-store.js';
+import { getActiveAccount } from '../services/account-context.js';
 
-let postgresContactStore = null;
+const postgresContactStores = new Map();
 
 const getPostgresContactStore = () => {
     if (!isMailboxStoreReady()) {
         return null;
     }
 
-    if (!postgresContactStore) {
-        postgresContactStore = createPostgresContactStore({
+    const key = getActiveAccount()?.id || '__default__';
+    if (!postgresContactStores.has(key)) {
+        postgresContactStores.set(key, createPostgresContactStore({
             pool: getMailboxPool(),
             getCachedContacts
-        });
+        }));
     }
 
-    return postgresContactStore;
+    return postgresContactStores.get(key);
 };
 
 const serializeContact = (contact) => {

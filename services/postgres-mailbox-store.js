@@ -1,43 +1,87 @@
 import { createPostgresPool, isPostgresConfigured } from '../database/postgres.js';
 import { ensurePostgresSchema } from '../database/postgres-schema.js';
 import { createMailboxRepository } from './mailbox-repository.js';
+import { listAccounts, getDefaultAccountId } from './accounts-config.js';
+import { getActiveAccount } from './account-context.js';
 
-let pool = null;
-let repository = null;
+// account id -> { pool, repository }
+const stores = new Map();
+let defaultAccountId = null;
 let ready = false;
 let lastError = null;
 
+const createStoreForAccount = async (account) => {
+    const pool = createPostgresPool({ schema: account.schema });
+
+    if (account.schema && account.schema !== 'public') {
+        await pool.query(`CREATE SCHEMA IF NOT EXISTS "${account.schema}"`);
+    }
+
+    await ensurePostgresSchema(pool);
+    const repository = createMailboxRepository({ pool });
+    return { pool, repository, account };
+};
+
 export const initializeMailboxStore = async () => {
+    stores.clear();
+    defaultAccountId = null;
+    ready = false;
+    lastError = null;
+
     if (!isPostgresConfigured()) {
-        ready = false;
-        repository = null;
         return { ready: false, reason: 'not-configured' };
     }
 
-    try {
-        pool = createPostgresPool();
-        await ensurePostgresSchema(pool);
-        repository = createMailboxRepository({ pool });
-        ready = true;
-        lastError = null;
-        return { ready: true };
-    } catch (error) {
-        ready = false;
-        repository = null;
-        lastError = error;
-        return { ready: false, reason: error.message };
+    const accounts = listAccounts();
+    const failures = [];
+
+    for (const account of accounts) {
+        try {
+            const store = await createStoreForAccount(account);
+            stores.set(account.id, store);
+            if (!defaultAccountId) {
+                defaultAccountId = account.id;
+            }
+        } catch (error) {
+            failures.push({ id: account.id, error: error.message });
+            console.error(`Mailbox store init failed for account "${account.id}":`, error.message);
+        }
     }
+
+    defaultAccountId = defaultAccountId || getDefaultAccountId();
+
+    if (!stores.size) {
+        lastError = new Error(failures[0]?.error || 'no accounts initialized');
+        return { ready: false, reason: lastError.message };
+    }
+
+    ready = true;
+    return { ready: true, accounts: [...stores.keys()], failures };
 };
 
-export const getMailboxRepository = () => repository;
+const resolveStore = () => {
+    const active = getActiveAccount();
+    if (active && stores.has(active.id)) {
+        return stores.get(active.id);
+    }
+    if (defaultAccountId && stores.has(defaultAccountId)) {
+        return stores.get(defaultAccountId);
+    }
+    return [...stores.values()][0] || null;
+};
 
-export const getMailboxPool = () => pool;
+export const getMailboxRepository = () => resolveStore()?.repository || null;
 
-export const isMailboxStoreReady = () => ready && Boolean(repository);
+export const getMailboxPool = () => resolveStore()?.pool || null;
+
+export const getAccountPool = (accountId) => stores.get(accountId)?.pool || null;
+
+export const isMailboxStoreReady = () => ready && stores.size > 0;
 
 export const getMailboxStoreStatus = () => ({
     ready: isMailboxStoreReady(),
     configured: isPostgresConfigured(),
+    accounts: [...stores.keys()],
     error: lastError?.message || null
 });
 
@@ -46,8 +90,11 @@ export const __setMailboxStoreForTests = ({
     repository: nextRepository = null,
     ready: nextReady = false
 } = {}) => {
-    pool = nextPool;
-    repository = nextRepository;
+    stores.clear();
+    if (nextPool || nextRepository) {
+        stores.set('__test__', { pool: nextPool, repository: nextRepository, account: { id: '__test__' } });
+    }
+    defaultAccountId = nextPool || nextRepository ? '__test__' : null;
     ready = nextReady;
     lastError = null;
 };

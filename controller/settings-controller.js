@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { SUPERUSER_EMAIL, isSuperUser, getSettings, updateSettingsSection } from '../services/settings-store.js';
+import { superuserEmail, isSuperUser, getSettings, updateSettingsSection } from '../services/settings-store.js';
 import {
     buildProviderHeaders,
     buildProviderUrl,
@@ -68,15 +68,15 @@ const normalizeSignatures = (body = {}) => {
     });
 
     if (!byEmail.size) {
-        const email = normalizeEmail(body.email) || SUPERUSER_EMAIL;
+        const email = normalizeEmail(body.email) || superuserEmail();
         byEmail.set(email, {
             email,
             signature_html: normalizeHtml(body.signature_html)
         });
     }
 
-    if (!byEmail.has(SUPERUSER_EMAIL)) {
-        byEmail.set(SUPERUSER_EMAIL, { email: SUPERUSER_EMAIL, signature_html: '' });
+    if (!byEmail.has(superuserEmail())) {
+        byEmail.set(superuserEmail(), { email: superuserEmail(), signature_html: '' });
     }
 
     return [...byEmail.values()];
@@ -98,7 +98,7 @@ const normalizeAutoresponders = (body = {}) => {
     });
 
     if (!byEmail.size) {
-        const email = normalizeEmail(body.email) || SUPERUSER_EMAIL;
+        const email = normalizeEmail(body.email) || superuserEmail();
         byEmail.set(email, {
             email,
             enabled: Boolean(body.autoresponder_enabled),
@@ -107,9 +107,9 @@ const normalizeAutoresponders = (body = {}) => {
         });
     }
 
-    if (!byEmail.has(SUPERUSER_EMAIL)) {
-        byEmail.set(SUPERUSER_EMAIL, {
-            email: SUPERUSER_EMAIL,
+    if (!byEmail.has(superuserEmail())) {
+        byEmail.set(superuserEmail(), {
+            email: superuserEmail(),
             enabled: false,
             html: '',
             subject: 'Re: {{subject}}'
@@ -122,7 +122,7 @@ const normalizeAutoresponders = (body = {}) => {
 const normalizeGeneralPayload = (body = {}) => {
     const signatures = normalizeSignatures(body);
     const autoresponders = normalizeAutoresponders(body);
-    const selectedEmail = normalizeEmail(body.selected_email || body.email) || signatures[0]?.email || SUPERUSER_EMAIL;
+    const selectedEmail = normalizeEmail(body.selected_email || body.email) || signatures[0]?.email || superuserEmail();
     const selectedSignature = signatures.find((entry) => entry.email === selectedEmail) || signatures[0];
     const selectedAutoresponder = autoresponders.find((entry) => entry.email === selectedEmail) || autoresponders[0];
     const templates = Array.isArray(body.templates)

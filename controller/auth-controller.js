@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import { getAuthCredentials, isAuthConfigured } from '../services/auth-config.js';
+import { findUser, accountsForUser, publicAccount, isSuperUser } from '../services/accounts-config.js';
+import { isAuthConfigured } from '../services/auth-config.js';
 import { createSession, getSession, revokeSession } from '../services/auth-store.js';
-import { isSuperUser } from '../services/settings-store.js';
 import {
     clearLoginFailures,
     getClientIp,
@@ -28,13 +28,22 @@ const extractToken = (request) => {
     return '';
 };
 
+const sessionPayload = (username) => {
+    const accounts = accountsForUser(username).map(publicAccount);
+    return {
+        username,
+        is_superuser: isSuperUser(username),
+        accounts,
+        default_account_id: accounts[0]?.id || null
+    };
+};
+
 export const login = (request, response) => {
-    const credentials = getAuthCredentials();
-    if (!credentials) {
-        return response.status(503).json('Authentication is not configured. Set AUTH_USERNAME/AUTH_PASSWORD or auth.config.json.');
+    if (!isAuthConfigured()) {
+        return response.status(503).json('Authentication is not configured. Set accounts.config.json or AUTH_USERNAME/AUTH_PASSWORD.');
     }
 
-    const username = String(request.body?.username || '').trim();
+    const username = String(request.body?.username || '').trim().toLowerCase();
     const password = String(request.body?.password || '');
     const ip = getClientIp(request);
 
@@ -49,7 +58,8 @@ export const login = (request, response) => {
         return response.status(429).json(`Too many failed login attempts. Try again in ${seconds}s.`);
     }
 
-    if (!safeEqual(username, credentials.username) || !safeEqual(password, credentials.password)) {
+    const user = findUser(username);
+    if (!user || !safeEqual(password, user.password)) {
         const next = recordLoginFailure(username, ip);
         if (next.locked) {
             const seconds = Math.ceil(next.remaining_ms / 1000);
@@ -60,12 +70,11 @@ export const login = (request, response) => {
     }
 
     clearLoginFailures(username, ip);
-    const { token, session } = createSession(username);
+    const { token, session } = createSession(user.username);
 
     return response.status(200).json({
         token,
-        username: session.username,
-        is_superuser: isSuperUser(session.username),
+        ...sessionPayload(session.username),
         expires_at: session.expires_at
     });
 };
@@ -79,8 +88,7 @@ export const getCurrentSession = (request, response) => {
     }
 
     return response.status(200).json({
-        username: session.username,
-        is_superuser: isSuperUser(session.username),
+        ...sessionPayload(session.username),
         expires_at: session.expires_at
     });
 };

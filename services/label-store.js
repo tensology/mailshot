@@ -1,33 +1,43 @@
 import fs from 'fs';
 import path from 'path';
 import { slugify } from '../utils/slug.js';
+import { getActiveAccount } from './account-context.js';
+import { accountCacheFile } from './account-paths.js';
 
 const CACHE_DIR = path.join(process.cwd(), 'data');
-const CACHE_FILE = path.join(CACHE_DIR, 'labels-cache.json');
 
-const labelCache = [];
+const labelCaches = new Map();
+const activeLabelKey = () => getActiveAccount()?.id || '__default__';
+const labelCache = () => {
+    const key = activeLabelKey();
+    if (!labelCaches.has(key)) {
+        labelCaches.set(key, []);
+    }
+    return labelCaches.get(key);
+};
+const labelCacheFile = () => accountCacheFile('labels-cache.json');
 
-export const getCachedLabels = () => [...labelCache].sort((a, b) => a.name.localeCompare(b.name));
+export const getCachedLabels = () => [...labelCache()].sort((a, b) => a.name.localeCompare(b.name));
 
-export const getLabelBySlug = (slug) => labelCache.find((item) => item.slug === slug) || null;
+export const getLabelBySlug = (slug) => labelCache().find((item) => item.slug === slug) || null;
 
 export const loadLabelsFromDisk = () => {
     try {
-        if (!fs.existsSync(CACHE_FILE)) {
+        if (!fs.existsSync(labelCacheFile())) {
             return 0;
         }
 
-        const parsed = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        const parsed = JSON.parse(fs.readFileSync(labelCacheFile(), 'utf8'));
         if (!Array.isArray(parsed?.labels)) {
             return 0;
         }
 
-        labelCache.length = 0;
+        labelCache().length = 0;
         parsed.labels.forEach((item) => {
             if (!item?.slug || !item?.name) {
                 return;
             }
-            labelCache.push({
+            labelCache().push({
                 _id: item._id || `label-${item.slug}`,
                 name: item.name,
                 slug: item.slug,
@@ -36,7 +46,7 @@ export const loadLabelsFromDisk = () => {
             });
         });
 
-        return labelCache.length;
+        return labelCache().length;
     } catch (error) {
         console.error('Failed to load labels cache from disk:', error.message);
         return 0;
@@ -46,11 +56,11 @@ export const loadLabelsFromDisk = () => {
 export const saveLabelsToDisk = () => {
     try {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
-        fs.writeFileSync(CACHE_FILE, JSON.stringify({
+        fs.writeFileSync(labelCacheFile(), JSON.stringify({
             saved_at: new Date().toISOString(),
-            labels: labelCache
+            labels: labelCache()
         }));
-        return labelCache.length;
+        return labelCache().length;
     } catch (error) {
         console.error('Failed to save labels cache to disk:', error.message);
         return 0;
@@ -64,7 +74,7 @@ export const createCachedLabel = ({ name, color = '#5f6368', slug }) => {
         return null;
     }
 
-    const existing = labelCache.find((item) => item.slug === normalizedSlug);
+    const existing = labelCache().find((item) => item.slug === normalizedSlug);
     if (existing) {
         return existing;
     }
@@ -77,7 +87,7 @@ export const createCachedLabel = ({ name, color = '#5f6368', slug }) => {
         user_id: 'default'
     };
 
-    labelCache.push(label);
+    labelCache().push(label);
     saveLabelsToDisk();
     return label;
 };
@@ -89,12 +99,12 @@ export const ensureCachedLabel = (nameOrSlug) => {
     }
 
     const asSlug = slugify(raw);
-    const bySlug = labelCache.find((item) => item.slug === asSlug);
+    const bySlug = labelCache().find((item) => item.slug === asSlug);
     if (bySlug) {
         return bySlug;
     }
 
-    const byName = labelCache.find((item) => item.name.toLowerCase() === raw.toLowerCase());
+    const byName = labelCache().find((item) => item.name.toLowerCase() === raw.toLowerCase());
     if (byName) {
         return byName;
     }
@@ -113,39 +123,39 @@ export const normalizeLabelToken = (token) => {
 };
 
 export const updateCachedLabel = (id, updates = {}) => {
-    const index = labelCache.findIndex((item) => item._id === id);
+    const index = labelCache().findIndex((item) => item._id === id);
     if (index < 0) {
         return null;
     }
 
-    labelCache[index] = {
-        ...labelCache[index],
+    labelCache()[index] = {
+        ...labelCache()[index],
         ...updates,
-        slug: updates.slug ? slugify(updates.slug) : labelCache[index].slug
+        slug: updates.slug ? slugify(updates.slug) : labelCache()[index].slug
     };
 
     saveLabelsToDisk();
-    return labelCache[index];
+    return labelCache()[index];
 };
 
 export const deleteCachedLabel = (id) => {
-    const index = labelCache.findIndex((item) => item._id === id);
+    const index = labelCache().findIndex((item) => item._id === id);
     if (index < 0) {
         return null;
     }
 
-    const [removed] = labelCache.splice(index, 1);
+    const [removed] = labelCache().splice(index, 1);
     saveLabelsToDisk();
     return removed;
 };
 
 export const deleteCachedLabelBySlug = (slug) => {
-    const index = labelCache.findIndex((item) => item.slug === slug);
+    const index = labelCache().findIndex((item) => item.slug === slug);
     if (index < 0) {
         return null;
     }
 
-    const [removed] = labelCache.splice(index, 1);
+    const [removed] = labelCache().splice(index, 1);
     saveLabelsToDisk();
     return removed;
 };

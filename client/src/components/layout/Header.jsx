@@ -12,7 +12,16 @@ const Header = () => {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const accountMenuRef = useRef(null);
     const navigate = useNavigate();
-    const { logout, username, isSuperuser } = useAuth();
+    const {
+        logout,
+        username,
+        isSuperuser,
+        accounts,
+        activeAccount,
+        activeAccountId,
+        hasMultipleAccounts,
+        switchAccount
+    } = useAuth();
     const { toggleSidebar } = useLayout();
     const profilePhoto = getProfilePhoto(username);
 
@@ -71,7 +80,7 @@ const Header = () => {
                             {profilePhoto
                                 ? <img src={profilePhoto} alt="" className="h-7 w-7 rounded-full object-cover object-center" />
                                 : <MailshotIcon name="settings" size={20} />}
-                            <span className="max-w-[140px] truncate">{username || 'Account'}</span>
+                            <span className="max-w-[160px] truncate">{activeAccount?.label || username || 'Account'}</span>
                             <MailshotIcon name="chevron-down" size={18} />
                         </button>
                         <IconButton
@@ -94,12 +103,49 @@ const Header = () => {
                                         Account
                                     </p>
                                     <p className="mt-1 truncate text-sm font-medium text-slate-900">
-                                        {username || 'Signed in'}
+                                        {activeAccount?.label || username || 'Signed in'}
                                     </p>
-                                    <p className="mt-1 text-xs text-slate-500">
-                                        Session is saved on this device and restored when you reopen Mailshot.
+                                    <p className="mt-1 truncate text-xs text-slate-500">
+                                        {activeAccount?.email || username}
                                     </p>
                                 </div>
+                                {hasMultipleAccounts && (
+                                    <div className="border-b border-slate-100 px-2 py-2">
+                                        <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                            Mailboxes
+                                        </p>
+                                        {accounts.map((entry) => {
+                                            const isActive = entry.id === activeAccountId;
+                                            return (
+                                                <button
+                                                    key={entry.id}
+                                                    type="button"
+                                                    role="menuitemradio"
+                                                    aria-checked={isActive}
+                                                    onClick={() => {
+                                                        setAccountMenuOpen(false);
+                                                        switchAccount(entry.id);
+                                                    }}
+                                                    className={`flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                                                        isActive
+                                                            ? 'bg-slate-100 font-semibold text-slate-900'
+                                                            : 'text-slate-700 hover:bg-slate-100'
+                                                    }`}
+                                                >
+                                                    <span className="min-w-0">
+                                                        <span className="block truncate">{entry.label}</span>
+                                                        {entry.email && (
+                                                            <span className="block truncate text-xs font-normal text-slate-500">
+                                                                {entry.email}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    {isActive && <span aria-hidden="true" className="text-slate-500">✓</span>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                                 <div className="px-2 py-2">
                                     <button
                                         type="button"
