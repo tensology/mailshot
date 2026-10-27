@@ -47,6 +47,7 @@ const normalizeAccount = (entry = {}, index = 0) => {
         label: String(entry.label || entry.name || email || id),
         name: String(entry.name || '').trim(),
         email,
+        logo: String(entry.logo || entry.icon || '').trim(),
         schema: normalizeSchema(entry.schema, id),
         imap: {
             host: String(imap.host || process.env.MAIL_IMAP_HOST || '').trim(),
@@ -210,7 +211,8 @@ export const publicAccount = (account) => ({
     id: account.id,
     label: account.label,
     name: account.name,
-    email: account.email
+    email: account.email,
+    logo: account.logo || ''
 });
 
 export const accountVersion = () => configMtime;

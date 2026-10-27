@@ -132,7 +132,14 @@ const Header = () => {
                                                             : 'text-slate-700 hover:bg-slate-100'
                                                     }`}
                                                 >
-                                                    <span className="min-w-0">
+                                                    {entry.logo
+                                                        ? <img src={entry.logo} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" />
+                                                        : (
+                                                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                                                                <MailshotIcon name="settings" size={18} />
+                                                            </span>
+                                                        )}
+                                                    <span className="min-w-0 flex-1">
                                                         <span className="block truncate">{entry.label}</span>
                                                         {entry.email && (
                                                             <span className="block truncate text-xs font-normal text-slate-500">
