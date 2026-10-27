@@ -80,7 +80,7 @@ const Header = () => {
                             {profilePhoto
                                 ? <img src={profilePhoto} alt="" className="h-7 w-7 rounded-full object-cover object-center" />
                                 : <MailshotIcon name="settings" size={20} />}
-                            <span className="max-w-[160px] truncate">{activeAccount?.label || username || 'Account'}</span>
+                            <span className="whitespace-nowrap font-semibold text-slate-900">{activeAccount?.label || username || 'Account'}</span>
                             <MailshotIcon name="chevron-down" size={18} />
                         </button>
                         <IconButton
@@ -96,19 +96,8 @@ const Header = () => {
                         {accountMenuOpen && (
                             <div
                                 role="menu"
-                                className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl"
+                                className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl"
                             >
-                                <div className="border-b border-slate-100 px-4 py-3">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Account
-                                    </p>
-                                    <p className="mt-1 truncate text-sm font-medium text-slate-900">
-                                        {activeAccount?.label || username || 'Signed in'}
-                                    </p>
-                                    <p className="mt-1 truncate text-xs text-slate-500">
-                                        {activeAccount?.email || username}
-                                    </p>
-                                </div>
                                 {hasMultipleAccounts && (
                                     <div className="border-b border-slate-100 px-2 py-2">
                                         <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -139,13 +128,8 @@ const Header = () => {
                                                                 <MailshotIcon name="settings" size={18} />
                                                             </span>
                                                         )}
-                                                    <span className="min-w-0 flex-1">
-                                                        <span className="block truncate">{entry.label}</span>
-                                                        {entry.email && (
-                                                            <span className="block truncate text-xs font-normal text-slate-500">
-                                                                {entry.email}
-                                                            </span>
-                                                        )}
+                                                    <span className="min-w-0 flex-1 font-semibold text-slate-900">
+                                                        {entry.label}
                                                     </span>
                                                     {isActive && <span aria-hidden="true" className="text-slate-500">✓</span>}
                                                 </button>
