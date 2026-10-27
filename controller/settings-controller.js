@@ -25,7 +25,13 @@ const sanitizeForUser = (settings, superUser) => ({
             Object.entries(settings.ai?.api_keys || {}).map(([key, value]) => [key, Boolean(value)])
         )
     } : null,
-    tts: superUser ? settings.tts : null,
+    tts: superUser ? {
+        provider: settings.tts?.provider || 'kokoro',
+        voice: settings.tts?.voice || 'af_heart',
+        fishaudio_voice: settings.tts?.fishaudio_voice || '',
+        fishaudio_model: settings.tts?.fishaudio_model || 's2.1-pro-free',
+        fishaudio_key_set: Boolean(settings.tts?.fishaudio_key)
+    } : null,
     tensology: superUser ? {
         enabled: Boolean(settings.tensology?.enabled),
         base_url: settings.tensology?.base_url || 'https://www.tensology.com',
@@ -171,9 +177,26 @@ const normalizeAiPayload = (body = {}, current = {}) => {
     };
 };
 
-const normalizeTtsPayload = (body = {}) => ({
-    voice: String(body.voice || 'af_heart').trim() || 'af_heart'
-});
+const normalizeTtsPayload = (body = {}) => {
+    const payload = {};
+    if (body.provider !== undefined) {
+        const provider = String(body.provider || '').trim().toLowerCase();
+        payload.provider = ['kokoro', 'fishaudio'].includes(provider) ? provider : 'kokoro';
+    }
+    if (body.voice !== undefined) {
+        payload.voice = String(body.voice || 'af_heart').trim() || 'af_heart';
+    }
+    if (body.fishaudio_key !== undefined) {
+        payload.fishaudio_key = String(body.fishaudio_key || '').trim();
+    }
+    if (body.fishaudio_voice !== undefined) {
+        payload.fishaudio_voice = String(body.fishaudio_voice || '').trim();
+    }
+    if (body.fishaudio_model !== undefined) {
+        payload.fishaudio_model = String(body.fishaudio_model || 's2.1-pro-free').trim() || 's2.1-pro-free';
+    }
+    return payload;
+};
 
 export const getAppSettings = async (request, response) => {
     const settings = await getSettings();

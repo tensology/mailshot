@@ -26,8 +26,11 @@ const KOKORO_DEVICE = process.env.KOKORO_DEVICE || 'cpu';
 const KOKORO_DEFAULT_VOICE = process.env.KOKORO_VOICE || 'af_heart';
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg';
 const OGG_BITRATE = process.env.KOKORO_OGG_BITRATE || '48k';
-const TTS_RENDER_VERSION = 'kokoro-chunked-v1';
+const TTS_RENDER_VERSION = 'tts-v2';
 const TTS_CHUNK_MAX_CHARS = 280;
+const FISHAUDIO_CHUNK_MAX_CHARS = 1200;
+const FISHAUDIO_API = 'https://api.fish.audio/v1/tts';
+const FISHAUDIO_DEFAULT_MODEL = 's2.1-pro-free';
 
 const jobs = new Map();
 let kokoroModelPromise = null;
@@ -43,6 +46,55 @@ const getKokoroVoice = (settings = {}) => (
     String(settings.tts?.voice || KOKORO_DEFAULT_VOICE || 'af_heart').trim() || 'af_heart'
 );
 
+const getFishAudioConfig = (settings = {}) => ({
+    key: String(settings.tts?.fishaudio_key || '').trim(),
+    voice: String(settings.tts?.fishaudio_voice || '').trim(),
+    model: String(settings.tts?.fishaudio_model || FISHAUDIO_DEFAULT_MODEL).trim() || FISHAUDIO_DEFAULT_MODEL
+});
+
+const isFishAudioEnabled = (settings = {}) => (
+    String(settings.tts?.provider || '').trim() === 'fishaudio' && Boolean(getFishAudioConfig(settings).key)
+);
+
+const synthesizeFishAudio = async ({ text, config }) => {
+    const body = {
+        text: String(text || '').trim(),
+        format: 'wav',
+        normalize: true,
+        latency: 'normal',
+        sample_rate: 44100,
+        prosody: { speed: 1.0 }
+    };
+    if (!body.text) {
+        throw new Error('Fish Audio TTS requires text');
+    }
+    if (config.voice) {
+        body.reference_id = config.voice;
+    }
+
+    const response = await fetch(FISHAUDIO_API, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${config.key}`,
+            'Content-Type': 'application/json',
+            model: config.model
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60000)
+    });
+
+    if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).slice(0, 200);
+        throw new Error(`Fish Audio TTS failed (HTTP ${response.status})${detail ? `: ${detail}` : ''}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) {
+        throw new Error('Fish Audio TTS returned no audio');
+    }
+    return buffer;
+};
+
 const getCacheKey = (email, settings) => hashValue(JSON.stringify({
     version: TTS_RENDER_VERSION,
     id: String(email._id || ''),
@@ -50,7 +102,10 @@ const getCacheKey = (email, settings) => hashValue(JSON.stringify({
     body: email.body || email.body_html || '',
     provider: settings.ai?.provider || '',
     model: settings.ai?.model || '',
-    voice: getKokoroVoice(settings)
+    tts_provider: settings.tts?.provider || 'kokoro',
+    voice: getKokoroVoice(settings),
+    fish_voice: settings.tts?.fishaudio_voice || '',
+    fish_model: settings.tts?.fishaudio_model || ''
 }));
 
 const getEmailIndexPath = (emailId) => path.join(STORAGE_DIR, `email-${hashValue(String(emailId || ''))}.json`);
@@ -279,28 +334,38 @@ const generateAudioForSummary = async (job, summary, email = null, settings = {}
     ensureStorageDir();
     const tempDir = fs.mkdtempSync(path.join(STORAGE_DIR, `${job.job_id}-`));
     const startedAt = Date.now();
-    const tts = await getKokoroModel();
-    const voice = getKokoroVoice(settings);
-    const chunks = splitSummaryForTts(summary);
+    const useFish = isFishAudioEnabled(settings);
+    const fish = getFishAudioConfig(settings);
+    const provider = useFish ? 'fishaudio' : 'kokoro';
+    const voice = useFish ? (fish.voice || 'default') : getKokoroVoice(settings);
+    const chunks = splitSummaryForTts(summary, useFish ? FISHAUDIO_CHUNK_MAX_CHARS : TTS_CHUNK_MAX_CHARS);
     const logContext = {
         ...getEmailLogContext(email),
         job_id: job.job_id,
+        provider,
         voice,
+        model: useFish ? fish.model : '',
         chunk_count: chunks.length,
         summary_length: String(summary || '').length
     };
 
     try {
         logPipelineEvent('tts.audio.generate_start', logContext);
+        const tts = useFish ? null : await getKokoroModel();
         const wavPaths = [];
         for (const [index, chunk] of chunks.entries()) {
             const chunkStartedAt = Date.now();
-            const audio = await tts.generate(chunk, {
-                voice,
-                speed: 1
-            });
             const wavPath = path.join(tempDir, `${String(index).padStart(3, '0')}.wav`);
-            await audio.save(wavPath);
+            if (useFish) {
+                const bytes = await synthesizeFishAudio({ text: chunk, config: fish });
+                fs.writeFileSync(wavPath, bytes);
+            } else {
+                const audio = await tts.generate(chunk, {
+                    voice,
+                    speed: 1
+                });
+                await audio.save(wavPath);
+            }
             const wavSize = fs.existsSync(wavPath) ? fs.statSync(wavPath).size : 0;
             logPipelineEvent('tts.audio.chunk_ready', {
                 ...logContext,

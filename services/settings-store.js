@@ -58,7 +58,11 @@ const defaultSettings = () => ({
         summary_model: ''
     },
     tts: {
-        voice: process.env.KOKORO_VOICE || 'af_heart'
+        provider: 'kokoro',
+        voice: process.env.KOKORO_VOICE || 'af_heart',
+        fishaudio_key: '',
+        fishaudio_voice: '',
+        fishaudio_model: 's2.1-pro-free'
     },
     tensology: {
         enabled: false,
@@ -242,7 +246,13 @@ const mergeSettings = (value = {}) => {
         tts: {
             ...defaultSettings().tts,
             ...(value.tts || {}),
-            voice: String(value.tts?.voice || defaultSettings().tts.voice || 'af_heart').trim() || 'af_heart'
+            provider: ['kokoro', 'fishaudio'].includes(String(value.tts?.provider || '').trim())
+                ? String(value.tts.provider).trim()
+                : 'kokoro',
+            voice: String(value.tts?.voice || defaultSettings().tts.voice || 'af_heart').trim() || 'af_heart',
+            fishaudio_key: decryptSecret(value.tts?.fishaudio_key || ''),
+            fishaudio_voice: String(value.tts?.fishaudio_voice || '').trim(),
+            fishaudio_model: String(value.tts?.fishaudio_model || 's2.1-pro-free').trim() || 's2.1-pro-free'
         },
         tensology: {
             ...defaultSettings().tensology,
@@ -262,6 +272,9 @@ const serializeSettings = (settings = {}) => {
     const serialized = JSON.parse(JSON.stringify(settings));
     if (serialized.tensology?.api_key) {
         serialized.tensology.api_key = encryptSecret(serialized.tensology.api_key);
+    }
+    if (serialized.tts?.fishaudio_key) {
+        serialized.tts.fishaudio_key = encryptSecret(serialized.tts.fishaudio_key);
     }
     if (serialized.ai) {
         if (serialized.ai.api_key) {

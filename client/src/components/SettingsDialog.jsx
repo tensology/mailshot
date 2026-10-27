@@ -55,8 +55,20 @@ const emptyAi = {
 };
 
 const emptyTts = {
-    voice: 'af_heart'
+    provider: 'kokoro',
+    voice: 'af_heart',
+    fishaudio_key: '',
+    fishaudio_voice: '',
+    fishaudio_model: 's2.1-pro-free',
+    fishaudio_key_set: false
 };
+
+const FISHAUDIO_MODELS = [
+    { id: 's2.1-pro-free', label: 's2.1-pro-free (default, fair-use)' },
+    { id: 's2.1-pro', label: 's2.1-pro' },
+    { id: 's2-pro', label: 's2-pro' },
+    { id: 's1', label: 's1' }
+];
 
 const emptyTensology = {
     enabled: false,
@@ -517,7 +529,16 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     };
 
     const saveTts = async () => {
-        const result = await updateTtsService.call(tts);
+        const payload = {
+            provider: tts.provider || 'kokoro',
+            voice: tts.voice || 'af_heart',
+            fishaudio_voice: tts.fishaudio_voice || '',
+            fishaudio_model: tts.fishaudio_model || 's2.1-pro-free'
+        };
+        if (tts.fishaudio_key) {
+            payload.fishaudio_key = tts.fishaudio_key;
+        }
+        const result = await updateTtsService.call(payload);
         if (result.error) {
             setToast({ open: true, message: result.error, severity: 'error' });
             return;
@@ -839,20 +860,74 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                 {activeTab === 'tts' && isSuperuser && (
                     <div className="space-y-4">
                         <label className="block">
-                            <span className="mb-1.5 block text-sm font-medium text-slate-700">Voice</span>
+                            <span className="mb-1.5 block text-sm font-medium text-slate-700">Text-to-speech provider</span>
                             <select
-                                value={tts.voice}
-                                onChange={(event) => setTts({ ...tts, voice: event.target.value })}
+                                value={tts.provider || 'kokoro'}
+                                onChange={(event) => setTts({ ...tts, provider: event.target.value })}
                                 className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
-                                {KOKORO_VOICES.map((voice) => (
-                                    <option key={voice.id} value={voice.id}>{voice.label}</option>
-                                ))}
+                                <option value="kokoro">Kokoro (on device)</option>
+                                <option value="fishaudio">Fish Audio (online)</option>
                             </select>
                         </label>
+
+                        {(tts.provider || 'kokoro') === 'kokoro' && (
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-medium text-slate-700">Voice</span>
+                                <select
+                                    value={tts.voice}
+                                    onChange={(event) => setTts({ ...tts, voice: event.target.value })}
+                                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                >
+                                    {KOKORO_VOICES.map((voice) => (
+                                        <option key={voice.id} value={voice.id}>{voice.label}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        )}
+
+                        {tts.provider === 'fishaudio' && (
+                            <div className="space-y-4">
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-medium text-slate-700">
+                                        Fish Audio API key{tts.fishaudio_key_set ? ' (saved — leave blank to keep)' : ''}
+                                    </span>
+                                    <input
+                                        type="password"
+                                        value={tts.fishaudio_key || ''}
+                                        onChange={(event) => setTts({ ...tts, fishaudio_key: event.target.value })}
+                                        placeholder={tts.fishaudio_key_set ? '••••••••' : 'Paste your Fish Audio key'}
+                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    />
+                                </label>
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-medium text-slate-700">Voice / reference ID</span>
+                                    <input
+                                        type="text"
+                                        value={tts.fishaudio_voice || ''}
+                                        onChange={(event) => setTts({ ...tts, fishaudio_voice: event.target.value })}
+                                        placeholder="Fish Audio voice id"
+                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    />
+                                </label>
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-medium text-slate-700">Model</span>
+                                    <select
+                                        value={tts.fishaudio_model || 's2.1-pro-free'}
+                                        onChange={(event) => setTts({ ...tts, fishaudio_model: event.target.value })}
+                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    >
+                                        {FISHAUDIO_MODELS.map((model) => (
+                                            <option key={model.id} value={model.id}>{model.label}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            </div>
+                        )}
+
                         <Button onClick={saveTts} disabled={updateTtsService.isLoading}>
                             <MailshotIcon name="save" size={22} />
-                            Save voice
+                            Save TTS settings
                         </Button>
                     </div>
                 )}
