@@ -49,9 +49,25 @@ const git = async (args, cwd = WORKTREE) => {
     }
 };
 
-export const isRunning = () => Boolean(active);
+// A run counts as live only while its process really is. If the process died
+// without clearing the flag (crash, OOM, service restart) we recover instead of
+// blocking every future prompt.
+export const isRunning = () => {
+    if (!active) {
+        return false;
+    }
+    const child = active.child;
+    const dead = !child || child.exitCode !== null || child.signalCode !== null || child.killed;
+    const stale = Date.now() - active.startedAt > MAX_MS + 60 * 1000;
+    if (dead || stale) {
+        try { child?.kill('SIGKILL'); } catch { /* ignore */ }
+        active = null;
+        return false;
+    }
+    return true;
+};
 
-export const currentRun = () => (active ? { threadId: active.threadId, startedAt: active.startedAt } : null);
+export const currentRun = () => (isRunning() ? { threadId: active.threadId, startedAt: active.startedAt } : null);
 
 // Keep the scratch bucket out of git without touching the project's own .gitignore.
 const ensureBucket = async () => {
@@ -131,9 +147,10 @@ const parseEvent = (event) => {
 export const uploadsDir = (threadId) => path.join(BUCKET, String(threadId || 'thread'));
 
 export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = () => {} }) => {
-    if (active) {
+    if (isRunning()) {
         throw new Error('Another dev-agent run is in progress');
     }
+    active = null;
     await prepareWorktree();
 
     const settings = await getSettings();
@@ -218,13 +235,21 @@ export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = (
         try { child.kill('SIGKILL'); } catch { /* ignore */ }
     }, MAX_MS);
 
-    const code = await new Promise((resolve) => child.on('close', resolve));
-    clearTimeout(timeout);
-    if (buffer.trim()) handleLine(buffer);
-
-    active = null;
-    await touchThread(threadId, { status: code === 0 ? 'idle' : 'error' });
-    return { ok: code === 0, code, text: assistantText };
+    let code = -1;
+    try {
+        code = await new Promise((resolve) => child.on('close', resolve));
+        if (buffer.trim()) {
+            handleLine(buffer);
+        }
+        return { ok: code === 0, code, text: assistantText };
+    } finally {
+        // Always release the lock, whatever happened to the child.
+        clearTimeout(timeout);
+        if (active && active.child === child) {
+            active = null;
+        }
+        await touchThread(threadId, { status: code === 0 ? 'idle' : 'error' }).catch(() => {});
+    }
 };
 
 export const diffSummary = async () => {
