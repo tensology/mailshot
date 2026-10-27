@@ -605,12 +605,14 @@ export const ReadSummaryProvider = ({ children }) => {
         }
     }, [handleError, playerEmailId, startReadSummary]);
 
+    // Load the voice library (and the account's saved voice) as soon as the user
+    // is signed in, so the player/modal show the right character after a refresh.
     useEffect(() => {
-        if (playerJob?.status === 'ready' && !voicesLoadedRef.current) {
+        if (isAuthenticated && !voicesLoadedRef.current) {
             voicesLoadedRef.current = true;
             loadVoices();
         }
-    }, [playerJob, loadVoices]);
+    }, [isAuthenticated, loadVoices]);
 
     const closePlayer = useCallback(() => {
         setPlayerJob(null);
