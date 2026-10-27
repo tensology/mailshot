@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import DOMPurify from 'dompurify';
 import { splitPlainQuotedContent, splitHtmlQuotedContent } from '../../utils/quoteSplitter';
 import { formatEmailBody, extractHtmlBody } from '../../utils/emailFormatter';
-import { forceLinksToOpenInNewTab } from '../../utils/htmlLinks';
+import EmailHtml from './EmailHtml';
 import IconButton from '../ui/IconButton';
 import MailshotIcon from '../ui/MailshotIcon';
 
@@ -17,19 +16,15 @@ const QuotedContent = ({ body, bodyHtml }) => {
     const hasPlainQuote = Boolean(plainParts.quoted?.trim());
     const hasQuote = hasHtmlQuote || hasPlainQuote;
 
-    const mainHtml = htmlParts.main
-        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.main, { ADD_ATTR: ['target', 'rel'] }))
-        : '';
-    const quotedHtml = htmlParts.quoted
-        ? forceLinksToOpenInNewTab(DOMPurify.sanitize(htmlParts.quoted, { ADD_ATTR: ['target', 'rel'] }))
-        : '';
+    const mainHtml = htmlParts.main;
+    const quotedHtml = htmlParts.quoted;
 
-    const showHtml = mainHtml && mainHtml.replace(/<[^>]+>/g, '').trim();
+    const showHtml = mainHtml && (mainHtml.replace(/<[^>]+>/g, '').trim() || /<img\b/i.test(mainHtml));
 
     return (
-        <div className="mailshot-email-content inline-block w-auto max-w-full overflow-x-auto text-left text-sm leading-6 text-slate-800 [overflow-wrap:anywhere] [&_*]:max-w-full [&_a]:text-blue-700 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-slate-200 [&_blockquote]:pl-3 [&_img]:h-auto [&_img]:max-w-full [&_pre]:overflow-x-auto">
+        <div className="mailshot-email-content w-full min-w-0 max-w-full text-left text-sm leading-6 text-slate-800 [overflow-wrap:anywhere]">
             {showHtml ? (
-                <div dangerouslySetInnerHTML={{ __html: mainHtml }} />
+                <EmailHtml html={mainHtml} originalHtml={bodyHtml} />
             ) : (
                 <p className="whitespace-pre-wrap">{plainParts.main || 'No message body available.'}</p>
             )}
@@ -56,7 +51,7 @@ const QuotedContent = ({ body, bodyHtml }) => {
                                 <MailshotIcon name="chevron-up" size={20} />
                             </IconButton>
                             {quotedHtml && quotedHtml.replace(/<[^>]+>/g, '').trim() ? (
-                                <div dangerouslySetInnerHTML={{ __html: quotedHtml }} />
+                                <EmailHtml html={quotedHtml} originalHtml={bodyHtml} title="Folded email message" />
                             ) : (
                                 <p className="whitespace-pre-wrap text-sm">{plainParts.quoted}</p>
                             )}

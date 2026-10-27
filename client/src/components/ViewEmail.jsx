@@ -610,7 +610,7 @@ const ViewEmail = () => {
                 aria-label="Email actions"
                 className="mailshot-no-print sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-1 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-2 py-1.5 backdrop-blur sm:px-4 lg:py-2"
             >
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="contents sm:flex sm:max-w-full sm:flex-wrap sm:items-center sm:gap-1">
                     <IconButton size="touch" label="Back" className={toolbarButtonClass} onClick={() => navigate(backUrl)}>
                         <MailshotIcon name="back" size={28} />
                     </IconButton>
