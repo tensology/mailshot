@@ -351,7 +351,8 @@ const DevAgentPanel = () => {
             return;
         }
         node.style.height = 'auto';
-        node.style.height = `${Math.min(node.scrollHeight, 112)}px`;
+        const cap = isMobile ? Math.round(window.innerHeight * 0.4) : 112;
+        node.style.height = `${Math.min(node.scrollHeight, cap)}px`;
     }, [prompt, isMobile, open]);
 
     const subscribe = useCallback((threadId) => {
@@ -563,7 +564,7 @@ const DevAgentPanel = () => {
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }}
                     rows={1}
                     placeholder={isMobile ? 'Make a change…' : 'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
-                    className="max-h-28 min-h-[2.5rem] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2 text-sm leading-6 outline-none"
+                    className="max-h-[40vh] min-h-[2.5rem] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2 text-sm leading-6 outline-none md:max-h-28"
                 />
                 <Tooltip label={running ? 'Working…' : 'Run'}>
                     <button
