@@ -51,6 +51,7 @@ const mergeUsage = (base = {}, extra = {}) => ({
 const formatCost = (value) => {
     const cost = num(value);
     if (cost <= 0) return '$0.00';
+    if (cost < 0.001) return `$${cost.toFixed(5)}`;
     if (cost < 0.01) return `$${cost.toFixed(4)}`;
     if (cost < 1) return `$${cost.toFixed(3)}`;
     return `$${cost.toFixed(2)}`;
@@ -748,6 +749,9 @@ const DevAgentPanel = () => {
     const phaseIndex = PHASE_INDEX[phase] ?? -1;
     const totalUsage = mergeUsage(sessionUsage, liveUsage);
     const contextPct = Math.max(0, Math.min(100, Math.round((totalUsage.totalTokens / CONTEXT_WINDOW) * 100)));
+    // Real, countable progress: how many of the run's steps have been reached.
+    const stepPct = Math.max(0, Math.min(100, Math.round((phaseIndex / STEPS.length) * 100)));
+    const stepNumber = Math.min(Math.max(phaseIndex + 1, 1), STEPS.length);
 
     const costBadge = (totalUsage.cost > 0 || totalUsage.totalTokens > 0) ? (
         <Tooltip
@@ -791,16 +795,16 @@ const DevAgentPanel = () => {
                             {activity}
                         </p>
                         <Tooltip
-                            label={`Context used: ${formatTokens(totalUsage.totalTokens)} of ${formatTokens(CONTEXT_WINDOW)} tokens`}
+                            label={`Step ${stepNumber} of ${STEPS.length} · ${STEPS[stepNumber - 1].label} — context ${formatTokens(totalUsage.totalTokens)} of ${formatTokens(CONTEXT_WINDOW)} tokens (${contextPct}%)`}
                             placement="top"
                             className="ml-auto"
                         >
                             <span className="relative inline-flex h-4 w-16 items-center justify-center overflow-hidden rounded-full bg-slate-200 align-middle">
                                 <span
                                     className="absolute inset-y-0 left-0 rounded-full bg-blue-500 transition-all duration-500"
-                                    style={{ width: `${contextPct}%` }}
+                                    style={{ width: `${stepPct}%` }}
                                 />
-                                <span className="relative text-[9px] font-semibold text-slate-700">{contextPct}%</span>
+                                <span className="relative text-[9px] font-semibold text-slate-700">{stepPct}%</span>
                             </span>
                         </Tooltip>
                     </div>
