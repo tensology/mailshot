@@ -7,7 +7,8 @@ import {
     getThread,
     deleteThread,
     listMessages,
-    addMessage
+    addMessage,
+    touchThread
 } from '../services/dev-agent-store.js';
 import { runAgent, commitAndDeploy, diffSummary, isRunning, currentRun, uploadsDir, discardChanges } from '../services/dev-agent-runner.js';
 import { broadcast } from '../services/dev-agent-ws.js';
@@ -131,6 +132,7 @@ export const postDevPrompt = async (request, response) => {
     broadcast(threadId, { type: 'message', message: userMessage });
 
     // Kick off the run in the background; stream everything over the WebSocket.
+    broadcast(threadId, { type: 'status', status: 'running' });
     runAgent({ threadId, prompt, attachments, onEvent: (event) => broadcast(threadId, { type: 'agent', event }) })
         .then(async (result) => {
             const failed = !result.ok;
@@ -153,13 +155,20 @@ export const postDevPrompt = async (request, response) => {
 
             const settings = await getSettings();
             if (settings.dev_agent?.auto_deploy) {
+                // Remember that a deploy is in flight so a reload shows the right step.
+                await touchThread(threadId, { status: 'deploying' });
+                broadcast(threadId, { type: 'status', status: 'deploying' });
                 const deploy = await commitAndDeploy({ threadId, message: prompt.slice(0, 80) });
+                await touchThread(threadId, { status: 'idle' });
                 broadcast(threadId, { type: 'deploy', ...deploy });
             } else {
+                await touchThread(threadId, { status: 'idle' });
                 broadcast(threadId, { type: 'ready_to_deploy' });
             }
         })
         .catch(async (error) => {
+            await touchThread(threadId, { status: 'error' }).catch(() => {});
+            broadcast(threadId, { type: 'status', status: 'error' });
             const message = `Sorry — that run failed: ${error.message}`;
             try {
                 const assistantMessage = await addMessage({

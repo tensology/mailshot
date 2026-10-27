@@ -140,12 +140,36 @@ const DevAgentPanel = () => {
         } catch { /* ignore */ }
     }, [activeThreadId]);
 
-    // Restore the saved thread on load.
+    // Restore the saved thread (and any run/deploy still in flight) on load.
     useEffect(() => {
-        if (isAuthenticated && enabled && activeThreadRef.current) {
+        if (!isAuthenticated || !enabled) {
+            return;
+        }
+        if (activeThreadRef.current) {
             loadMessages(activeThreadRef.current);
         }
+        API(API_URLS.getDevDiff, {}, '')
+            .then((response) => setDeployable(Boolean(response.data?.changed)))
+            .catch(() => {});
     }, [isAuthenticated, enabled, loadMessages]);
+
+    // If the thread we restored was mid-run (or mid-deploy), show that state.
+    useEffect(() => {
+        if (!activeThreadId) {
+            return;
+        }
+        const thread = threads.find((entry) => entry.id === activeThreadId);
+        if (!thread) {
+            return;
+        }
+        if (thread.status === 'running') {
+            setRunning(true);
+            setPhase('thinking');
+        } else if (thread.status === 'deploying') {
+            setRunning(true);
+            setPhase('deploying');
+        }
+    }, [activeThreadId, threads]);
 
     const handleEvent = useCallback((data) => {
         if (data.type === 'agent') {
@@ -208,6 +232,18 @@ const DevAgentPanel = () => {
             setRunning(false);
             setPhase('done');
             setNotice(data.message || 'Something went wrong — try again');
+        } else if (data.type === 'status') {
+            if (data.status === 'running') {
+                setRunning(true);
+                setPhase('thinking');
+            } else if (data.status === 'deploying') {
+                setRunning(true);
+                setPhase('deploying');
+            } else {
+                setRunning(false);
+                setPhase('done');
+            }
+            setThreads((list) => list.map((entry) => (entry.id === activeThreadRef.current ? { ...entry, status: data.status } : entry)));
         }
     }, []);
 
@@ -271,11 +307,12 @@ const DevAgentPanel = () => {
         };
     }, [enabled, isAuthenticated, handleEvent]);
 
+    // Load the thread list early so a restored thread can show its run state.
     useEffect(() => {
-        if (open && !threads.length) {
+        if (enabled && isAuthenticated && !threads.length) {
             loadThreads();
         }
-    }, [open, threads.length, loadThreads]);
+    }, [enabled, isAuthenticated, threads.length, loadThreads]);
 
     useEffect(() => {
         const node = scrollRef.current;
@@ -291,14 +328,15 @@ const DevAgentPanel = () => {
         }
     }, []);
 
-    const selectThread = useCallback((threadId) => {
+    const selectThread = useCallback((threadId, { load = true } = {}) => {
         setActiveThreadId(threadId);
         activeThreadRef.current = threadId;
+        setMessages([]);
         setLiveItems([]);
         setPhase('idle');
         setNotice('');
         setDeployable(false);
-        if (threadId) {
+        if (threadId && load) {
             loadMessages(threadId);
         }
     }, [loadMessages]);
@@ -345,7 +383,9 @@ const DevAgentPanel = () => {
                 return;
             }
             setThreads((list) => [created.data, ...list]);
-            selectThread(threadId);
+            // Don't reload here: the server has no messages yet and a late reload
+            // would wipe the message we are about to show.
+            selectThread(threadId, { load: false });
             subscribe(threadId);
         }
 
