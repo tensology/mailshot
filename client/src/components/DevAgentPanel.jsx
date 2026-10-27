@@ -372,16 +372,18 @@ const DevAgentPanel = () => {
                     </button>
                 )}
             </div>
-            <p className="mt-1 px-1 text-[11px] text-slate-400">Enter to run · Shift+Enter for a new line</p>
-            <div className="mt-1 flex items-center justify-between gap-2 px-1">
-                <label htmlFor="dev-auto-deploy" className="cursor-pointer text-xs text-slate-600">Auto-deploy after each prompt</label>
-                <input
-                    id="dev-auto-deploy"
-                    type="checkbox"
-                    className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                    checked={autoDeploy}
-                    onChange={(event) => toggleSetting({ auto_deploy: event.target.checked })}
-                />
+            <div className="mt-1.5 flex items-center justify-between gap-3 px-1">
+                <span className="text-[11px] text-slate-400">Enter to run · Shift+Enter for a new line</span>
+                <label htmlFor="dev-auto-deploy" className="flex cursor-pointer select-none items-center gap-2 text-xs font-medium text-slate-600">
+                    Auto deploy
+                    <input
+                        id="dev-auto-deploy"
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        checked={autoDeploy}
+                        onChange={(event) => toggleSetting({ auto_deploy: event.target.checked })}
+                    />
+                </label>
             </div>
         </div>
     );
