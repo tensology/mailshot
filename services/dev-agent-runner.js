@@ -34,6 +34,17 @@ const LAYMAN_SYSTEM_PROMPT = [
 ].join(' ');
 
 let active = null;
+// Set while a commit + deploy is in flight, so the run still reads as "running"
+// after the agent process exits but before the site is live.
+let deploying = null;
+
+export const markDeploying = (threadId) => {
+    deploying = { threadId: String(threadId || ''), startedAt: Date.now() };
+};
+
+export const clearDeploying = () => {
+    deploying = null;
+};
 
 const git = async (args, cwd = WORKTREE) => {
     try {
@@ -53,21 +64,34 @@ const git = async (args, cwd = WORKTREE) => {
 // without clearing the flag (crash, OOM, service restart) we recover instead of
 // blocking every future prompt.
 export const isRunning = () => {
-    if (!active) {
-        return false;
+    if (active) {
+        const child = active.child;
+        const dead = !child || child.exitCode !== null || child.signalCode !== null || child.killed;
+        const stale = Date.now() - active.startedAt > MAX_MS + 60 * 1000;
+        if (dead || stale) {
+            try { child?.kill('SIGKILL'); } catch { /* ignore */ }
+            active = null;
+        } else {
+            return true;
+        }
     }
-    const child = active.child;
-    const dead = !child || child.exitCode !== null || child.signalCode !== null || child.killed;
-    const stale = Date.now() - active.startedAt > MAX_MS + 60 * 1000;
-    if (dead || stale) {
-        try { child?.kill('SIGKILL'); } catch { /* ignore */ }
-        active = null;
-        return false;
+    if (deploying) {
+        if (Date.now() - deploying.startedAt > 10 * 60 * 1000) {
+            deploying = null;
+        } else {
+            return true;
+        }
     }
-    return true;
+    return false;
 };
 
-export const currentRun = () => (isRunning() ? { threadId: active.threadId, startedAt: active.startedAt } : null);
+export const currentRun = () => {
+    if (!isRunning()) {
+        return null;
+    }
+    const run = active || deploying;
+    return { threadId: run.threadId, startedAt: run.startedAt };
+};
 
 // Keep the scratch bucket out of git without touching the project's own .gitignore.
 const ensureBucket = async () => {

@@ -10,7 +10,7 @@ import {
     addMessage,
     touchThread
 } from '../services/dev-agent-store.js';
-import { runAgent, commitAndDeploy, diffSummary, isRunning, currentRun, uploadsDir, discardChanges } from '../services/dev-agent-runner.js';
+import { runAgent, commitAndDeploy, diffSummary, isRunning, currentRun, uploadsDir, discardChanges, markDeploying, clearDeploying } from '../services/dev-agent-runner.js';
 import { broadcast } from '../services/dev-agent-ws.js';
 import { getSettings, updateSettingsSection } from '../services/settings-store.js';
 import { getActiveAccount } from '../services/account-context.js';
@@ -158,7 +158,13 @@ export const postDevPrompt = async (request, response) => {
                 // Remember that a deploy is in flight so a reload shows the right step.
                 await touchThread(threadId, { status: 'deploying' });
                 broadcast(threadId, { type: 'status', status: 'deploying' });
-                const deploy = await commitAndDeploy({ threadId, message: prompt.slice(0, 80) });
+                markDeploying(threadId);
+                let deploy;
+                try {
+                    deploy = await commitAndDeploy({ threadId, message: prompt.slice(0, 80) });
+                } finally {
+                    clearDeploying();
+                }
                 await touchThread(threadId, { status: 'idle' });
                 broadcast(threadId, { type: 'deploy', ...deploy });
             } else {
@@ -188,10 +194,16 @@ export const postDevPrompt = async (request, response) => {
 export const postDevApply = async (request, response) => {
     if (!(await requireEnabled(request, response))) return;
     try {
-        const result = await commitAndDeploy({
-            threadId: request.params.id,
-            message: String(request.body?.message || '').slice(0, 100)
-        });
+        markDeploying(request.params.id);
+        let result;
+        try {
+            result = await commitAndDeploy({
+                threadId: request.params.id,
+                message: String(request.body?.message || '').slice(0, 100)
+            });
+        } finally {
+            clearDeploying();
+        }
         broadcast(request.params.id, { type: 'deploy', ...result });
         return response.status(200).json(result);
     } catch (error) {
