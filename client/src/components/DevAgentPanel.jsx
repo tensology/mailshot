@@ -4,6 +4,7 @@ import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
 import { getAuthToken, useAuth } from '../context/AuthContext';
 import MailshotIcon from './ui/MailshotIcon';
+import Markdown from './ui/Markdown';
 import ConfirmDialog from './common/ConfirmDialog';
 
 // Dev agent: prompt an AI coding agent against the PlanMyCharter repo. Threads on
@@ -64,9 +65,34 @@ const useIsMobile = () => {
     return isMobile;
 };
 
+// On phones the on-screen keyboard overlays the page, so a fixed footer would sit
+// underneath it. visualViewport tells us exactly how much is covered.
+const useKeyboardInset = () => {
+    const [inset, setInset] = useState(0);
+    useEffect(() => {
+        const viewport = window.visualViewport;
+        if (!viewport) {
+            return undefined;
+        }
+        const update = () => {
+            const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+            setInset(covered > 40 ? Math.round(covered) : 0);
+        };
+        viewport.addEventListener('resize', update);
+        viewport.addEventListener('scroll', update);
+        update();
+        return () => {
+            viewport.removeEventListener('resize', update);
+            viewport.removeEventListener('scroll', update);
+        };
+    }, []);
+    return inset;
+};
+
 const DevAgentPanel = () => {
     const { isAuthenticated } = useAuth();
     const isMobile = useIsMobile();
+    const keyboardInset = useKeyboardInset();
     const [enabled, setEnabled] = useState(false);
     const [autoDeploy, setAutoDeploy] = useState(false);
     const [open, setOpen] = useState(() => {
@@ -658,7 +684,9 @@ const DevAgentPanel = () => {
             </div>
         ) : (
             <div key={`text-${index}`} className="flex justify-start">
-                <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">{item.text}</div>
+                <div className="max-w-[85%] rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">
+                    <Markdown>{item.text}</Markdown>
+                </div>
             </div>
         )
     ));
@@ -722,8 +750,8 @@ const DevAgentPanel = () => {
 
             {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                        {message.content}
+                    <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                        <Markdown invert={message.role === 'user'}>{message.content}</Markdown>
                         {Array.isArray(message.meta?.attachments) && message.meta.attachments.length > 0 && (
                             <div className="mt-1 flex flex-wrap gap-1">
                                 {message.meta.attachments.map((name) => (
@@ -762,14 +790,17 @@ const DevAgentPanel = () => {
         <>
             {/* Floating composer. On phones it sits flush in the footer. */}
             {!open && (
-                <div className={`fixed z-[75] print:hidden ${isMobile ? 'inset-x-0 bottom-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-4 right-4 w-[min(34rem,calc(100vw-2rem))]'}`}>
+                <div
+                    className={`fixed z-[75] print:hidden ${isMobile ? 'inset-x-0 bottom-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-4 right-4 w-[min(34rem,calc(100vw-2rem))]'}`}
+                    style={isMobile && keyboardInset ? { bottom: keyboardInset } : undefined}
+                >
                     {renderComposer(false)}
                 </div>
             )}
 
             {open && (isMobile ? (
                 /* Phone: a real full-screen takeover, not a modal. */
-                <div className="fixed inset-0 z-[95] flex flex-col bg-white">
+                <div className="fixed inset-0 z-[95] flex flex-col bg-white" style={keyboardInset ? { bottom: keyboardInset } : undefined}>
                     <header className="flex h-14 shrink-0 items-center gap-1 border-b border-slate-200 px-2">
                         <Tooltip label="Threads" placement="bottom">
                             <button
