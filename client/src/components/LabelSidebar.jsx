@@ -63,8 +63,8 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
     };
 
     return (
-        <div className="mt-4 px-1">
-            <div className="mb-2 flex items-center justify-between px-2">
+        <div className="px-1">
+            <div className="sticky top-0 z-10 -mx-1 mb-2 flex items-center justify-between bg-white px-3 pb-2 pt-4">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
                 <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
                     <MailshotIcon name="plus" size={20} />
