@@ -684,7 +684,7 @@ const ViewEmail = () => {
                 </div>
             </div>
 
-            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 py-4 sm:px-6">
                 <div className="mx-auto w-full max-w-[min(100%,72rem)]">
                     <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-center">
                         <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{subject}</h1>
