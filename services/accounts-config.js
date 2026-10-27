@@ -48,6 +48,8 @@ const normalizeAccount = (entry = {}, index = 0) => {
         name: String(entry.name || '').trim(),
         email,
         logo: String(entry.logo || entry.icon || '').trim(),
+        // The AI builder is offered to PlanMyCharter mailboxes (or opted-in via config).
+        dev_agent_capable: entry.dev_agent === true || /@planmycharter\.com$/i.test(email),
         schema: normalizeSchema(entry.schema, id),
         imap: {
             host: String(imap.host || process.env.MAIL_IMAP_HOST || '').trim(),
@@ -244,7 +246,8 @@ export const publicAccount = (account) => ({
     label: account.label,
     name: account.name,
     email: account.email,
-    logo: account.logo || ''
+    logo: account.logo || '',
+    dev_agent_capable: Boolean(account.dev_agent_capable)
 });
 
 export const accountVersion = () => configMtime;
