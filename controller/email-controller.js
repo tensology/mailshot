@@ -1041,7 +1041,8 @@ export const streamReadAloudAudio = async (request, response) => {
     }
 
     response.setHeader('Content-Type', 'audio/ogg');
-    response.setHeader('Cache-Control', 'private, max-age=604800');
+    // Rebuilds rewrite the same cache key, so never let the browser reuse a stale clip.
+    response.setHeader('Cache-Control', 'private, no-store, max-age=0');
     return response.sendFile(audioPath);
 };
 

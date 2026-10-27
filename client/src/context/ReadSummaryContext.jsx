@@ -34,8 +34,11 @@ const fetchAuthorizedAudioBlobUrl = async (job) => {
     }
 
     const token = getAuthToken();
-    const response = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+    // The audio URL is stable per cache key, so bust caches when the clip is rebuilt.
+    const bustedUrl = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`;
+    const response = await fetch(bustedUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -352,6 +355,10 @@ export const ReadSummaryProvider = ({ children }) => {
         }
 
         clearPollTimer();
+        if (options.force) {
+            // Drop the current clip so the stale audio can't keep playing during the rebuild.
+            setPlayerJob(null);
+        }
         setPreparingMessage(options.audioReady ? 'Loading audio…' : 'Preparing read summary');
         setPreparingSummary(options.summaryPreview || '');
         setPendingEmailId(emailId);
