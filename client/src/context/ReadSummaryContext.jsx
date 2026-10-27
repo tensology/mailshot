@@ -112,61 +112,193 @@ const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 
     </div>
 );
 
-const ReadSummaryPlayer = ({ job, audioUrl, isPreparing, onClose, panelRef, position, onDragStart }) => {
-    const [rate, setRate] = useState(1);
+const formatClock = (seconds) => {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+        return '0:00';
+    }
+    const whole = Math.floor(seconds);
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+};
 
-    const updateRate = (event) => {
-        const nextRate = Number(event.target.value);
-        setRate(nextRate);
-        const audio = document.getElementById('read-summary-audio');
-        if (audio) {
-            audio.playbackRate = nextRate;
+const VoiceAvatar = ({ voice, size = 40 }) => (
+    voice?.cover_image
+        ? <img src={voice.cover_image} alt="" loading="lazy" className="h-full w-full object-cover" />
+        : (
+            <span className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
+                <MailshotIcon name="headphones" size={Math.round(size * 0.7)} />
+            </span>
+        )
+);
+
+const ReadSummaryPlayer = ({
+    job,
+    audioUrl,
+    isPreparing,
+    onClose,
+    panelRef,
+    position,
+    onDragStart,
+    voices = [],
+    activeVoiceId = '',
+    onSelectVoice,
+    voicesLoading = false
+}) => {
+    const audioRef = useRef(null);
+    const [playing, setPlaying] = useState(false);
+    const [current, setCurrent] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [rate, setRate] = useState(1);
+    const [pickerOpen, setPickerOpen] = useState(false);
+
+    const activeVoice = voices.find((voice) => voice.id === activeVoiceId) || null;
+    const progress = duration > 0 ? Math.min(100, (current / duration) * 100) : 0;
+
+    const togglePlay = () => {
+        const audio = audioRef.current;
+        if (!audio) {
+            return;
+        }
+        if (audio.paused) {
+            audio.play().catch(() => {});
+        } else {
+            audio.pause();
+        }
+    };
+
+    const seek = (event) => {
+        const value = Number(event.target.value);
+        const audio = audioRef.current;
+        if (audio && Number.isFinite(value)) {
+            audio.currentTime = value;
+        }
+        setCurrent(value);
+    };
+
+    const changeRate = (event) => {
+        const next = Number(event.target.value);
+        setRate(next);
+        if (audioRef.current) {
+            audioRef.current.playbackRate = next;
         }
     };
 
     return (
         <ReadSummaryShell panelRef={panelRef} position={position} onPointerDown={onDragStart}>
-            <div className="mb-2 flex items-start gap-2">
-                <MailshotIcon name="speaker" size={20} className="mt-0.5" />
+            <audio
+                ref={audioRef}
+                src={audioUrl || undefined}
+                autoPlay={Boolean(audioUrl)}
+                onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
+                onLoadedMetadata={(event) => {
+                    setDuration(event.currentTarget.duration || 0);
+                    event.currentTarget.playbackRate = rate;
+                }}
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
+                onEnded={() => setPlaying(false)}
+            />
+
+            <div className="flex items-center gap-3">
+                <button
+                    type="button"
+                    onClick={() => setPickerOpen((value) => !value)}
+                    className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 shadow-sm"
+                    title="Change voice"
+                    aria-label="Change voice"
+                >
+                    <VoiceAvatar voice={activeVoice} size={56} />
+                    <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-tl-md bg-slate-900/70 text-white">
+                        <MailshotIcon name="chevron-down" size={14} />
+                    </span>
+                </button>
+
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900">Read summary</p>
-                    {job?.summary && <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-600">{job.summary}</p>}
+                    <p className="truncate text-sm font-semibold text-slate-900">{activeVoice?.name || 'Read summary'}</p>
+                    <p className="truncate text-xs text-slate-500">Fish Audio · read summary</p>
                     {isPreparing && (
-                        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600">
-                            <MailshotIcon name="refresh" size={18} active />
-                            Preparing next summary
+                        <p className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-blue-600">
+                            <MailshotIcon name="refresh" size={14} active /> Preparing…
                         </p>
                     )}
                 </div>
+
                 <IconButton label="Close player" size="sm" onClick={onClose}>
                     <MailshotIcon name="close" size={20} />
                 </IconButton>
             </div>
-            <audio
-                id="read-summary-audio"
-                src={audioUrl || undefined}
-                controls
-                autoPlay={Boolean(audioUrl)}
-                className="w-full"
-                onLoadedMetadata={(event) => {
-                    event.currentTarget.playbackRate = rate;
-                }}
-            />
-            {!audioUrl && (
-                <p className="mt-2 text-xs text-amber-700">Audio file is not available yet.</p>
-            )}
-            <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
-                <span>Speed</span>
+
+            <div className="mt-3 flex items-center gap-3">
+                <button
+                    type="button"
+                    onClick={togglePlay}
+                    disabled={!audioUrl}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow transition hover:bg-slate-800 disabled:opacity-40"
+                    aria-label={playing ? 'Pause' : 'Play'}
+                >
+                    {playing
+                        ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                        : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>}
+                </button>
+
+                <div className="min-w-0 flex-1">
+                    <input
+                        type="range"
+                        min="0"
+                        max={duration || 0}
+                        step="0.1"
+                        value={Math.min(current, duration || 0)}
+                        onChange={seek}
+                        disabled={!audioUrl || !duration}
+                        aria-label="Seek"
+                        className="h-1.5 w-full cursor-pointer appearance-none rounded-full disabled:opacity-40"
+                        style={{ background: `linear-gradient(to right, #0f172a ${progress}%, #e2e8f0 ${progress}%)` }}
+                    />
+                    <div className="mt-1 flex items-center justify-between text-[11px] tabular-nums text-slate-500">
+                        <span>{formatClock(current)}</span>
+                        <span>{formatClock(duration)}</span>
+                    </div>
+                </div>
+
                 <select
                     value={rate}
-                    onChange={updateRate}
-                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    onChange={changeRate}
+                    className="h-8 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    aria-label="Playback speed"
                 >
                     {playbackRates.map((value) => (
                         <option key={value} value={value}>{value}x</option>
                     ))}
                 </select>
-            </label>
+            </div>
+
+            {job?.summary && <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{job.summary}</p>}
+            {!audioUrl && <p className="mt-2 text-xs text-amber-700">Audio file is not available yet.</p>}
+
+            {pickerOpen && (
+                <div className="absolute left-3 top-[4.5rem] z-10 max-h-64 w-72 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-xl">
+                    {voicesLoading && <p className="px-2 py-3 text-xs text-slate-500">Loading voices…</p>}
+                    {!voicesLoading && !voices.length && <p className="px-2 py-3 text-xs text-slate-500">No voices available.</p>}
+                    {voices.map((voice) => (
+                        <button
+                            key={voice.id}
+                            type="button"
+                            onClick={() => {
+                                setPickerOpen(false);
+                                onSelectVoice?.(voice.id);
+                            }}
+                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition ${
+                                voice.id === activeVoiceId ? 'bg-slate-100 font-semibold text-slate-900' : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                        >
+                            <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200">
+                                <VoiceAvatar voice={voice} size={32} />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate">{voice.name}</span>
+                            {voice.id === activeVoiceId && <span aria-hidden="true" className="text-slate-400">✓</span>}
+                        </button>
+                    ))}
+                </div>
+            )}
         </ReadSummaryShell>
     );
 };
@@ -194,7 +326,12 @@ export const ReadSummaryProvider = ({ children }) => {
     const [preparingSummary, setPreparingSummary] = useState('');
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
     const [contextMenu, setContextMenu] = useState({ open: false, x: 0, y: 0, emailId: '' });
+    const [voices, setVoices] = useState([]);
+    const [activeVoiceId, setActiveVoiceId] = useState('');
+    const [voicesLoading, setVoicesLoading] = useState(false);
+    const [playerEmailId, setPlayerEmailId] = useState('');
     const panelRef = useRef(null);
+    const voicesLoadedRef = useRef(false);
     const dragRef = useRef(null);
     const pendingJobIdRef = useRef('');
     const pollTimerRef = useRef(null);
@@ -369,6 +506,7 @@ export const ReadSummaryProvider = ({ children }) => {
         }
 
         clearPollTimer();
+        setPlayerEmailId(emailId);
         if (options.force) {
             // Drop the current clip so the stale audio can't keep playing during the rebuild.
             setPlayerJob(null);
@@ -411,6 +549,39 @@ export const ReadSummaryProvider = ({ children }) => {
         }, POLL_MS);
         return { data: result.data, error: '' };
     }, [applyReadyJob, clearPollTimer, handleError, pollJob]);
+
+    const loadVoices = useCallback(async () => {
+        setVoicesLoading(true);
+        const result = await requestApi(API_URLS.getTtsVoices, {}, '');
+        setVoicesLoading(false);
+        if (result.error) {
+            return;
+        }
+        setVoices(Array.isArray(result.data?.voices) ? result.data.voices : []);
+        setActiveVoiceId(result.data?.active_voice_id || '');
+    }, []);
+
+    const selectVoice = useCallback(async (voiceId) => {
+        if (!voiceId) {
+            return;
+        }
+        const result = await requestApi(API_URLS.updateTtsVoice, { voice_id: voiceId }, '');
+        if (result.error) {
+            handleError(result.error);
+            return;
+        }
+        setActiveVoiceId(result.data?.active_voice_id || voiceId);
+        if (playerEmailId) {
+            startReadSummary(playerEmailId, { force: true });
+        }
+    }, [handleError, playerEmailId, startReadSummary]);
+
+    useEffect(() => {
+        if (playerJob?.status === 'ready' && !voicesLoadedRef.current) {
+            voicesLoadedRef.current = true;
+            loadVoices();
+        }
+    }, [playerJob, loadVoices]);
 
     const closePlayer = useCallback(() => {
         setPlayerJob(null);
@@ -500,6 +671,10 @@ export const ReadSummaryProvider = ({ children }) => {
                     panelRef={panelRef}
                     position={panelPosition}
                     onDragStart={startPanelDrag}
+                    voices={voices}
+                    activeVoiceId={activeVoiceId}
+                    onSelectVoice={selectVoice}
+                    voicesLoading={voicesLoading}
                 />
             )}
             {!playerJob && (pendingJobId || pendingEmailId) && (

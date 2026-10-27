@@ -10,6 +10,7 @@ import {
 } from '../services/ai-provider.js';
 import { canEncryptSecrets } from '../services/secret-store.js';
 import { assertSafeExternalUrl } from '../services/safe-url.js';
+import { listFishAudioVoices } from '../services/fishaudio-voices.js';
 
 const sanitizeForUser = (settings, superUser) => ({
     general: settings.general,
@@ -226,6 +227,23 @@ export const updateTtsSettings = async (request, response) => {
     }
     const settings = await updateSettingsSection('tts', normalizeTtsPayload(request.body));
     response.status(200).json(sanitizeForUser(settings, true));
+};
+
+// Any signed-in user may pick the voice for the mailbox they are using.
+export const getTtsVoices = async (request, response) => {
+    try {
+        const settings = await getSettings();
+        const { voices, activeVoiceId } = await listFishAudioVoices(settings);
+        return response.status(200).json({ voices, active_voice_id: activeVoiceId });
+    } catch (error) {
+        return response.status(502).json(error.message || 'Could not load voices');
+    }
+};
+
+export const updateTtsVoice = async (request, response) => {
+    const voiceId = String(request.body?.voice_id || '').trim();
+    const settings = await updateSettingsSection('tts', { fishaudio_voice: voiceId });
+    return response.status(200).json({ active_voice_id: settings.tts?.fishaudio_voice || '' });
 };
 
 const normalizeTensologyPayload = (body = {}, current = {}) => ({

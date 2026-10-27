@@ -15,6 +15,14 @@ export const API_URLS = {
         endpoint: 'auth/change-password',
         method: 'POST'
     },
+    getTtsVoices: {
+        endpoint: 'tts/voices',
+        method: 'GET'
+    },
+    updateTtsVoice: {
+        endpoint: 'tts/voice',
+        method: 'POST'
+    },
     getSettings: {
         endpoint: 'settings',
         method: 'GET',

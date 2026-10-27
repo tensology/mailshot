@@ -6,14 +6,14 @@ import {
     getDefaultReadSummaryPosition
 } from './readSummaryPanel.js';
 
-test('default read summary position starts bottom centre', () => {
+test('default read summary position starts at bottom left', () => {
     assert.deepEqual(getDefaultReadSummaryPosition({
         viewportWidth: 1200,
         viewportHeight: 800,
         panelWidth: 384,
         panelHeight: 160
     }), {
-        x: 408,
+        x: 16,
         y: 624
     });
 });

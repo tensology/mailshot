@@ -66,6 +66,8 @@ import {
     updateGeneralSettings,
     updateAiSettings,
     updateTtsSettings,
+    getTtsVoices,
+    updateTtsVoice,
     fetchAiModels,
     updateTensologySettings,
     testTensologyConnection
@@ -121,6 +123,9 @@ routes.post('/archive', archiveEmails);
 routes.post('/archive/restore', restoreArchivedEmails);
 routes.post('/move-to-label', moveEmailsToLabel);
 routes.post('/sync', syncMailbox);
+
+routes.get('/tts/voices', getTtsVoices);
+routes.post('/tts/voice', updateTtsVoice);
 
 routes.get('/settings', getAppSettings);
 routes.put('/settings/general', updateGeneralSettings);
