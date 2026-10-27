@@ -93,6 +93,7 @@ const DevAgentPanel = () => {
     const [connected, setConnected] = useState(false);
     const wsRef = useRef(null);
     const fileInputRef = useRef(null);
+    const textareaRef = useRef(null);
     const scrollRef = useRef(null);
     const activeThreadRef = useRef(activeThreadId);
     const autoDeployRef = useRef(false);
@@ -343,6 +344,16 @@ const DevAgentPanel = () => {
         }
     }, [messages, liveItems, phase, running]);
 
+    // Grow the box with the text instead of clipping it (phones especially).
+    useEffect(() => {
+        const node = textareaRef.current;
+        if (!node) {
+            return;
+        }
+        node.style.height = 'auto';
+        node.style.height = `${Math.min(node.scrollHeight, 112)}px`;
+    }, [prompt, isMobile, open]);
+
     const subscribe = useCallback((threadId) => {
         const socket = wsRef.current;
         if (socket && socket.readyState === WebSocket.OPEN) {
@@ -546,12 +557,13 @@ const DevAgentPanel = () => {
                 </Tooltip>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => setFiles((list) => [...list, ...Array.from(event.target.files || [])].slice(0, 10))} />
                 <textarea
+                    ref={textareaRef}
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }}
-                    rows={isMobile ? 1 : 2}
-                    placeholder={isMobile ? 'Make a change to PlanMyCharter…' : 'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
-                    className={`max-h-28 flex-1 resize-none bg-transparent px-1 text-sm outline-none ${isMobile ? 'min-h-[2.5rem] py-2' : 'min-h-[2.75rem] py-1.5'}`}
+                    rows={1}
+                    placeholder={isMobile ? 'Make a change…' : 'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
+                    className="max-h-28 min-h-[2.5rem] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2 text-sm leading-6 outline-none"
                 />
                 <Tooltip label={running ? 'Working…' : 'Run'}>
                     <button
@@ -670,7 +682,7 @@ const DevAgentPanel = () => {
                         >
                             {thread.title || 'Untitled'}
                         </button>
-                        <Tooltip label="Delete thread" placement="bottom" className={thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}>
+                        <Tooltip label="Delete thread" placement="bottom" className={isMobile || thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}>
                             <button
                                 type="button"
                                 onClick={() => setThreadToDelete(thread)}
@@ -748,7 +760,7 @@ const DevAgentPanel = () => {
     return (
         <>
             {/* Floating composer. On phones it sits flush in the footer. */}
-            {!(isMobile && open) && (
+            {!open && (
                 <div className={`fixed z-[75] print:hidden ${isMobile ? 'inset-x-0 bottom-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-4 right-4 w-[min(34rem,calc(100vw-2rem))]'}`}>
                     {renderComposer(false)}
                 </div>
