@@ -21,9 +21,9 @@ const buildWsUrl = (token) => {
 const fileLabel = (name) => String(name || 'file').replace(/^[0-9a-f]{8}-/, '');
 
 const TOOL_LABELS = {
-    read: 'Reading the files',
+    read: 'Looking at the files',
     bash: 'Running a command',
-    edit: 'Editing the files',
+    edit: 'Updating files',
     write: 'Writing files'
 };
 
@@ -63,10 +63,8 @@ const DevAgentPanel = () => {
         try { return localStorage.getItem(STORAGE_THREAD) || ''; } catch { return ''; }
     });
     const [messages, setMessages] = useState([]);
-    const [streamText, setStreamText] = useState('');
-    const [tool, setTool] = useState('');
+    const [liveItems, setLiveItems] = useState([]);
     const [phase, setPhase] = useState('idle');
-    const [processLog, setProcessLog] = useState([]);
     const [running, setRunning] = useState(false);
     const [prompt, setPrompt] = useState('');
     const [files, setFiles] = useState([]);
@@ -148,21 +146,25 @@ const DevAgentPanel = () => {
         }
     }, [isAuthenticated, enabled, loadMessages]);
 
-    const pushProcess = useCallback((label) => {
-        setProcessLog((log) => (log[log.length - 1] === label ? log : [...log.slice(-8), label]));
-    }, []);
-
     const handleEvent = useCallback((data) => {
         if (data.type === 'agent') {
             const ev = data.event || {};
             if (ev.type === 'delta') {
                 setPhase('developing');
-                setStreamText((value) => value + ev.text);
-            } else if (ev.type === 'tool') {
-                const name = ev.name || 'tool';
-                setTool(name);
+                setLiveItems((items) => {
+                    const last = items[items.length - 1];
+                    if (last && last.kind === 'text') {
+                        return [...items.slice(0, -1), { ...last, text: last.text + ev.text }];
+                    }
+                    return [...items, { kind: 'text', text: ev.text }];
+                });
+            } else if (ev.type === 'tool_start') {
                 setPhase('developing');
-                pushProcess(TOOL_LABELS[name] || `Working (${name})`);
+                setLiveItems((items) => [...items, { kind: 'tool', id: ev.id, name: ev.name, done: false }]);
+            } else if (ev.type === 'tool_end') {
+                setLiveItems((items) => items.map((item) => (
+                    item.kind === 'tool' && item.id === ev.id ? { ...item, done: true } : item
+                )));
             }
         } else if (data.type === 'message') {
             setMessages((list) => {
@@ -178,8 +180,7 @@ const DevAgentPanel = () => {
                 return next;
             });
             if (data.message?.role === 'assistant') {
-                setStreamText('');
-                setTool('');
+                setLiveItems([]);
                 setPhase('done');
             }
         } else if (data.type === 'diff') {
@@ -274,7 +275,7 @@ const DevAgentPanel = () => {
         if (node) {
             node.scrollTop = node.scrollHeight;
         }
-    }, [messages, streamText, processLog]);
+    }, [messages, liveItems, phase, running]);
 
     const subscribe = useCallback((threadId) => {
         const socket = wsRef.current;
@@ -286,10 +287,8 @@ const DevAgentPanel = () => {
     const selectThread = useCallback((threadId) => {
         setActiveThreadId(threadId);
         activeThreadRef.current = threadId;
-        setStreamText('');
-        setTool('');
+        setLiveItems([]);
         setPhase('idle');
-        setProcessLog([]);
         setNotice('');
         setDeployable(false);
         if (threadId) {
@@ -358,9 +357,7 @@ const DevAgentPanel = () => {
         setMessages((list) => [...list, optimistic]);
         setPrompt('');
         setFiles([]);
-        setStreamText('');
-        setTool('');
-        setProcessLog([]);
+        setLiveItems([]);
         setNotice('');
         setDeployable(false);
         setPhase('thinking');
@@ -372,7 +369,7 @@ const DevAgentPanel = () => {
             setPhase('idle');
             setNotice(error?.response?.data || 'Could not start — try again');
         }
-    }, [prompt, files, activeThreadId, selectThread, subscribe]);
+    }, [prompt, files, activeThreadId, selectThread, subscribe, setLiveItems]);
 
     const applyDeploy = useCallback(async () => {
         if (!activeThreadId) return;
@@ -514,38 +511,40 @@ const DevAgentPanel = () => {
     );
 
     const phaseIndex = PHASE_INDEX[phase] ?? -1;
-    const processBubble = (running || streamText || processLog.length > 0) && (
+    const progressStrip = running && (
         <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">
-                <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                    {STEPS.map((step, index) => {
-                        const done = phaseIndex > index;
-                        const active = phaseIndex === index;
-                        return (
-                            <span
-                                key={step.key}
-                                className={`inline-flex items-center gap-1 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
-                            >
-                                {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
-                                {step.label}
-                            </span>
-                        );
-                    })}
-                </div>
-                {processLog.length > 0 && (
-                    <ul className="mb-1 space-y-0.5">
-                        {processLog.map((entry, index) => (
-                            <li key={`${entry}-${index}`} className="flex items-center gap-1.5 text-xs text-slate-500">
-                                <span className="h-1 w-1 rounded-full bg-slate-400" />
-                                {entry}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-                {streamText && <p className="whitespace-pre-wrap">{streamText}</p>}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
+                {STEPS.map((step, index) => {
+                    const done = phaseIndex > index;
+                    const active = phaseIndex === index;
+                    return (
+                        <span
+                            key={step.key}
+                            className={`inline-flex items-center gap-1 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
+                        >
+                            {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
+                            {step.label}
+                        </span>
+                    );
+                })}
             </div>
         </div>
     );
+
+    const liveThread = liveItems.map((item, index) => (
+        item.kind === 'tool' ? (
+            <div key={`tool-${item.id || index}`} className="flex justify-start">
+                <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${item.done ? 'border-slate-200 bg-white text-slate-500' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
+                    {item.done ? '✓' : <MailshotIcon name="refresh" size={12} active />}
+                    {TOOL_LABELS[item.name] || `Using ${item.name}`}
+                </div>
+            </div>
+        ) : (
+            <div key={`text-${index}`} className="flex justify-start">
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">{item.text}</div>
+            </div>
+        )
+    ));
 
     return (
         <>
@@ -638,7 +637,8 @@ const DevAgentPanel = () => {
                                     </div>
                                 ))}
 
-                                {processBubble}
+                                {progressStrip}
+                                {liveThread}
                             </div>
 
                             <div className="border-t border-slate-200 px-4 py-3">

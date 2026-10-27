@@ -75,6 +75,8 @@ export const discardChanges = async () => {
     return diffSummary();
 };
 
+const truthy = (value) => String(value).toLowerCase() === 'true';
+
 const parseEvent = (event) => {
     if (event.type === 'message_update' && event.assistantMessageEvent) {
         const ev = event.assistantMessageEvent;
@@ -82,8 +84,11 @@ const parseEvent = (event) => {
         if (ev.type === 'thinking_delta' && ev.delta) return { type: 'thinking', text: ev.delta };
         return null;
     }
-    if (event.type === 'tool_start' || event.type === 'tool_call') {
-        return { type: 'tool', name: event.name || event.toolName || event.tool || 'tool' };
+    if (event.type === 'tool_execution_start') {
+        return { type: 'tool_start', id: event.toolCallId || '', name: event.toolName || 'tool' };
+    }
+    if (event.type === 'tool_execution_end') {
+        return { type: 'tool_end', id: event.toolCallId || '', name: event.toolName || 'tool', ok: !truthy(event.isError) };
     }
     return null;
 };
