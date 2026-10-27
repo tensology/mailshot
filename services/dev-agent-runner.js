@@ -20,6 +20,15 @@ const PROVIDER = process.env.MAILSHOT_DEVAGENT_PROVIDER || 'openrouter';
 const MODEL = process.env.MAILSHOT_DEVAGENT_MODEL || 'deepseek/deepseek-v4.1-flash';
 const MAX_MS = Number(process.env.MAILSHOT_DEVAGENT_TIMEOUT_MS || 25 * 60 * 1000);
 
+// The owner is not a developer - keep the conversation plain and human.
+const LAYMAN_SYSTEM_PROMPT = [
+    'You are working for a non-technical business owner.',
+    'Talk to them in plain, everyday language. Do not mention file names, code, function names, CSS, commits or other jargon unless they explicitly ask.',
+    'Describe changes in terms of what they will see on the screen.',
+    'Keep replies short, warm and easy to follow.',
+    'Never say something is done unless you have actually checked it. If a change was lost or failed, say so plainly.'
+].join(' ');
+
 let active = null;
 
 const git = async (args, cwd = WORKTREE) => {
@@ -50,11 +59,18 @@ export const ensureWorktree = async () => {
     await execFileAsync('git', ['-C', MAIN_CHECKOUT, 'worktree', 'add', '-B', BRANCH, WORKTREE, 'origin/main'], { maxBuffer: 20 * 1024 * 1024 });
 };
 
+// Never reset the worktree between runs - the agent's edits must survive so a
+// follow-up turn can build on them. A clean slate only happens after a deploy
+// (commit) or an explicit discard.
 const prepareWorktree = async () => {
     await ensureWorktree();
     await git(['fetch', 'origin', '--prune']);
-    await git(['reset', '--hard', 'origin/main']);
+};
+
+export const discardChanges = async () => {
+    await git(['reset', '--hard', 'HEAD']);
     await git(['clean', '-fd']);
+    return diffSummary();
 };
 
 const parseEvent = (event) => {
@@ -96,6 +112,7 @@ export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = (
         '--provider', PROVIDER,
         '--model', MODEL,
         '--api-key', apiKey,
+        '--append-system-prompt', LAYMAN_SYSTEM_PROMPT,
         ...fileRefs,
         prompt
     ];

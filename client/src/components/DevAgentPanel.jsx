@@ -265,6 +265,16 @@ const DevAgentPanel = () => {
         }
     }, [activeThreadId, prompt]);
 
+    const discard = useCallback(async () => {
+        if (!activeThreadId) return;
+        try {
+            await API(API_URLS.discardDev, {}, activeThreadId);
+            setNotice('Changes discarded');
+        } catch (error) {
+            setNotice(error?.response?.data || 'Discard failed');
+        }
+    }, [activeThreadId]);
+
     const onDrop = useCallback((event) => {
         event.preventDefault();
         setDragging(false);
@@ -429,9 +439,14 @@ const DevAgentPanel = () => {
                             <div className="border-t border-slate-200 px-4 py-3">
                                 {notice && <p className="mb-2 text-xs text-slate-600">{notice}</p>}
                                 {notice.startsWith('Changes ready') && !autoDeploy && (
-                                    <button type="button" onClick={applyDeploy} className="mb-2 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
-                                        Apply &amp; deploy
-                                    </button>
+                                    <div className="mb-2 flex items-center gap-2">
+                                        <button type="button" onClick={applyDeploy} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
+                                            Apply &amp; deploy
+                                        </button>
+                                        <button type="button" onClick={discard} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                                            Discard changes
+                                        </button>
+                                    </div>
                                 )}
                                 {renderComposer(true)}
                             </div>

@@ -9,7 +9,7 @@ import {
     listMessages,
     addMessage
 } from '../services/dev-agent-store.js';
-import { runAgent, commitAndDeploy, diffSummary, isRunning, uploadsDir } from '../services/dev-agent-runner.js';
+import { runAgent, commitAndDeploy, diffSummary, isRunning, uploadsDir, discardChanges } from '../services/dev-agent-runner.js';
 import { broadcast } from '../services/dev-agent-ws.js';
 import { getSettings, updateSettingsSection } from '../services/settings-store.js';
 import { getActiveAccount } from '../services/account-context.js';
@@ -173,4 +173,11 @@ export const postDevApply = async (request, response) => {
 export const getDevDiff = async (request, response) => {
     if (!(await requireEnabled(request, response))) return;
     return response.status(200).json(await diffSummary());
+};
+
+export const postDevDiscard = async (request, response) => {
+    if (!(await requireEnabled(request, response))) return;
+    const result = await discardChanges();
+    broadcast(request.params.id, { type: 'diff', ...result });
+    return response.status(200).json(result);
 };

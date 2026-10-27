@@ -83,7 +83,8 @@ import {
     getDevMessages,
     postDevPrompt,
     postDevApply,
-    getDevDiff
+    getDevDiff,
+    postDevDiscard
 } from '../controller/dev-agent-controller.js';
 
 const routes = express.Router();
@@ -106,6 +107,7 @@ routes.delete('/dev/threads/:id', deleteDevThread);
 routes.get('/dev/threads/:id/messages', getDevMessages);
 routes.get('/dev/threads/:id/diff', getDevDiff);
 routes.post('/dev/threads/:id/apply', postDevApply);
+routes.post('/dev/threads/:id/discard', postDevDiscard);
 routes.post('/dev/threads/:id/prompt', upload.array('attachments', 10), requireAccountContext, postDevPrompt);
 
 routes.post('/save', saveSendEmails);

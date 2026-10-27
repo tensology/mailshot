@@ -23,6 +23,7 @@ export const API_URLS = {
     getDevMessages: { endpoint: 'dev/threads', method: 'GET', pathBuilder: (id, endpoint) => `${endpoint}/${id}/messages` },
     getDevDiff: { endpoint: 'dev/threads', method: 'GET', pathBuilder: (id, endpoint) => `${endpoint}/${id}/diff` },
     applyDev: { endpoint: 'dev/threads', method: 'POST', pathBuilder: (id, endpoint) => `${endpoint}/${id}/apply` },
+    discardDev: { endpoint: 'dev/threads', method: 'POST', pathBuilder: (id, endpoint) => `${endpoint}/${id}/discard` },
     postDevPrompt: { endpoint: 'dev/threads', method: 'POST', isMultipart: true, pathBuilder: (id, endpoint) => `${endpoint}/${id}/prompt` },
     getTtsVoices: {
         endpoint: 'tts/voices',
