@@ -85,27 +85,13 @@ const storePanelPosition = (position) => {
     }
 };
 
-const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 'default' }) => (
+const ReadSummaryShell = ({ children, tone = 'default' }) => (
     <div
-        ref={panelRef}
-        className={`fixed z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-md border bg-white p-3 shadow-2xl ${
+        className={`fixed inset-x-0 bottom-0 z-[80] border-t bg-white px-3 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.12)] ${
             tone === 'preparing' ? 'border-blue-100' : 'border-slate-200'
         }`}
-        style={{
-            left: `${position.x}px`,
-            top: `${position.y}px`
-        }}
     >
-        <button
-            type="button"
-            onPointerDown={onPointerDown}
-            className="mb-2 flex h-5 w-full touch-none cursor-grab items-center justify-center rounded-md text-slate-300 transition hover:bg-slate-50 hover:text-slate-500 active:cursor-grabbing"
-            aria-label="Move read summary panel"
-            title="Move"
-        >
-            <span className="h-1 w-8 rounded-full bg-current" />
-        </button>
-        {children}
+        <div className="mx-auto w-full max-w-3xl">{children}</div>
     </div>
 );
 
@@ -190,6 +176,7 @@ export const ReadSummaryProvider = ({ children }) => {
     const [preparingMessage, setPreparingMessage] = useState('Preparing read summary');
     const [preparingSummary, setPreparingSummary] = useState('');
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+    const [contextMenu, setContextMenu] = useState({ open: false, x: 0, y: 0, emailId: '' });
     const panelRef = useRef(null);
     const dragRef = useRef(null);
     const pendingJobIdRef = useRef('');
@@ -369,7 +356,7 @@ export const ReadSummaryProvider = ({ children }) => {
         setPreparingSummary(options.summaryPreview || '');
         setPendingEmailId(emailId);
 
-        const result = await requestApi(API_URLS.startReadAloud, {}, emailId);
+        const result = await requestApi(API_URLS.startReadAloud, { force: Boolean(options.force) }, emailId);
         if (!isJobPayload(result.data)) {
             const message = result.error || 'Could not prepare read summary';
             handleError(message);
@@ -407,6 +394,36 @@ export const ReadSummaryProvider = ({ children }) => {
     const closePlayer = useCallback(() => {
         setPlayerJob(null);
     }, []);
+
+    const openReadSummaryMenu = useCallback((event, emailId) => {
+        if (!emailId) {
+            return;
+        }
+        event.preventDefault();
+        const x = Math.min(event.clientX, Math.max(8, window.innerWidth - 220));
+        const y = Math.min(event.clientY, Math.max(8, window.innerHeight - 64));
+        setContextMenu({ open: true, x, y, emailId });
+    }, []);
+
+    useEffect(() => {
+        if (!contextMenu.open) {
+            return undefined;
+        }
+        const close = () => setContextMenu((menu) => ({ ...menu, open: false }));
+        const onKey = (event) => {
+            if (event.key === 'Escape') {
+                close();
+            }
+        };
+        window.addEventListener('click', close);
+        window.addEventListener('scroll', close, true);
+        window.addEventListener('keydown', onKey);
+        return () => {
+            window.removeEventListener('click', close);
+            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('keydown', onKey);
+        };
+    }, [contextMenu.open]);
 
     useEffect(() => {
         let cancelled = false;
@@ -446,8 +463,9 @@ export const ReadSummaryProvider = ({ children }) => {
         pendingJobId,
         isPreparing: Boolean(pendingJobId || pendingEmailId),
         startReadSummary,
+        openReadSummaryMenu,
         refreshAvailability
-    }), [enabled, pendingEmailId, pendingJobId, startReadSummary, refreshAvailability]);
+    }), [enabled, pendingEmailId, pendingJobId, startReadSummary, openReadSummaryMenu, refreshAvailability]);
 
     return (
         <ReadSummaryContext.Provider value={value}>
@@ -471,6 +489,27 @@ export const ReadSummaryProvider = ({ children }) => {
                     position={panelPosition}
                     onDragStart={startPanelDrag}
                 />
+            )}
+            {contextMenu.open && (
+                <div
+                    role="menu"
+                    className="fixed z-[90] min-w-[12rem] overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl"
+                    style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+                >
+                    <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                            const targetId = contextMenu.emailId;
+                            setContextMenu((menu) => ({ ...menu, open: false }));
+                            startReadSummary(targetId, { force: true });
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                    >
+                        <MailshotIcon name="refresh" size={18} />
+                        Rebuild summary
+                    </button>
+                </div>
             )}
             <Toast
                 open={toast.open}

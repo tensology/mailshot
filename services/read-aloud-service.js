@@ -436,18 +436,20 @@ const finalizeReadyJob = (job, email, summary = '') => {
     return getJobSnapshot(job);
 };
 
-const processJob = async (job, email, settings, summaryText = '') => {
+const processJob = async (job, email, settings, summaryText = '', options = {}) => {
     const wavPath = path.join(STORAGE_DIR, `${job.job_id}.wav`);
     const startedAt = Date.now();
+    const force = Boolean(options.force);
     const logContext = {
         ...getEmailLogContext(email),
-        job_id: job.job_id
+        job_id: job.job_id,
+        force
     };
 
     try {
         job.status = 'processing';
         logPipelineEvent('tts.job.start', logContext);
-        const storedSummary = summaryText || getStoredEmailSummary(email);
+        const storedSummary = force ? '' : (summaryText || getStoredEmailSummary(email));
         const summary = storedSummary || await summarizeEmailWithSettings({
             settings,
             prompt: buildSummaryPrompt(email),
@@ -561,18 +563,30 @@ export const canReadAloud = async () => {
     return hasSummaryProviderConfigured(settings);
 };
 
-export const startReadAloudJob = async (email) => {
+export const startReadAloudJob = async (email, options = {}) => {
     ensureStorageDir();
     const settings = await getSettings();
+    const force = Boolean(options.force);
 
     if (!hasSummaryProviderConfigured(settings)) {
         throw new Error('Save a summary provider API key before using read aloud.');
     }
 
     const emailId = String(email?._id || '');
-    const storedSummary = getStoredEmailSummary(email);
     const cacheKey = getCacheKey(email, settings);
-    const cached = getCachedJob(cacheKey) || getCachedJobForEmailId(emailId);
+
+    // Rebuild: drop the cached audio + summary for this email and start fresh.
+    if (force && emailId) {
+        deleteReadAloudAssetsForEmail(emailId);
+        jobs.delete(cacheKey);
+        logPipelineEvent('tts.manual.rebuild', {
+            ...getEmailLogContext(email),
+            job_id: cacheKey
+        });
+    }
+
+    const storedSummary = force ? '' : getStoredEmailSummary(email);
+    const cached = force ? null : (getCachedJob(cacheKey) || getCachedJobForEmailId(emailId));
     if (cached) {
         jobs.set(cached.job_id, cached);
         if (emailId) {
@@ -623,7 +637,7 @@ export const startReadAloudJob = async (email) => {
         job_id: cacheKey,
         has_stored_summary: Boolean(storedSummary)
     });
-    processJob(job, email, settings, storedSummary || '').catch(() => {});
+    processJob(job, email, settings, storedSummary || '', { force }).catch(() => {});
     return getJobSnapshot(job);
 };
 

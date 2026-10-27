@@ -62,7 +62,8 @@ const ViewEmail = () => {
     const {
         enabled: readSummaryEnabled,
         pendingEmailId: readSummaryPendingEmailId,
-        startReadSummary
+        startReadSummary,
+        openReadSummaryMenu
     } = useReadSummary();
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [labels, setLabels] = useState([]);
@@ -668,6 +669,7 @@ const ViewEmail = () => {
                             size="touch"
                             label={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read Summary'}
                             onClick={startCurrentReadSummary}
+                            onContextMenu={(event) => openReadSummaryMenu(event, primaryEmail?._id)}
                             disabled={readSummaryLoading}
                             className={`${toolbarButtonClass} ${readAloudReady ? 'text-green-600 hover:bg-green-50' : 'text-blue-600 hover:bg-blue-50'}`}
                         >

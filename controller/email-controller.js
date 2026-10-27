@@ -996,6 +996,11 @@ export const downloadAllAttachments = async (request, response) => {
     }
 };
 
+const readAloudForce = (request) => {
+    const value = request.body?.force ?? request.query?.force;
+    return value === true || value === 'true' || value === '1' || value === 1;
+};
+
 export const startEmailReadAloud = async (request, response) => {
     try {
         if (isMailboxStoreReady()) {
@@ -1005,7 +1010,7 @@ export const startEmailReadAloud = async (request, response) => {
                 return response.status(404).json('Email not found');
             }
 
-            const job = await startReadAloudJob(email);
+            const job = await startReadAloudJob(email, { force: readAloudForce(request) });
             return response.status(200).json(job);
         }
 
@@ -1014,7 +1019,7 @@ export const startEmailReadAloud = async (request, response) => {
             return response.status(404).json('Email not found');
         }
 
-        const job = await startReadAloudJob(resolved.email);
+        const job = await startReadAloudJob(resolved.email, { force: readAloudForce(request) });
         return response.status(200).json(job);
     } catch (error) {
         return respondServerError(response, error, 'Could not start read aloud');

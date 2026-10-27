@@ -71,6 +71,7 @@ const Email = ({
     readSummaryEnabled,
     readSummaryLoading,
     onReadSummary,
+    onReadSummaryContextMenu,
     onRowSelect,
     onCheckboxSelect,
     onKeyboardDelete,
@@ -287,6 +288,7 @@ const Email = ({
                         <button
                             type="button"
                             onClick={handleReadSummary}
+                            onContextMenu={onReadSummaryContextMenu}
                             disabled={readSummaryLoading}
                             className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition disabled:cursor-wait disabled:opacity-75 ${
                                 readAloudReady

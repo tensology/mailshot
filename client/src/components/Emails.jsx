@@ -133,7 +133,8 @@ const Emails = () => {
     const {
         enabled: readSummaryEnabled,
         pendingEmailId: readSummaryPendingEmailId,
-        startReadSummary
+        startReadSummary,
+        openReadSummaryMenu
     } = useReadSummary();
     const { isSuperuser } = useAuth();
     const { showUndoDelete } = useUndoDelete();
@@ -1635,6 +1636,7 @@ const Emails = () => {
                                 readSummaryEnabled={readSummaryEnabled}
                                 readSummaryLoading={readSummaryPendingEmailId === email._id}
                                 onReadSummary={handleReadSummary}
+                                onReadSummaryContextMenu={(event) => openReadSummaryMenu(event, email._id)}
                                 onRowSelect={handleRowSelect}
                                 onCheckboxSelect={handleCheckboxSelect}
                                 onKeyboardDelete={handleKeyboardDelete}
