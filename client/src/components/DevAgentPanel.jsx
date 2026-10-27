@@ -17,6 +17,16 @@ const buildWsUrl = (token) => {
 
 const fileLabel = (name) => String(name || 'file').replace(/^[0-9a-f]{8}-/, '');
 
+// Real hover tooltip (not the browser's default title tooltip).
+const Tooltip = ({ label, children }) => (
+    <span className="group/tip relative inline-flex">
+        {children}
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100">
+            {label}
+        </span>
+    </span>
+);
+
 const DevAgentPanel = () => {
     const { isAuthenticated } = useAuth();
     const [enabled, setEnabled] = useState(false);
@@ -339,16 +349,17 @@ const DevAgentPanel = () => {
                     ))}
                 </div>
             )}
-            <div className="flex items-center gap-2">
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-                    title="Attach files or images"
-                    aria-label="Attach files or images"
-                >
-                    <MailshotIcon name="attach" size={32} />
-                </button>
+            <div className="flex items-center gap-1.5">
+                <Tooltip label="Attach files">
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        aria-label="Attach files"
+                    >
+                        <MailshotIcon name="attach" size={32} />
+                    </button>
+                </Tooltip>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => setFiles((list) => [...list, ...Array.from(event.target.files || [])].slice(0, 10))} />
                 <textarea
                     value={prompt}
@@ -358,35 +369,39 @@ const DevAgentPanel = () => {
                     placeholder={'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
                     className="max-h-28 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-1.5 text-sm outline-none"
                 />
-                <button
-                    type="button"
-                    onClick={send}
-                    disabled={running}
-                    className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
-                >
-                    <MailshotIcon name="send" size={18} />
-                    {running ? 'Running' : 'Run'}
-                </button>
-                <button
-                    type="button"
-                    onClick={() => toggleSetting({ auto_deploy: !autoDeploy })}
-                    title="Auto update"
-                    aria-label="Auto update"
-                    aria-pressed={autoDeploy}
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${autoDeploy ? 'bg-emerald-50' : 'hover:bg-slate-100'}`}
-                >
-                    <MailshotIcon name="server" size={20} className={autoDeploy ? '' : 'grayscale opacity-50'} />
-                </button>
-                {!expanded && (
+                <Tooltip label={running ? 'Running…' : 'Run'}>
                     <button
                         type="button"
-                        onClick={() => { setOpen(true); loadThreads(); }}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-                        title="Expand"
-                        aria-label="Expand dev agent"
+                        onClick={send}
+                        disabled={running}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:bg-slate-100 disabled:opacity-50"
+                        aria-label="Run"
                     >
-                        <MailshotIcon name="expand" size={20} />
+                        <MailshotIcon name="send" size={32} className={running ? 'opacity-60' : ''} />
                     </button>
+                </Tooltip>
+                <Tooltip label="Auto update">
+                    <button
+                        type="button"
+                        onClick={() => toggleSetting({ auto_deploy: !autoDeploy })}
+                        aria-label="Auto update"
+                        aria-pressed={autoDeploy}
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition ${autoDeploy ? 'bg-emerald-50' : 'hover:bg-slate-100'}`}
+                    >
+                        <MailshotIcon name="server" size={32} className={autoDeploy ? '' : 'grayscale opacity-50'} />
+                    </button>
+                </Tooltip>
+                {!expanded && (
+                    <Tooltip label="Expand">
+                        <button
+                            type="button"
+                            onClick={() => { setOpen(true); loadThreads(); }}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                            aria-label="Expand"
+                        >
+                            <MailshotIcon name="expand" size={32} />
+                        </button>
+                    </Tooltip>
                 )}
             </div>
         </div>
