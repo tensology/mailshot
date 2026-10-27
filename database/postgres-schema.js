@@ -97,6 +97,26 @@ CREATE TABLE IF NOT EXISTS app_settings (
     settings_json JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
+CREATE TABLE IF NOT EXISTS dev_threads (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'idle',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS dev_messages (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL REFERENCES dev_threads(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'user',
+    content TEXT NOT NULL DEFAULT '',
+    meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS dev_messages_thread_idx
+ON dev_messages (thread_id, created_at);
+
 CREATE TABLE IF NOT EXISTS integration_audit_events (
     id BIGSERIAL PRIMARY KEY,
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

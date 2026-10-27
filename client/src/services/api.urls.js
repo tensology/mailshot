@@ -15,6 +15,15 @@ export const API_URLS = {
         endpoint: 'auth/change-password',
         method: 'POST'
     },
+    getDevSettings: { endpoint: 'dev/settings', method: 'GET' },
+    updateDevSettings: { endpoint: 'dev/settings', method: 'POST' },
+    getDevThreads: { endpoint: 'dev/threads', method: 'GET' },
+    createDevThread: { endpoint: 'dev/threads', method: 'POST' },
+    deleteDevThread: { endpoint: 'dev/threads', method: 'DELETE', pathBuilder: (id, endpoint) => `${endpoint}/${id}` },
+    getDevMessages: { endpoint: 'dev/threads', method: 'GET', pathBuilder: (id, endpoint) => `${endpoint}/${id}/messages` },
+    getDevDiff: { endpoint: 'dev/threads', method: 'GET', pathBuilder: (id, endpoint) => `${endpoint}/${id}/diff` },
+    applyDev: { endpoint: 'dev/threads', method: 'POST', pathBuilder: (id, endpoint) => `${endpoint}/${id}/apply` },
+    postDevPrompt: { endpoint: 'dev/threads', method: 'POST', isMultipart: true, pathBuilder: (id, endpoint) => `${endpoint}/${id}/prompt` },
     getTtsVoices: {
         endpoint: 'tts/voices',
         method: 'GET'

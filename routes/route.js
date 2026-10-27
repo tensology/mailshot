@@ -74,6 +74,17 @@ import {
 } from '../controller/settings-controller.js';
 
 import { requireAuth, requireAccountContext } from '../middleware/auth.js';
+import {
+    getDevSettings,
+    updateDevSettings,
+    getDevThreads,
+    postDevThread,
+    deleteDevThread,
+    getDevMessages,
+    postDevPrompt,
+    postDevApply,
+    getDevDiff
+} from '../controller/dev-agent-controller.js';
 
 const routes = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -86,6 +97,16 @@ routes.post('/auth/logout', logout);
 routes.use(requireAuth);
 
 routes.post('/auth/change-password', changePassword);
+
+routes.get('/dev/settings', getDevSettings);
+routes.post('/dev/settings', updateDevSettings);
+routes.get('/dev/threads', getDevThreads);
+routes.post('/dev/threads', postDevThread);
+routes.delete('/dev/threads/:id', deleteDevThread);
+routes.get('/dev/threads/:id/messages', getDevMessages);
+routes.get('/dev/threads/:id/diff', getDevDiff);
+routes.post('/dev/threads/:id/apply', postDevApply);
+routes.post('/dev/threads/:id/prompt', upload.array('attachments', 10), requireAccountContext, postDevPrompt);
 
 routes.post('/save', saveSendEmails);
 routes.post('/send', upload.array('attachments', 10), requireAccountContext, sendEmail);

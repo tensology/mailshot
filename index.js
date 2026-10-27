@@ -1,5 +1,7 @@
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
+import { attachDevAgentWebSocket } from './services/dev-agent-ws.js';
 import helmet from 'helmet';
 import Connection from './database/db.js';
 import routes from './routes/route.js';
@@ -158,7 +160,9 @@ const boot = async () => {
         console.error('Email summary worker failed to start:', error.message || error);
     });
 
-    app.listen(PORT, HOST, () => console.log(`Server started on ${HOST}:${PORT}`));
+    const server = http.createServer(app);
+attachDevAgentWebSocket(server);
+server.listen(PORT, HOST, () => console.log(`Server started on ${HOST}:${PORT}`));
 };
 
 boot().catch((error) => {

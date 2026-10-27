@@ -70,6 +70,10 @@ const defaultSettings = () => ({
         base_url: 'https://www.tensology.com',
         api_key: ''
     },
+    dev_agent: {
+        enabled: false,
+        auto_deploy: false
+    },
     autoresponder_log: []
 });
 
@@ -262,6 +266,10 @@ const mergeSettings = (value = {}) => {
             enabled: Boolean(value.tensology?.enabled),
             base_url: String(value.tensology?.base_url || 'https://www.tensology.com').replace(/\/$/, ''),
             api_key: decryptSecret(value.tensology?.api_key || process.env.TENSOLOGY_API_KEY || '')
+        },
+        dev_agent: {
+            enabled: Boolean(value.dev_agent?.enabled),
+            auto_deploy: Boolean(value.dev_agent?.auto_deploy)
         },
         autoresponder_log: Array.isArray(value.autoresponder_log) ? value.autoresponder_log : [],
         autoresponder_daily: value.autoresponder_daily && typeof value.autoresponder_daily === 'object'
