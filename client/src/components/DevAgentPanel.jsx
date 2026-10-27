@@ -42,10 +42,10 @@ const SUGGESTIONS = [
 ];
 
 // Real hover tooltip (not the browser's default title tooltip).
-const Tooltip = ({ label, children }) => (
-    <span className="group/tip relative inline-flex">
+const Tooltip = ({ label, placement = 'top', className = '', children }) => (
+    <span className={`group/tip relative inline-flex ${className}`}>
         {children}
-        <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100">
+        <span className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 ${placement === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
             {label}
         </span>
     </span>
@@ -570,9 +570,11 @@ const DevAgentPanel = () => {
                         <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
                             <div className="flex h-14 items-center justify-between border-b border-slate-200 px-3">
                                 <span className="text-sm font-semibold text-slate-900">Threads</span>
-                                <button type="button" onClick={newThread} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100" title="New thread">
-                                    <MailshotIcon name="plus" size={18} />
-                                </button>
+                                <Tooltip label="New thread" placement="bottom">
+                                    <button type="button" onClick={newThread} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100" aria-label="New thread">
+                                        <MailshotIcon name="plus" size={18} />
+                                    </button>
+                                </Tooltip>
                             </div>
                             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2">
                                 {threads.map((thread) => (
@@ -584,15 +586,16 @@ const DevAgentPanel = () => {
                                         >
                                             {thread.title || 'Untitled'}
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setThreadToDelete(thread)}
-                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600 ${thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                                            title="Delete thread"
-                                            aria-label={`Delete ${thread.title || 'thread'}`}
-                                        >
-                                            <MailshotIcon name="delete" size={16} />
-                                        </button>
+                                        <Tooltip label="Delete thread" placement="bottom" className={thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setThreadToDelete(thread)}
+                                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                                aria-label={`Delete ${thread.title || 'thread'}`}
+                                            >
+                                                <MailshotIcon name="delete" size={16} />
+                                            </button>
+                                        </Tooltip>
                                     </div>
                                 ))}
                                 {!threads.length && <p className="px-2 py-4 text-xs text-slate-500">No threads yet.</p>}
@@ -603,7 +606,7 @@ const DevAgentPanel = () => {
                             <header className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
                                 <p className="truncate text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
                                 <div className="flex items-center gap-1">
-                                    <Tooltip label={fullscreen ? 'Exit full screen' : 'Full screen'}>
+                                    <Tooltip label={fullscreen ? 'Exit full screen' : 'Full screen'} placement="bottom">
                                         <button
                                             type="button"
                                             onClick={() => setFullscreen((value) => !value)}
@@ -613,9 +616,11 @@ const DevAgentPanel = () => {
                                             <MailshotIcon name={fullscreen ? 'collapse' : 'expand'} size={20} />
                                         </button>
                                     </Tooltip>
-                                    <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
-                                        <MailshotIcon name="close" size={20} />
-                                    </button>
+                                    <Tooltip label="Close" placement="bottom">
+                                        <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
+                                            <MailshotIcon name="close" size={20} />
+                                        </button>
+                                    </Tooltip>
                                 </div>
                             </header>
 
