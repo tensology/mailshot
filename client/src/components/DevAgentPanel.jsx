@@ -200,6 +200,7 @@ const DevAgentPanel = () => {
         if (!text && !files.length) {
             return;
         }
+        setOpen(true);
         let threadId = activeThreadId;
         if (!threadId) {
             const created = await API(API_URLS.createDevThread, { title: text.slice(0, 60) || 'New thread' }, '').catch(() => null);
@@ -261,7 +262,7 @@ const DevAgentPanel = () => {
         return null;
     }
 
-    const composer = (
+    const renderComposer = (expanded = false) => (
         <div
             onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
@@ -286,15 +287,15 @@ const DevAgentPanel = () => {
                     title="Attach files or images"
                     aria-label="Attach files or images"
                 >
-                    <MailshotIcon name="plus" size={22} />
+                    <MailshotIcon name="attach" size={20} />
                 </button>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => setFiles((list) => [...list, ...Array.from(event.target.files || [])].slice(0, 10))} />
                 <textarea
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
-                    onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send(); } }}
+                    onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }}
                     rows={1}
-                    placeholder="Ask the dev agent to change PlanMyCharter…"
+                    placeholder="Ask the dev agent to change the code…"
                     className="max-h-28 min-h-[2.25rem] flex-1 resize-none bg-transparent px-1 py-2 text-sm outline-none"
                 />
                 <button
@@ -306,23 +307,32 @@ const DevAgentPanel = () => {
                     <MailshotIcon name="send" size={18} />
                     {running ? 'Running' : 'Run'}
                 </button>
-                <button
-                    type="button"
-                    onClick={() => { setOpen(true); loadThreads(); }}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
-                    title="Expand"
-                    aria-label="Expand dev agent"
-                >
-                    <MailshotIcon name="expand" size={20} />
-                </button>
+                {!expanded && (
+                    <button
+                        type="button"
+                        onClick={() => { setOpen(true); loadThreads(); }}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        title="Expand"
+                        aria-label="Expand dev agent"
+                    >
+                        <MailshotIcon name="expand" size={20} />
+                    </button>
+                )}
+            </div>
+            <div className="mt-1.5 flex items-center justify-between gap-2 px-1">
+                <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <input type="checkbox" checked={autoDeploy} onChange={(event) => toggleSetting({ auto_deploy: event.target.checked })} />
+                    Auto-deploy after each prompt
+                </label>
+                <span className="hidden text-[11px] text-slate-400 sm:inline">Enter to run · Shift+Enter for a new line</span>
             </div>
         </div>
     );
 
     return (
         <>
-            <div className="fixed bottom-4 right-4 z-[75] w-[min(30rem,calc(100vw-2rem))] print:hidden">
-                {composer}
+            <div className="fixed bottom-4 right-4 z-[75] w-[min(34rem,calc(100vw-2rem))] print:hidden">
+                {renderComposer(false)}
             </div>
 
             {open && (
@@ -357,10 +367,6 @@ const DevAgentPanel = () => {
                                     <p className="truncate text-xs text-slate-500">DeepSeek V4.1 Flash · PlanMyCharter</p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                                        <input type="checkbox" checked={autoDeploy} onChange={(event) => toggleSetting({ auto_deploy: event.target.checked })} />
-                                        Auto-deploy
-                                    </label>
                                     <button type="button" onClick={() => toggleSetting({ enabled: false })} className="text-xs text-slate-500 hover:text-slate-800">Turn off</button>
                                     <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
                                         <MailshotIcon name="close" size={20} />
@@ -401,7 +407,7 @@ const DevAgentPanel = () => {
                                         Apply &amp; deploy
                                     </button>
                                 )}
-                                {composer}
+                                {renderComposer(true)}
                             </div>
                         </section>
                     </div>
