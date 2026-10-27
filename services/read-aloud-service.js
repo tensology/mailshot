@@ -586,7 +586,17 @@ export const startReadAloudJob = async (email, options = {}) => {
     }
 
     const storedSummary = force ? '' : getStoredEmailSummary(email);
-    const cached = force ? null : (getCachedJob(cacheKey) || getCachedJobForEmailId(emailId));
+
+    // The email index can point at an older render (different voice/model); only
+    // trust it when it matches the cache key for the voice selected right now.
+    let cached = force ? null : getCachedJob(cacheKey);
+    if (!cached && !force && emailId) {
+        const indexed = getCachedJobForEmailId(emailId);
+        if (indexed && indexed.job_id === cacheKey) {
+            cached = indexed;
+        }
+    }
+
     if (cached) {
         jobs.set(cached.job_id, cached);
         if (emailId) {
