@@ -88,26 +88,12 @@ const storePanelPosition = (position) => {
     }
 };
 
-const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 'default' }) => (
+const ReadSummaryShell = ({ children, tone = 'default' }) => (
     <div
-        ref={panelRef}
-        className={`fixed z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-md border bg-white p-3 shadow-2xl ${
-            tone === 'preparing' ? 'border-blue-100' : 'border-slate-200'
+        className={`fixed bottom-4 left-4 z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border bg-slate-900 p-4 text-white shadow-2xl ${
+            tone === 'preparing' ? 'border-blue-500/40' : 'border-slate-800'
         }`}
-        style={{
-            left: `${position.x}px`,
-            top: `${position.y}px`
-        }}
     >
-        <button
-            type="button"
-            onPointerDown={onPointerDown}
-            className="mb-2 flex h-5 w-full touch-none cursor-grab items-center justify-center rounded-md text-slate-300 transition hover:bg-slate-50 hover:text-slate-500 active:cursor-grabbing"
-            aria-label="Move read summary panel"
-            title="Move"
-        >
-            <span className="h-1 w-8 rounded-full bg-current" />
-        </button>
         {children}
     </div>
 );
@@ -188,7 +174,7 @@ const ReadSummaryPlayer = ({
     };
 
     return (
-        <ReadSummaryShell panelRef={panelRef} position={position} onPointerDown={onDragStart}>
+        <ReadSummaryShell>
             <audio
                 ref={audioRef}
                 src={audioUrl || undefined}
@@ -204,30 +190,53 @@ const ReadSummaryPlayer = ({
             />
 
             <div className="flex items-center gap-3">
-                <button
-                    type="button"
-                    onClick={() => setPickerOpen((value) => !value)}
-                    className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 shadow-sm"
-                    title="Change voice"
-                    aria-label="Change voice"
-                >
-                    <VoiceAvatar voice={activeVoice} size={56} />
-                    <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-tl-md bg-slate-900/70 text-white">
-                        <MailshotIcon name="chevron-down" size={14} />
-                    </span>
-                </button>
+                <div className="relative shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setPickerOpen((value) => !value)}
+                        className="relative h-14 w-14 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 shadow-lg"
+                        title="Change voice"
+                        aria-label="Change voice"
+                    >
+                        <VoiceAvatar voice={activeVoice} size={56} />
+                        <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-tl-lg bg-black/60 text-white">
+                            <MailshotIcon name="chevron-down" size={14} />
+                        </span>
+                    </button>
 
-                <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-900">{activeVoice?.name || 'Read summary'}</p>
-                    <p className="truncate text-xs text-slate-500">Fish Audio · read summary</p>
-                    {isPreparing && (
-                        <p className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-blue-600">
-                            <MailshotIcon name="refresh" size={14} active /> Preparing…
-                        </p>
+                    {pickerOpen && (
+                        <div className="absolute bottom-full left-0 z-10 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-1 shadow-2xl">
+                            {voicesLoading && <p className="px-2 py-3 text-xs text-slate-400">Loading voices…</p>}
+                            {!voicesLoading && !voices.length && <p className="px-2 py-3 text-xs text-slate-400">No voices available.</p>}
+                            {voices.map((voice) => (
+                                <button
+                                    key={voice.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setPickerOpen(false);
+                                        onSelectVoice?.(voice.id);
+                                    }}
+                                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition ${
+                                        voice.id === activeVoiceId ? 'bg-slate-700 font-semibold text-white' : 'text-slate-200 hover:bg-slate-700/60'
+                                    }`}
+                                >
+                                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-600">
+                                        <VoiceAvatar voice={voice} size={32} />
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate">{voice.name}</span>
+                                    {voice.id === activeVoiceId && <span aria-hidden="true" className="text-slate-400">✓</span>}
+                                </button>
+                            ))}
+                        </div>
                     )}
                 </div>
 
-                <IconButton label="Close player" size="sm" onClick={onClose}>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{activeVoice?.name || 'Read summary'}</p>
+                    <p className="truncate text-xs text-slate-400">{isPreparing ? 'Preparing…' : 'Fish Audio · read summary'}</p>
+                </div>
+
+                <IconButton label="Close player" size="sm" onClick={onClose} className="shrink-0 text-slate-300 hover:bg-slate-800">
                     <MailshotIcon name="close" size={20} />
                 </IconButton>
             </div>
@@ -237,12 +246,12 @@ const ReadSummaryPlayer = ({
                     type="button"
                     onClick={togglePlay}
                     disabled={!audioUrl}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow transition hover:bg-slate-800 disabled:opacity-40"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 shadow transition hover:scale-105 disabled:opacity-40"
                     aria-label={playing ? 'Pause' : 'Play'}
                 >
                     {playing
-                        ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
-                        : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>}
+                        ? <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                        : <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>}
                 </button>
 
                 <div className="min-w-0 flex-1">
@@ -256,9 +265,9 @@ const ReadSummaryPlayer = ({
                         disabled={!audioUrl || !duration}
                         aria-label="Seek"
                         className="h-1.5 w-full cursor-pointer appearance-none rounded-full disabled:opacity-40"
-                        style={{ background: `linear-gradient(to right, #0f172a ${progress}%, #e2e8f0 ${progress}%)` }}
+                        style={{ background: `linear-gradient(to right, #ffffff ${progress}%, #334155 ${progress}%)` }}
                     />
-                    <div className="mt-1 flex items-center justify-between text-[11px] tabular-nums text-slate-500">
+                    <div className="mt-1 flex items-center justify-between text-[11px] tabular-nums text-slate-400">
                         <span>{formatClock(current)}</span>
                         <span>{formatClock(duration)}</span>
                     </div>
@@ -267,7 +276,7 @@ const ReadSummaryPlayer = ({
                 <select
                     value={rate}
                     onChange={changeRate}
-                    className="h-8 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="h-8 shrink-0 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs text-slate-200 outline-none focus:border-blue-500"
                     aria-label="Playback speed"
                 >
                     {playbackRates.map((value) => (
@@ -276,46 +285,20 @@ const ReadSummaryPlayer = ({
                 </select>
             </div>
 
-            {job?.summary && <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{job.summary}</p>}
-            {!audioUrl && <p className="mt-2 text-xs text-amber-700">Audio file is not available yet.</p>}
-
-            {pickerOpen && (
-                <div className="absolute left-3 top-[4.5rem] z-10 max-h-64 w-72 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-xl">
-                    {voicesLoading && <p className="px-2 py-3 text-xs text-slate-500">Loading voices…</p>}
-                    {!voicesLoading && !voices.length && <p className="px-2 py-3 text-xs text-slate-500">No voices available.</p>}
-                    {voices.map((voice) => (
-                        <button
-                            key={voice.id}
-                            type="button"
-                            onClick={() => {
-                                setPickerOpen(false);
-                                onSelectVoice?.(voice.id);
-                            }}
-                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition ${
-                                voice.id === activeVoiceId ? 'bg-slate-100 font-semibold text-slate-900' : 'text-slate-700 hover:bg-slate-100'
-                            }`}
-                        >
-                            <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200">
-                                <VoiceAvatar voice={voice} size={32} />
-                            </span>
-                            <span className="min-w-0 flex-1 truncate">{voice.name}</span>
-                            {voice.id === activeVoiceId && <span aria-hidden="true" className="text-slate-400">✓</span>}
-                        </button>
-                    ))}
-                </div>
-            )}
+            {!audioUrl && <p className="mt-2 text-xs text-amber-400">Audio file is not available yet.</p>}
         </ReadSummaryShell>
     );
 };
 
-const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = '', panelRef, position, onDragStart }) => (
-    <ReadSummaryShell panelRef={panelRef} position={position} onPointerDown={onDragStart} tone="preparing">
-        <div className="flex items-start gap-2 text-sm font-medium text-blue-700">
-            <MailshotIcon name="refresh" size={20} active className="mt-0.5" />
-            <div className="min-w-0">
-                <p>{message}</p>
-                {summary && <p className="mt-2 line-clamp-4 text-xs font-normal leading-5 text-slate-600">{summary}</p>}
-            </div>
+
+const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = '' }) => (
+    <ReadSummaryShell tone="preparing">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800">
+            <MailshotIcon name="refresh" size={28} active />
+        </span>
+        <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">{message}</p>
+            {summary && <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{summary}</p>}
         </div>
     </ReadSummaryShell>
 );
