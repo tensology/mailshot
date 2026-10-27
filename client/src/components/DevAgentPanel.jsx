@@ -53,8 +53,20 @@ const Tooltip = ({ label, placement = 'top', className = '', children }) => (
     </span>
 );
 
+const useIsMobile = () => {
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+    useEffect(() => {
+        const query = window.matchMedia('(max-width: 767px)');
+        const handler = (event) => setIsMobile(event.matches);
+        query.addEventListener('change', handler);
+        return () => query.removeEventListener('change', handler);
+    }, []);
+    return isMobile;
+};
+
 const DevAgentPanel = () => {
     const { isAuthenticated } = useAuth();
+    const isMobile = useIsMobile();
     const [enabled, setEnabled] = useState(false);
     const [autoDeploy, setAutoDeploy] = useState(false);
     const [open, setOpen] = useState(() => {
@@ -76,6 +88,7 @@ const DevAgentPanel = () => {
     const [dragging, setDragging] = useState(false);
     const [threadToDelete, setThreadToDelete] = useState(null);
     const [fullscreen, setFullscreen] = useState(false);
+    const [drawerOpen, setDrawerOpen] = useState(false);
     const [deployable, setDeployable] = useState(false);
     const [connected, setConnected] = useState(false);
     const wsRef = useRef(null);
@@ -357,6 +370,7 @@ const DevAgentPanel = () => {
     const handleSelectThread = useCallback((threadId) => {
         selectThread(threadId);
         subscribe(threadId);
+        setDrawerOpen(false);
     }, [selectThread, subscribe]);
 
     const newThread = useCallback(async () => {
@@ -366,6 +380,7 @@ const DevAgentPanel = () => {
             setThreads((list) => [thread, ...list]);
             selectThread(thread.id);
             subscribe(thread.id);
+            setDrawerOpen(false);
         } catch {
             setNotice('Could not create a thread');
         }
@@ -498,6 +513,9 @@ const DevAgentPanel = () => {
         return null;
     }
 
+    const ctrlSize = isMobile ? 'h-10 w-10' : 'h-11 w-11';
+    const iconSize = isMobile ? 24 : 32;
+
     const renderComposer = (expanded = false) => (
         <div
             onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
@@ -515,15 +533,15 @@ const DevAgentPanel = () => {
                     ))}
                 </div>
             )}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5">
                 <Tooltip label="Attach files">
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100`}
                         aria-label="Attach files"
                     >
-                        <MailshotIcon name="attach" size={32} />
+                        <MailshotIcon name="attach" size={iconSize} />
                     </button>
                 </Tooltip>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => setFiles((list) => [...list, ...Array.from(event.target.files || [])].slice(0, 10))} />
@@ -531,19 +549,19 @@ const DevAgentPanel = () => {
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }}
-                    rows={2}
-                    placeholder={'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
-                    className="max-h-28 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-1.5 text-sm outline-none"
+                    rows={isMobile ? 1 : 2}
+                    placeholder={isMobile ? 'Make a change to PlanMyCharter…' : 'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
+                    className={`max-h-28 flex-1 resize-none bg-transparent px-1 text-sm outline-none ${isMobile ? 'min-h-[2.5rem] py-2' : 'min-h-[2.75rem] py-1.5'}`}
                 />
                 <Tooltip label={running ? 'Working…' : 'Run'}>
                     <button
                         type="button"
                         onClick={send}
                         disabled={running}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:bg-slate-100 disabled:opacity-50"
+                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full transition hover:bg-slate-100 disabled:opacity-50`}
                         aria-label="Run"
                     >
-                        <MailshotIcon name="send" size={32} className={running ? 'opacity-60' : ''} />
+                        <MailshotIcon name="send" size={iconSize} className={running ? 'opacity-60' : ''} />
                     </button>
                 </Tooltip>
                 <Tooltip label="Auto update">
@@ -552,9 +570,9 @@ const DevAgentPanel = () => {
                         onClick={() => toggleSetting({ auto_deploy: !autoDeploy })}
                         aria-label="Auto update"
                         aria-pressed={autoDeploy}
-                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition ${autoDeploy ? 'bg-emerald-50' : 'hover:bg-slate-100'}`}
+                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full transition ${autoDeploy ? 'bg-emerald-50' : 'hover:bg-slate-100'}`}
                     >
-                        <MailshotIcon name="server" size={32} className={autoDeploy ? '' : 'grayscale opacity-50'} />
+                        <MailshotIcon name="server" size={iconSize} className={autoDeploy ? '' : 'grayscale opacity-50'} />
                     </button>
                 </Tooltip>
                 {!expanded && (
@@ -562,10 +580,10 @@ const DevAgentPanel = () => {
                         <button
                             type="button"
                             onClick={() => { setOpen(true); loadThreads(); }}
-                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                            className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100`}
                             aria-label="Expand"
                         >
-                            <MailshotIcon name="expand" size={32} />
+                            <MailshotIcon name="expand" size={iconSize} />
                         </button>
                     </Tooltip>
                 )}
@@ -632,48 +650,148 @@ const DevAgentPanel = () => {
         )
     ));
 
+    const threadsPanel = (
+        <>
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-3">
+                <span className="text-sm font-semibold text-slate-900">Threads</span>
+                <Tooltip label="New thread" placement="bottom">
+                    <button type="button" onClick={newThread} className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100" aria-label="New thread">
+                        <MailshotIcon name="plus" size={18} />
+                    </button>
+                </Tooltip>
+            </div>
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2">
+                {threads.map((thread) => (
+                    <div key={thread.id} className="group mb-1 flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => handleSelectThread(thread.id)}
+                            className={`min-w-0 flex-1 truncate rounded-md px-2.5 py-2.5 text-left text-sm transition ${thread.id === activeThreadId ? 'bg-blue-100 font-medium text-blue-900' : 'text-slate-700 hover:bg-slate-100'}`}
+                        >
+                            {thread.title || 'Untitled'}
+                        </button>
+                        <Tooltip label="Delete thread" placement="bottom" className={thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}>
+                            <button
+                                type="button"
+                                onClick={() => setThreadToDelete(thread)}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                aria-label={`Delete ${thread.title || 'thread'}`}
+                            >
+                                <MailshotIcon name="delete" size={16} />
+                            </button>
+                        </Tooltip>
+                    </div>
+                ))}
+                {!threads.length && <p className="px-2 py-4 text-xs text-slate-500">No threads yet.</p>}
+            </div>
+        </>
+    );
+
+    const messagesPanel = (
+        <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-white px-4 py-4">
+            {!messages.length && !running && (
+                <div className="mx-auto max-w-md py-8 text-center">
+                    <p className="text-sm font-medium text-slate-700">What would you like to change?</p>
+                    <div className="mt-3 flex flex-wrap justify-center gap-2">
+                        {SUGGESTIONS.map((suggestion) => (
+                            <button
+                                key={suggestion}
+                                type="button"
+                                onClick={() => setPrompt(suggestion)}
+                                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                            >
+                                {suggestion}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {messages.map((message) => (
+                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                        {message.content}
+                        {Array.isArray(message.meta?.attachments) && message.meta.attachments.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                                {message.meta.attachments.map((name) => (
+                                    <span key={name} className={`rounded-full px-2 py-0.5 text-[11px] ${message.role === 'user' ? 'bg-blue-500/60' : 'bg-slate-200'}`}>{fileLabel(name)}</span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
+
+            {activityLine}
+            {progressStrip}
+            {liveThread}
+        </div>
+    );
+
+    const composerPanel = (
+        <div className="shrink-0 border-t border-slate-200 px-3 py-3 sm:px-4">
+            {notice && <p className="mb-2 text-xs text-slate-600">{notice}</p>}
+            {deployable && !autoDeploy && (
+                <div className="mb-2 flex items-center gap-2">
+                    <button type="button" onClick={applyDeploy} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
+                        Make it live
+                    </button>
+                    <button type="button" onClick={discard} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                        Undo changes
+                    </button>
+                </div>
+            )}
+            {renderComposer(true)}
+        </div>
+    );
+
     return (
         <>
-            <div className="fixed bottom-4 right-4 z-[75] w-[min(34rem,calc(100vw-2rem))] print:hidden">
-                {renderComposer(false)}
-            </div>
+            {/* Floating composer. On phones it sits flush in the footer. */}
+            {!(isMobile && open) && (
+                <div className={`fixed z-[75] print:hidden ${isMobile ? 'inset-x-0 bottom-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-4 right-4 w-[min(34rem,calc(100vw-2rem))]'}`}>
+                    {renderComposer(false)}
+                </div>
+            )}
 
-            {open && (
+            {open && (isMobile ? (
+                /* Phone: a real full-screen takeover, not a modal. */
+                <div className="fixed inset-0 z-[95] flex flex-col bg-white">
+                    <header className="flex h-14 shrink-0 items-center gap-1 border-b border-slate-200 px-2">
+                        <Tooltip label="Threads" placement="bottom">
+                            <button
+                                type="button"
+                                onClick={() => setDrawerOpen(true)}
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-100"
+                                aria-label="Threads"
+                            >
+                                <MailshotIcon name="menu" size={22} />
+                            </button>
+                        </Tooltip>
+                        <p className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
+                        <Tooltip label="Close" placement="bottom">
+                            <button type="button" onClick={() => setOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100" aria-label="Close">
+                                <MailshotIcon name="close" size={22} />
+                            </button>
+                        </Tooltip>
+                    </header>
+
+                    {messagesPanel}
+                    <div className="shrink-0 pb-[max(0.25rem,env(safe-area-inset-bottom))]">{composerPanel}</div>
+
+                    {drawerOpen && (
+                        <div className="fixed inset-0 z-[100] bg-slate-900/50" onClick={() => setDrawerOpen(false)}>
+                            <aside className="flex h-full w-72 max-w-[80vw] flex-col bg-slate-50 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                                {threadsPanel}
+                            </aside>
+                        </div>
+                    )}
+                </div>
+            ) : (
                 <div className={`fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm ${fullscreen ? 'p-0' : 'p-4'}`} onClick={() => setOpen(false)}>
                     <div className={`flex overflow-hidden bg-white shadow-2xl ${fullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[85vh] w-full max-w-6xl rounded-2xl'}`} onClick={(event) => event.stopPropagation()}>
                         <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
-                            <div className="flex h-14 items-center justify-between border-b border-slate-200 px-3">
-                                <span className="text-sm font-semibold text-slate-900">Threads</span>
-                                <Tooltip label="New thread" placement="bottom">
-                                    <button type="button" onClick={newThread} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100" aria-label="New thread">
-                                        <MailshotIcon name="plus" size={18} />
-                                    </button>
-                                </Tooltip>
-                            </div>
-                            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2">
-                                {threads.map((thread) => (
-                                    <div key={thread.id} className="group mb-1 flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSelectThread(thread.id)}
-                                            className={`min-w-0 flex-1 truncate rounded-md px-2.5 py-2 text-left text-sm transition ${thread.id === activeThreadId ? 'bg-blue-100 font-medium text-blue-900' : 'text-slate-700 hover:bg-slate-100'}`}
-                                        >
-                                            {thread.title || 'Untitled'}
-                                        </button>
-                                        <Tooltip label="Delete thread" placement="bottom" className={thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setThreadToDelete(thread)}
-                                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                                                aria-label={`Delete ${thread.title || 'thread'}`}
-                                            >
-                                                <MailshotIcon name="delete" size={16} />
-                                            </button>
-                                        </Tooltip>
-                                    </div>
-                                ))}
-                                {!threads.length && <p className="px-2 py-4 text-xs text-slate-500">No threads yet.</p>}
-                            </div>
+                            {threadsPanel}
                         </aside>
 
                         <section className="flex min-w-0 flex-1 flex-col">
@@ -698,63 +816,12 @@ const DevAgentPanel = () => {
                                 </div>
                             </header>
 
-                            <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-4 py-4">
-                                {!messages.length && !running && (
-                                    <div className="mx-auto max-w-md py-8 text-center">
-                                        <p className="text-sm font-medium text-slate-700">What would you like to change?</p>
-                                        <div className="mt-3 flex flex-wrap justify-center gap-2">
-                                            {SUGGESTIONS.map((suggestion) => (
-                                                <button
-                                                    key={suggestion}
-                                                    type="button"
-                                                    onClick={() => setPrompt(suggestion)}
-                                                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
-                                                >
-                                                    {suggestion}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {messages.map((message) => (
-                                    <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                                            {message.content}
-                                            {Array.isArray(message.meta?.attachments) && message.meta.attachments.length > 0 && (
-                                                <div className="mt-1 flex flex-wrap gap-1">
-                                                    {message.meta.attachments.map((name) => (
-                                                        <span key={name} className={`rounded-full px-2 py-0.5 text-[11px] ${message.role === 'user' ? 'bg-blue-500/60' : 'bg-slate-200'}`}>{fileLabel(name)}</span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-
-                                {activityLine}
-                                {progressStrip}
-                                {liveThread}
-                            </div>
-
-                            <div className="border-t border-slate-200 px-4 py-3">
-                                {notice && <p className="mb-2 text-xs text-slate-600">{notice}</p>}
-                                {deployable && !autoDeploy && (
-                                    <div className="mb-2 flex items-center gap-2">
-                                        <button type="button" onClick={applyDeploy} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
-                                            Make it live
-                                        </button>
-                                        <button type="button" onClick={discard} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
-                                            Undo changes
-                                        </button>
-                                    </div>
-                                )}
-                                {renderComposer(true)}
-                            </div>
+                            {messagesPanel}
+                            {composerPanel}
                         </section>
                     </div>
                 </div>
-            )}
+            ))}
 
             <ConfirmDialog
                 open={Boolean(threadToDelete)}
