@@ -339,7 +339,7 @@ const DevAgentPanel = () => {
                     ))}
                 </div>
             )}
-            <div className="flex items-end gap-2">
+            <div className="flex items-center gap-2">
                 <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -367,6 +367,16 @@ const DevAgentPanel = () => {
                     <MailshotIcon name="send" size={18} />
                     {running ? 'Running' : 'Run'}
                 </button>
+                <button
+                    type="button"
+                    onClick={() => toggleSetting({ auto_deploy: !autoDeploy })}
+                    title="Auto update"
+                    aria-label="Auto update"
+                    aria-pressed={autoDeploy}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${autoDeploy ? 'bg-emerald-50' : 'hover:bg-slate-100'}`}
+                >
+                    <MailshotIcon name="server" size={20} className={autoDeploy ? '' : 'grayscale opacity-50'} />
+                </button>
                 {!expanded && (
                     <button
                         type="button"
@@ -378,18 +388,6 @@ const DevAgentPanel = () => {
                         <MailshotIcon name="expand" size={20} />
                     </button>
                 )}
-            </div>
-            <div className="mt-1 flex items-center justify-end gap-3 px-1">
-                <label htmlFor="dev-auto-deploy" className="flex cursor-pointer select-none items-center gap-2 text-xs font-medium text-slate-600">
-                    Auto deploy
-                    <input
-                        id="dev-auto-deploy"
-                        type="checkbox"
-                        className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        checked={autoDeploy}
-                        onChange={(event) => toggleSetting({ auto_deploy: event.target.checked })}
-                    />
-                </label>
             </div>
         </div>
     );

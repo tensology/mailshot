@@ -39,6 +39,7 @@ const PALETTES = {
     reply: ['#60a5fa', '#1d4ed8'],
     'reply-all': ['#818cf8', '#4338ca'],
     send: ['#22d3ee', '#2563eb'],
+    server: ['#34d399', '#047857'],
     search: ['#94a3b8', '#475569'],
     save: ['#60a5fa', '#1d4ed8'],
     settings: ['#94a3b8', '#475569'],
@@ -94,6 +95,7 @@ const glyph = (name) => {
         case 'reply': return <path d="m11 7-6 5 6 5v-3h4a5 5 0 0 1 5 4c0-7-3-9-9-9z"/>;
         case 'reply-all': return <><path d="m9 8-5 4 5 4v-2h4a6 6 0 0 1 6 4c0-6-3-8-10-8z"/><path d="m13 6-2 2 2 2"/></>;
         case 'send': return <><path d="m4 5 17 7-17 7 3-6 8-1-8-1z"/></>;
+        case 'server': return <><rect x="4" y="5" width="16" height="6" rx="1.6"/><rect x="4" y="13" width="16" height="6" rx="1.6"/><path d="M8 8h.01M8 16h.01"/></>;
         case 'search': return <><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4 4"/></>;
         case 'save': return <><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4M8 20v-6h8v6"/></>;
         case 'settings': return <><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></>;
