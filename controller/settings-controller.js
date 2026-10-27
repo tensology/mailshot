@@ -233,8 +233,8 @@ export const updateTtsSettings = async (request, response) => {
 export const getTtsVoices = async (request, response) => {
     try {
         const settings = await getSettings();
-        const { voices, activeVoiceId } = await listFishAudioVoices(settings);
-        return response.status(200).json({ voices, active_voice_id: activeVoiceId });
+        const { voices, activeVoiceId, defaultVoiceId } = await listFishAudioVoices(settings);
+        return response.status(200).json({ voices, active_voice_id: activeVoiceId, default_voice_id: defaultVoiceId || '' });
     } catch (error) {
         return response.status(502).json(error.message || 'Could not load voices');
     }
