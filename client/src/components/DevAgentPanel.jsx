@@ -209,7 +209,7 @@ const DevAgentPanel = () => {
             setPhase('done');
             setNotice(data.message || 'Something went wrong — try again');
         }
-    }, [pushProcess]);
+    }, []);
 
     // WebSocket with auto-reconnect; resubscribes to the active thread on reopen.
     useEffect(() => {
@@ -404,7 +404,7 @@ const DevAgentPanel = () => {
             activeThreadRef.current = '';
             setActiveThreadId('');
             setMessages([]);
-            setStreamText('');
+            setLiveItems([]);
         }
         try {
             await API(API_URLS.deleteDevThread, {}, target.id);
