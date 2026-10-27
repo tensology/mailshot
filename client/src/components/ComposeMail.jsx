@@ -106,6 +106,9 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = '
         editor.style.setProperty('min-height', '100%', 'important');
         doc.documentElement.style.setProperty('height', '100%', 'important');
         doc.documentElement.style.setProperty('overflow-y', 'auto', 'important');
+        const mobileStyles = doc.createElement('style');
+        mobileStyles.textContent = '@media(max-width:500px){body{padding:8px!important}[data-mailshot-quoted]{margin-left:0!important}}';
+        doc.head.append(mobileStyles);
         editor.innerHTML = valueRef.current || '';
 
         const syncEditor = () => {
