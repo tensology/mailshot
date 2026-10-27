@@ -313,6 +313,9 @@ const ReadSummaryPlayer = ({
                                                     <VoiceAvatar voice={voice} size={80} />
                                                 </span>
                                                 <span className="line-clamp-2 min-h-[2.5rem] text-center text-xs font-medium text-slate-700">{voice.name}</span>
+                                                {voice.is_default && (
+                                                    <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">Default</span>
+                                                )}
                                             </button>
                                         );
                                     })}

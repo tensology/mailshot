@@ -62,6 +62,7 @@ const defaultSettings = () => ({
         voice: process.env.KOKORO_VOICE || 'af_heart',
         fishaudio_key: '',
         fishaudio_voice: '',
+        fishaudio_default_voice: '',
         fishaudio_model: 's2.1-pro-free'
     },
     tensology: {
@@ -252,6 +253,7 @@ const mergeSettings = (value = {}) => {
             voice: String(value.tts?.voice || defaultSettings().tts.voice || 'af_heart').trim() || 'af_heart',
             fishaudio_key: decryptSecret(value.tts?.fishaudio_key || ''),
             fishaudio_voice: String(value.tts?.fishaudio_voice || '').trim(),
+            fishaudio_default_voice: String(value.tts?.fishaudio_default_voice || '').trim(),
             fishaudio_model: String(value.tts?.fishaudio_model || 's2.1-pro-free').trim() || 's2.1-pro-free'
         },
         tensology: {
