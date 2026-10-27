@@ -8,6 +8,10 @@ import {
     normalizeSignatureOptions
 } from './signatureComposer.js';
 
+test('plain message text excludes preserved email styles and scripts', () => {
+    assert.equal(htmlToPlainText('<style>p { color: red }</style><p>Hello</p><script>alert(1)</script>'), 'Hello');
+});
+
 test('normalizes signatures without stripping image html', () => {
     const signatures = normalizeSignatureOptions({
         signatures: [{

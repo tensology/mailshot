@@ -5,10 +5,12 @@ export const htmlToPlainText = (html = '') => {
     if (typeof document !== 'undefined') {
         const container = document.createElement('div');
         container.innerHTML = source;
+        container.querySelectorAll('style,script').forEach((element) => element.remove());
         return (container.innerText || container.textContent || '').trim();
     }
 
     return source
+        .replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n')
         .replace(/<[^>]+>/g, '')

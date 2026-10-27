@@ -9,9 +9,15 @@ const escapeHtml = (value = '') => String(value || '')
 
 const plainTextToHtml = (value = '') => escapeHtml(value).replace(/\r?\n/g, '<br>');
 
-const originalMessageHtml = (email, plainBody) => (
-    extractHtmlBody(email.body_html) || plainTextToHtml(plainBody || email.body || '')
-);
+const originalMessageHtml = (email, plainBody) => {
+    const source = String(email.body_html || '');
+    const body = extractHtmlBody(source);
+    if (!body) return plainTextToHtml(plainBody || email.body || '');
+    const head = source.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] || '';
+    const styles = head.match(/<style\b[^>]*>[\s\S]*?<\/style>/gi)?.join('') || '';
+    const bodyAttributes = source.match(/<body\b([^>]*)>/i)?.[1] || '';
+    return `${styles}<div${bodyAttributes}>${body}</div>`;
+};
 
 export const splitRecipients = (value = '') => {
     return String(value || '')

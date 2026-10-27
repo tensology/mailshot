@@ -7,6 +7,8 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 
 const { sanitizeComposeHtml } = await import('./composeHtml.js');
+const { buildReplyHtml, buildForwardHtml } = await import('./recipients.js');
+const { htmlToPlainText, applySignatureHtml } = await import('./signatureComposer.js');
 
 test('preserves safe table markup and removes unsafe content', () => {
     const result = sanitizeComposeHtml('<table><tbody><tr><th>Invoice</th><td style="text-align:right">R 100</td></tr></tbody></table><script>alert(1)</script>');
@@ -31,4 +33,22 @@ test('preserves quoted rich email markup and removes scripts', () => {
     assert.match(result, /<table>/);
     assert.match(result, /<img src="https:\/\/example\.com\/logo\.png">/);
     assert.doesNotMatch(result, /script|alert/);
+});
+
+test('editing and saving a reply or forward preserves styles, headings, images and tables', () => {
+    const email = { from: 'sender@example.com', to: 'recipient@example.com', subject: 'Styled mail', date: '2026-10-27T08:00:00Z', body_html: '<head><style>@media(max-width:600px){table{width:100%}}</style></head><body><h2>Original heading</h2><table role="presentation"><tr><td style="padding:0;border:0">Original text<img src="https://example.com/banner.png"></td></tr></table></body>' };
+    for (const build of [buildReplyHtml, buildForwardHtml]) {
+        const editor = document.createElement('div');
+        editor.innerHTML = sanitizeComposeHtml(applySignatureHtml(build(email), '<p>Signature</p>'));
+        editor.prepend(document.createTextNode('My edited message'));
+        editor.querySelector('td').firstChild.textContent = 'Edited quote';
+        const saved = sanitizeComposeHtml(editor.innerHTML);
+        assert.match(saved, /My edited message/);
+        assert.match(saved, /<style>@media\(max-width:600px\)/);
+        assert.match(saved, /<h2>Original heading<\/h2>/);
+        assert.match(saved, /style="padding:0;border:0"/);
+        assert.match(saved, /Edited quote<img/);
+        assert.ok(saved.indexOf('Signature') < saved.indexOf('data-mailshot-quoted'));
+        assert.doesNotMatch(htmlToPlainText(saved), /@media|width:100%/);
+    }
 });

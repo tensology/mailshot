@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
@@ -29,6 +29,7 @@ import {
     filterContactSuggestions
 } from '../utils/contactSuggestions';
 import { sanitizeComposeHtml } from '../utils/composeHtml';
+import { buildEmailDocument } from '../utils/emailDocument';
 import RecipientField from './RecipientField';
 import ConfirmDialog from './common/ConfirmDialog';
 import MailshotFileIcon from './ui/MailshotFileIcon';
@@ -57,18 +58,26 @@ const resolveDraftHtml = (draft = {}) => (
     sanitizeComposeHtml(draft.body_html || draft.html || (draft.body ? plainTextToHtml(draft.body) : ''))
 );
 
-const ComposeBodyEditor = forwardRef(({ value, onChange, placeholder = 'Write your message', className = '' }, ref) => {
+const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = 'Write your message', className = '' }, ref) => {
     const editorRef = useRef(null);
+    const valueRef = useRef(value);
+    const onChangeRef = useRef(onChange);
+    const onDropRef = useRef(onDrop);
+    const cleanupRef = useRef(() => {});
+    const source = useMemo(() => buildEmailDocument(''), []);
+    valueRef.current = value;
+    onChangeRef.current = onChange;
+    onDropRef.current = onDrop;
 
     useImperativeHandle(ref, () => ({
         focus: () => editorRef.current?.focus(),
         setSelectionRange: () => {
             const editor = editorRef.current;
             if (!editor) return;
-            const range = document.createRange();
+            const range = editor.ownerDocument.createRange();
             range.selectNodeContents(editor);
             range.collapse(true);
-            const selection = window.getSelection();
+            const selection = editor.ownerDocument.defaultView.getSelection();
             selection.removeAllRanges();
             selection.addRange(range);
         }
@@ -80,30 +89,65 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, placeholder = 'Write yo
         }
     }, [value]);
 
-    const syncEditor = () => onChange(editorRef.current?.innerHTML || '');
+    useEffect(() => () => cleanupRef.current(), []);
 
-    const pasteHtml = (event) => {
-        const html = event.clipboardData?.getData('text/html');
-        if (!html) return;
+    const initializeEditor = (event) => {
+        cleanupRef.current();
+        const doc = event.currentTarget.contentDocument;
+        const editor = doc.body;
+        editorRef.current = editor;
+        editor.contentEditable = 'true';
+        editor.setAttribute('role', 'textbox');
+        editor.setAttribute('aria-multiline', 'true');
+        editor.setAttribute('aria-label', placeholder);
+        editor.style.padding = '12px';
+        editor.style.boxSizing = 'border-box';
+        editor.style.outline = 'none';
+        editor.style.setProperty('min-height', '100%', 'important');
+        doc.documentElement.style.setProperty('height', '100%', 'important');
+        doc.documentElement.style.setProperty('overflow-y', 'auto', 'important');
+        editor.innerHTML = valueRef.current || '';
 
-        event.preventDefault();
-        document.execCommand('insertHTML', false, sanitizeComposeHtml(html));
-        syncEditor();
+        const syncEditor = () => {
+            if (editor.innerHTML !== valueRef.current) onChangeRef.current(editor.innerHTML);
+        };
+        const pasteHtml = (pasteEvent) => {
+            const html = pasteEvent.clipboardData?.getData('text/html');
+            if (!html) return;
+            pasteEvent.preventDefault();
+            doc.execCommand('insertHTML', false, sanitizeComposeHtml(html));
+            syncEditor();
+        };
+        const dragOver = (dragEvent) => {
+            if (!isFileDropEvent(dragEvent)) return;
+            dragEvent.preventDefault();
+            dragEvent.dataTransfer.dropEffect = 'copy';
+        };
+        const drop = (dropEvent) => onDropRef.current?.(dropEvent);
+        editor.addEventListener('input', syncEditor);
+        editor.addEventListener('blur', syncEditor);
+        editor.addEventListener('paste', pasteHtml);
+        editor.addEventListener('dragover', dragOver);
+        editor.addEventListener('drop', drop);
+        cleanupRef.current = () => {
+            editor.removeEventListener('input', syncEditor);
+            editor.removeEventListener('blur', syncEditor);
+            editor.removeEventListener('paste', pasteHtml);
+            editor.removeEventListener('dragover', dragOver);
+            editor.removeEventListener('drop', drop);
+        };
+        editor.focus();
     };
 
     return (
-        <div className={`relative ${className}`}>
-            <div
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
-                role="textbox"
-                aria-multiline="true"
-                aria-label={placeholder}
-                className="h-full min-h-[180px] overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-md [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6"
-                onInput={syncEditor}
-                onBlur={syncEditor}
-                onPaste={pasteHtml}
+        <div className={`relative focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 ${className}`}>
+            <iframe
+                title={placeholder}
+                srcDoc={source}
+                onLoad={initializeEditor}
+                sandbox="allow-same-origin"
+                referrerPolicy="no-referrer"
+                className="h-full min-h-[180px] w-full border-0 bg-white"
             />
             {!String(value || '').trim() && (
                 <span className="pointer-events-none absolute left-3 top-3 text-sm text-slate-400">{placeholder}</span>
@@ -1064,6 +1108,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             ref={bodyRef}
                             value={data.html}
                             onChange={onBodyHtmlChange}
+                            onDrop={addAttachments}
                             placeholder="Write your message"
                             className="min-h-0 flex-1 overflow-hidden"
                         />

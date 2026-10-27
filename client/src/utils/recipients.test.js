@@ -30,3 +30,15 @@ test('reply html quotes the rich body and escapes header values', () => {
     assert.match(result, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
     assert.match(result, /<table>/);
 });
+
+test('replies and forwards retain sender styles, media queries and body formatting', () => {
+    const original = { ...email, body_html: '<html><head><style>@media(max-width:600px){.newsletter{width:100%}}</style></head><body style="font-family:Arial"><h1>Newsletter</h1><table role="presentation"><tr><td>Original</td></tr></table></body></html>' };
+    for (const build of [buildReplyHtml, buildForwardHtml]) {
+        const html = build(original);
+        assert.match(html, /<style>@media\(max-width:600px\)/);
+        assert.match(html, /<div style="font-family:Arial">/);
+        assert.match(html, /<h1>Newsletter<\/h1>/);
+        assert.match(html, /role="presentation"/);
+        assert.doesNotMatch(html, /<head>|<body/);
+    }
+});
