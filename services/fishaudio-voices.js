@@ -13,6 +13,12 @@ const fishKeyFor = (settings = {}) => String(settings.tts?.fishaudio_key || '').
 const DICEBEAR_BASE = 'https://api.dicebear.com/9.x/avataaars/svg';
 const avatarFor = (seed) => `${DICEBEAR_BASE}?seed=${encodeURIComponent(String(seed || 'voice'))}&backgroundType=gradientLinear`;
 
+// Voices with a hand-picked character image (served from the client's /public).
+const CUSTOM_AVATARS = {
+    '8cb180b1ab9949e2bb59e1aaf9fa062c': '/voice-hayley.png' // Hayley Williams (Decisions AI)
+};
+const avatarForVoice = (id, fallbackSeed) => CUSTOM_AVATARS[id] || avatarFor(id || fallbackSeed);
+
 const mapVoice = (item = {}) => {
     const id = String(item._id || item.id || '').trim();
     const name = String(item.title || '').trim() || 'Voice';
@@ -20,7 +26,7 @@ const mapVoice = (item = {}) => {
         id,
         name,
         cover_image: String(item.cover_image || '').trim(),
-        avatar_url: avatarFor(id || name),
+        avatar_url: avatarForVoice(id, name),
         languages: Array.isArray(item.languages) ? item.languages.map(String) : [],
         tags: Array.isArray(item.tags) ? item.tags.map(String) : []
     };
@@ -103,7 +109,7 @@ export const listFishAudioVoices = async (settings = {}) => {
             id,
             name: id === defaultVoiceId ? 'Default voice' : 'Current voice',
             cover_image: '',
-            avatar_url: avatarFor(id),
+            avatar_url: avatarForVoice(id),
             languages: [],
             tags: []
         });
