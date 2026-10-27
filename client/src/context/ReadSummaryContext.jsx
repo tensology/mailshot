@@ -189,7 +189,7 @@ const ReadSummaryPlayer = ({
                 onEnded={() => setPlaying(false)}
             />
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
                 <div className="relative shrink-0">
                     <button
                         type="button"
@@ -293,12 +293,14 @@ const ReadSummaryPlayer = ({
 
 const ReadSummaryPreparing = ({ message = 'Preparing read summary', summary = '' }) => (
     <ReadSummaryShell tone="preparing">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800">
-            <MailshotIcon name="refresh" size={28} active />
-        </span>
-        <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white">{message}</p>
-            {summary && <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{summary}</p>}
+        <div className="flex items-center gap-3">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 shadow-lg">
+                <MailshotIcon name="refresh" size={28} active />
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white">{message}</p>
+                {summary && <p className="mt-0.5 line-clamp-2 text-xs text-slate-400">{summary}</p>}
+            </div>
         </div>
     </ReadSummaryShell>
 );
