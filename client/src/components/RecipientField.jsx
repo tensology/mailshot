@@ -95,7 +95,7 @@ const RecipientField = ({
                     aria-expanded={suggestions.length > 0}
                     aria-controls={listId}
                     aria-autocomplete="list"
-                    className="w-full min-w-0 bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                    className="w-full min-w-0 bg-transparent text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
                 />
                 {suggestions.length > 0 && (
                     <ul

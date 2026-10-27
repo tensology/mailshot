@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildForwardHtml, buildReplyHtml } from './recipients.js';
+import { buildForwardHtml, buildReplyHtml, buildReplyAllRecipients } from './recipients.js';
 
 const email = {
     from: 'Sender <sender@example.com>',
@@ -12,6 +12,20 @@ const email = {
     body: 'Plain fallback',
     body_html: '<html><head><style>ignored</style></head><body><table><tbody><tr><td style="color:red">Original</td></tr></tbody></table><img src="https://example.com/logo.png"></body></html>'
 };
+
+test('reply all excludes the signed-in mailbox and keeps other recipients', () => {
+    assert.deepEqual(buildReplyAllRecipients({ ...email, cc: 'Colleague <colleague@example.com>, PAUL@TENSOLOGY.COM' }, 'paul@tensology.com'), {
+        to: email.from,
+        cc: 'Colleague <colleague@example.com>'
+    });
+});
+
+test('reply all to a sent message retains recipients without copying the sender', () => {
+    assert.deepEqual(buildReplyAllRecipients({ ...email, type: 'sent', from: email.to, to: email.from }, 'paul@tensology.com'), {
+        to: email.from,
+        cc: ''
+    });
+});
 
 test('forward html preserves the original rich body', () => {
     const result = buildForwardHtml(email);

@@ -18,6 +18,7 @@ import {
     buildReplyRecipients
 } from '../utils/recipients';
 import { useCompose } from '../context/ComposeContext';
+import { useAuth } from '../context/AuthContext';
 import ConfirmDialog from './common/ConfirmDialog';
 import MoveToLabelMenu from './MoveToLabelMenu';
 import ThreadMessage from './ThreadMessage';
@@ -40,6 +41,7 @@ import {
 } from '../utils/downloadAttachment';
 
 const ViewEmail = () => {
+    const { username } = useAuth();
     const { openComposeDraft } = useCompose();
     const getThreadService = useApi(API_URLS.getEmailThread);
     const getLabelsService = useApi(API_URLS.getLabels);
@@ -231,7 +233,7 @@ const ViewEmail = () => {
         }
 
         if (mode === 'reply-all') {
-            const { to, cc } = buildReplyAllRecipients(message);
+            const { to, cc } = buildReplyAllRecipients(message, username);
             openComposeDraft({
                 to,
                 cc,

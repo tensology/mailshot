@@ -107,7 +107,7 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = '
         doc.documentElement.style.setProperty('height', '100%', 'important');
         doc.documentElement.style.setProperty('overflow-y', 'auto', 'important');
         const mobileStyles = doc.createElement('style');
-        mobileStyles.textContent = '@media(max-width:500px){body{padding:4px!important}[data-mailshot-quoted]{margin-left:0!important}}';
+        mobileStyles.textContent = '@media(max-width:500px){body{padding:4px!important;font-size:16px}[data-mailshot-quoted]{margin-left:0!important}}';
         doc.head.append(mobileStyles);
         editor.innerHTML = valueRef.current || '';
 
@@ -992,7 +992,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                         }
                     }}
                     onDrop={addAttachments}
-                    className="flex min-h-0 flex-1 flex-col"
+                    className="flex min-h-0 flex-1 flex-col overflow-y-auto"
                 >
                     <div className="space-y-0 border-b border-slate-100">
                         <div className="flex items-start gap-2 px-3 py-2">
@@ -1025,7 +1025,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     role="combobox"
                                     aria-expanded={toSuggestions.length > 0}
                                     aria-autocomplete="list"
-                                    className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                                    className="min-w-[8rem] flex-1 bg-transparent text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
                                 />
                                 {toSuggestions.length > 0 && (
                                     <ul
@@ -1101,12 +1101,12 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 placeholder="Subject"
                                 value={data.subject}
                                 onChange={onValueChange}
-                                className="w-full bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                                className="w-full bg-transparent text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
                             />
                         </div>
                     </div>
 
-                    <div className={`flex min-h-0 flex-1 ${isExpanded && !isMobile ? 'flex-row' : 'flex-col'}`}>
+                    <div className={`flex min-h-[180px] flex-1 ${isExpanded && !isMobile ? 'flex-row' : 'flex-col'}`}>
                         <ComposeBodyEditor
                             ref={bodyRef}
                             value={data.html}
@@ -1360,7 +1360,7 @@ const ComposeMail = ({ onSent }) => {
             )}
             <div
                 ref={shelfRef}
-                className="pointer-events-auto flex max-w-full items-end gap-2 overflow-x-auto px-6 pt-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="pointer-events-auto flex max-w-full items-end gap-2 overflow-x-auto px-3 pt-12 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 onScroll={updateShelfOverflow}
             >
                 {composeItems.map((item) => (
