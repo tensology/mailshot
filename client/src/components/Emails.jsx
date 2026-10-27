@@ -1550,7 +1550,7 @@ const Emails = () => {
                                 type="button"
                                 onClick={handleSummarizeAll}
                                 disabled={summarizeAllActive || startSummarizeAllService.isLoading}
-                                className={`inline-flex h-9 min-w-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 sm:shrink-0 ${
+                                className={`inline-flex h-11 min-w-0 items-center justify-center rounded-full border px-3 text-center text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 sm:h-9 sm:shrink-0 ${
                                     summarizeAllActive
                                         ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                                         : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:text-emerald-700'
@@ -1565,7 +1565,7 @@ const Emails = () => {
                             type="button"
                             onClick={toggleUnreadFilter}
                             aria-pressed={unreadFilter}
-                            className={`inline-flex h-9 min-w-0 items-center justify-center rounded-full border px-3 text-sm font-semibold transition sm:shrink-0 ${
+                            className={`inline-flex h-11 min-w-0 items-center justify-center rounded-full border px-3 text-center text-sm font-semibold transition sm:h-9 sm:shrink-0 ${
                                 unreadFilter
                                     ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700'
@@ -1573,7 +1573,7 @@ const Emails = () => {
                         >
                             Unread only
                         </button>
-                        <label className="inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 sm:shrink-0">
+                        <label className={`inline-flex h-11 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-center text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 sm:col-auto sm:h-9 sm:shrink-0 ${readSummaryEnabled && isSuperuser && activeTab === 'inbox' ? 'col-span-2' : ''}`}>
                             <input
                                 type="checkbox"
                                 checked={sectionOnlySearch}

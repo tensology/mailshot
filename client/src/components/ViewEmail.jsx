@@ -608,7 +608,7 @@ const ViewEmail = () => {
             <div
                 role="toolbar"
                 aria-label="Email actions"
-                className="mailshot-no-print sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-1 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-2 py-1.5 backdrop-blur sm:px-4 lg:py-2"
+                className="mailshot-no-print sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-center gap-1 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-2 py-1.5 backdrop-blur sm:justify-start sm:px-4 lg:py-2"
             >
                 <div className="contents sm:flex sm:max-w-full sm:flex-wrap sm:items-center sm:gap-1">
                     <IconButton size="touch" label="Back" className={toolbarButtonClass} onClick={() => navigate(backUrl)}>
@@ -660,7 +660,7 @@ const ViewEmail = () => {
                         <MailshotIcon name="print" size={28} />
                     </IconButton>
                 </div>
-                <div className="ml-auto flex shrink-0 items-center gap-1">
+                <div className="contents sm:ml-auto sm:flex sm:shrink-0 sm:items-center sm:gap-1">
                     {readSummaryEnabled && (
                         <IconButton
                             size="touch"
