@@ -140,9 +140,14 @@ const ReadSummaryPlayer = ({
     const [duration, setDuration] = useState(0);
     const [rate, setRate] = useState(1);
     const [pickerOpen, setPickerOpen] = useState(false);
+    const [query, setQuery] = useState('');
 
     const activeVoice = voices.find((voice) => voice.id === activeVoiceId) || null;
     const progress = duration > 0 ? Math.min(100, (current / duration) * 100) : 0;
+    const normalizedQuery = query.trim().toLowerCase();
+    const filteredVoices = normalizedQuery
+        ? voices.filter((voice) => voice.name.toLowerCase().includes(normalizedQuery))
+        : voices;
 
     const togglePlay = () => {
         const audio = audioRef.current;
@@ -190,10 +195,10 @@ const ReadSummaryPlayer = ({
             />
 
             <div className="flex items-start gap-3">
-                <div className="relative shrink-0">
+                <div className="shrink-0">
                     <button
                         type="button"
-                        onClick={() => setPickerOpen((value) => !value)}
+                        onClick={() => setPickerOpen(true)}
                         className="relative h-14 w-14 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 shadow-lg"
                         title="Change voice"
                         aria-label="Change voice"
@@ -203,32 +208,6 @@ const ReadSummaryPlayer = ({
                             <MailshotIcon name="chevron-down" size={14} />
                         </span>
                     </button>
-
-                    {pickerOpen && (
-                        <div className="absolute bottom-full left-0 z-10 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-1 shadow-2xl">
-                            {voicesLoading && <p className="px-2 py-3 text-xs text-slate-400">Loading voices…</p>}
-                            {!voicesLoading && !voices.length && <p className="px-2 py-3 text-xs text-slate-400">No voices available.</p>}
-                            {voices.map((voice) => (
-                                <button
-                                    key={voice.id}
-                                    type="button"
-                                    onClick={() => {
-                                        setPickerOpen(false);
-                                        onSelectVoice?.(voice.id);
-                                    }}
-                                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition ${
-                                        voice.id === activeVoiceId ? 'bg-slate-700 font-semibold text-white' : 'text-slate-200 hover:bg-slate-700/60'
-                                    }`}
-                                >
-                                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-600">
-                                        <VoiceAvatar voice={voice} size={32} />
-                                    </span>
-                                    <span className="min-w-0 flex-1 truncate">{voice.name}</span>
-                                    {voice.id === activeVoiceId && <span aria-hidden="true" className="text-slate-400">✓</span>}
-                                </button>
-                            ))}
-                        </div>
-                    )}
                 </div>
 
                 <div className="min-w-0 flex-1">
@@ -286,6 +265,66 @@ const ReadSummaryPlayer = ({
             </div>
 
             {!audioUrl && <p className="mt-2 text-xs text-amber-400">Audio file is not available yet.</p>}
+
+            {pickerOpen && (
+                <div
+                    className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+                    onClick={() => setPickerOpen(false)}
+                >
+                    <div
+                        className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                            <h2 className="text-base font-semibold text-slate-900">Choose a voice</h2>
+                            <IconButton label="Close" size="sm" onClick={() => setPickerOpen(false)}>
+                                <MailshotIcon name="close" size={20} />
+                            </IconButton>
+                        </div>
+                        <div className="border-b border-slate-100 px-4 py-3">
+                            <input
+                                type="search"
+                                value={query}
+                                onChange={(event) => setQuery(event.target.value)}
+                                placeholder="Search voices"
+                                autoFocus
+                                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            />
+                        </div>
+                        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4">
+                            {voicesLoading && <p className="py-6 text-center text-sm text-slate-500">Loading voices…</p>}
+                            {!voicesLoading && !filteredVoices.length && (
+                                <p className="py-6 text-center text-sm text-slate-500">
+                                    {query ? `No voices match “${query}”.` : 'No voices available.'}
+                                </p>
+                            )}
+                            {!voicesLoading && filteredVoices.length > 0 && (
+                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                                    {filteredVoices.map((voice) => {
+                                        const isActive = voice.id === activeVoiceId;
+                                        return (
+                                            <button
+                                                key={voice.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setPickerOpen(false);
+                                                    onSelectVoice?.(voice.id);
+                                                }}
+                                                className={`flex flex-col items-center gap-2 rounded-xl p-2 transition ${isActive ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-slate-100'}`}
+                                            >
+                                                <span className={`h-20 w-20 overflow-hidden rounded-full border-2 ${isActive ? 'border-blue-400' : 'border-slate-200'}`}>
+                                                    <VoiceAvatar voice={voice} size={80} />
+                                                </span>
+                                                <span className="line-clamp-2 min-h-[2.5rem] text-center text-xs font-medium text-slate-700">{voice.name}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </ReadSummaryShell>
     );
 };
