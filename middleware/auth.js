@@ -1,7 +1,7 @@
 import { getSession } from '../services/auth-store.js';
 import { isAuthConfigured } from '../services/auth-config.js';
 import { getAccount, accountsForUser } from '../services/accounts-config.js';
-import { runWithAccount } from '../services/account-context.js';
+import { enterAccount } from '../services/account-context.js';
 
 const extractToken = (request) => {
     const header = request.headers.authorization || '';
@@ -43,6 +43,17 @@ export const requireAuth = (request, response, next) => {
         token,
         accountId: account.id
     };
+    request.account = account;
 
-    return runWithAccount(account, () => next());
+    enterAccount(account);
+    return next();
+};
+
+// Re-establish the account context after an async body parser (multer) hands
+// off, because that hand-off creates a fresh async context.
+export const requireAccountContext = (request, response, next) => {
+    if (request.account) {
+        enterAccount(request.account);
+    }
+    return next();
 };

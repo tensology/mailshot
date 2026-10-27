@@ -70,7 +70,7 @@ import {
     testTensologyConnection
 } from '../controller/settings-controller.js';
 
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireAccountContext } from '../middleware/auth.js';
 
 const routes = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -83,8 +83,8 @@ routes.post('/auth/logout', logout);
 routes.use(requireAuth);
 
 routes.post('/save', saveSendEmails);
-routes.post('/send', upload.array('attachments', 10), sendEmail);
-routes.post('/save-draft', upload.array('attachments', 10), saveDraftEmail);
+routes.post('/send', upload.array('attachments', 10), requireAccountContext, sendEmail);
+routes.post('/save-draft', upload.array('attachments', 10), requireAccountContext, saveDraftEmail);
 routes.get('/emails/search', searchEmails);
 routes.get('/email/:id/attachments.zip', downloadAllAttachments);
 routes.get('/email/:id/attachments/:attachmentId', downloadAttachment);

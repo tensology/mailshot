@@ -33,6 +33,7 @@ import {
     startBulkReadAloudSummaries
 } from '../services/email-summary-service.js';
 import { isSuperUser } from '../services/settings-store.js';
+import { getActiveAccount } from '../services/account-context.js';
 import { getMailboxIndexAvailability } from '../services/mailbox-read-state.js';
 import {
     getMailboxRepository,
@@ -533,13 +534,13 @@ const normalizeDraftPayload = (payload = {}) => {
         to: String(payload.to || ''),
         cc: String(payload.cc || ''),
         bcc: String(payload.bcc || ''),
-        from: String(payload.from || process.env.MAIL_FROM || process.env.MAILBOX_USER || ''),
+        from: String(payload.from || getActiveAccount()?.smtp?.from || process.env.MAIL_FROM || process.env.MAILBOX_USER || ''),
         subject: String(payload.subject || ''),
         body: String(payload.body || ''),
         body_html: String(payload.body_html || ''),
         date: payload.date || now,
         image: payload.image || '',
-        name: String(payload.name || process.env.MAILBOX_USER || process.env.MAIL_FROM || ''),
+        name: String(payload.name || getActiveAccount()?.smtp?.fromName || process.env.MAILBOX_USER || process.env.MAIL_FROM || ''),
         starred: parseBoolean(payload.starred),
         bin: false,
         archived: false,
@@ -1622,13 +1623,13 @@ export const sendEmail = async (request, response) => {
 
         const savedMail = {
             to: payload.to,
-            from: process.env.MAIL_FROM || process.env.MAILBOX_USER || process.env.MAIL_USERNAME,
+            from: getActiveAccount()?.smtp?.from || process.env.MAIL_FROM || process.env.MAILBOX_USER || process.env.MAIL_USERNAME,
             subject: payload.subject,
             body: payload.body,
             body_html: payload.html,
             date: new Date(),
             image: '',
-            name: process.env.MAIL_NAME || 'Me',
+            name: getActiveAccount()?.smtp?.fromName || process.env.MAIL_NAME || 'Me',
             starred: false,
             bin: false,
             archived: false,
