@@ -5,14 +5,11 @@ import { useLayout } from '../../context/LayoutContext';
 import IconButton from '../ui/IconButton';
 import SettingsDialog from '../SettingsDialog';
 import MailshotIcon from '../ui/MailshotIcon';
-import API from '../../services/api';
-import { API_URLS } from '../../services/api.urls';
 import { getProfilePhoto } from '../../utils/profilePhoto';
 
 const Header = () => {
     const [accountMenuOpen, setAccountMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [devAgent, setDevAgent] = useState({ capable: false, enabled: false });
     const accountMenuRef = useRef(null);
     const navigate = useNavigate();
     const {
@@ -31,27 +28,6 @@ const Header = () => {
     const handleLogout = async () => {
         await logout();
         navigate('/login', { replace: true });
-    };
-
-    useEffect(() => {
-        if (!activeAccount?.dev_agent_capable) {
-            setDevAgent({ capable: false, enabled: false });
-            return;
-        }
-        API(API_URLS.getDevSettings, {}, '')
-            .then((response) => setDevAgent({ capable: Boolean(response.data?.capable), enabled: Boolean(response.data?.enabled) }))
-            .catch(() => setDevAgent({ capable: true, enabled: false }));
-    }, [activeAccount?.id, activeAccount?.dev_agent_capable]);
-
-    const toggleDevAgent = async () => {
-        const next = !devAgent.enabled;
-        setDevAgent((value) => ({ ...value, enabled: next }));
-        try {
-            await API(API_URLS.updateDevSettings, { enabled: next }, '');
-            window.dispatchEvent(new Event('mailshot:settings-updated'));
-        } catch {
-            setDevAgent((value) => ({ ...value, enabled: !next }));
-        }
     };
 
     useEffect(() => {
@@ -122,18 +98,6 @@ const Header = () => {
                                 role="menu"
                                 className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl"
                             >
-                                {activeAccount?.dev_agent_capable && (
-                                    <div className="border-b border-slate-100 px-4 py-3">
-                                        <label className="flex cursor-pointer items-center justify-between gap-3 text-sm text-slate-700">
-                                            <span className="flex items-center gap-2">
-                                                <MailshotIcon name="settings" size={18} />
-                                                PlanMyCharter AI builder
-                                            </span>
-                                            <input type="checkbox" checked={devAgent.enabled} onChange={toggleDevAgent} />
-                                        </label>
-                                        <p className="mt-1 text-xs text-slate-500">Prompt the dev agent from the bottom-right corner.</p>
-                                    </div>
-                                )}
                                 {hasMultipleAccounts && (
                                     <div className="border-b border-slate-100 px-2 py-2">
                                         <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">

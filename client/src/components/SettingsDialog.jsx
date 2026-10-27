@@ -8,6 +8,20 @@ import Input from './ui/Input';
 import Toast from './ui/Toast';
 import { MAIL_FROM } from '../config/env';
 import MailshotIcon from './ui/MailshotIcon';
+import API from '../services/api';
+import { useAuth } from '../context/AuthContext';
+
+const Switch = ({ checked, onChange }) => (
+    <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${checked ? 'bg-emerald-500' : 'bg-slate-300'}`}
+    >
+        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${checked ? 'translate-x-[1.375rem]' : 'translate-x-0.5'}`} />
+    </button>
+);
 import { normalizeSignatureHtml } from '../utils/signatureComposer';
 
 const DEFAULT_EMAIL = String(MAIL_FROM || 'paul@tensology.com').trim().toLowerCase();
@@ -286,7 +300,32 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
 };
 
 const SettingsDialog = ({ open, isSuperuser, onClose }) => {
+    const { activeAccount } = useAuth();
+    const canUseDevAgent = Boolean(activeAccount?.dev_agent_capable);
+    const [devAgent, setDevAgent] = useState({ enabled: false, auto_deploy: false });
     const [activeTab, setActiveTab] = useState('signature');
+
+    useEffect(() => {
+        if (!open || !canUseDevAgent) {
+            return;
+        }
+        API(API_URLS.getDevSettings, {}, '')
+            .then((response) => setDevAgent({
+                enabled: Boolean(response.data?.enabled),
+                auto_deploy: Boolean(response.data?.auto_deploy)
+            }))
+            .catch(() => {});
+    }, [open, canUseDevAgent]);
+
+    const setDevAgentSetting = async (patch) => {
+        setDevAgent((value) => ({ ...value, ...patch }));
+        try {
+            await API(API_URLS.updateDevSettings, patch, '');
+            window.dispatchEvent(new Event('mailshot:settings-updated'));
+        } catch {
+            setDevAgent((value) => ({ ...value, ...patch, ...Object.fromEntries(Object.keys(patch).map((key) => [key, !patch[key]])) }));
+        }
+    };
     const [general, setGeneral] = useState(emptyGeneral);
     const [selectedEmail, setSelectedEmail] = useState(DEFAULT_EMAIL);
     const [newEmail, setNewEmail] = useState('');
@@ -598,6 +637,15 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                     >
                         Templates
                     </button>
+                    {canUseDevAgent && (
+                        <button
+                            type="button"
+                            className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'devagent' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                            onClick={() => setActiveTab('devagent')}
+                        >
+                            AI Builder
+                        </button>
+                    )}
                     {isSuperuser && (
                         <>
                             <button
@@ -929,6 +977,29 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             <MailshotIcon name="save" size={22} />
                             Save TTS settings
                         </Button>
+                    </div>
+                )}
+
+                {activeTab === 'devagent' && canUseDevAgent && (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
+                            <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-900">PlanMyCharter AI Builder</p>
+                                <p className="mt-0.5 text-sm leading-5 text-slate-500">
+                                    Prompt the AI to make changes to PlanMyCharter from the box at the bottom-right of Mailshot.
+                                </p>
+                            </div>
+                            <Switch checked={devAgent.enabled} onChange={(value) => setDevAgentSetting({ enabled: value })} />
+                        </div>
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
+                            <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-900">Deploy automatically</p>
+                                <p className="mt-0.5 text-sm leading-5 text-slate-500">
+                                    When on, every prompt is saved and put live straight away. When off, you approve each change yourself.
+                                </p>
+                            </div>
+                            <Switch checked={devAgent.auto_deploy} onChange={(value) => setDevAgentSetting({ auto_deploy: value })} />
+                        </div>
                     </div>
                 )}
 
