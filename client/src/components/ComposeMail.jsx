@@ -1360,7 +1360,7 @@ const ComposeMail = ({ onSent }) => {
             )}
             <div
                 ref={shelfRef}
-                className="pointer-events-auto flex max-w-full items-end gap-2 overflow-x-auto px-3 pt-12 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="pointer-events-auto flex max-w-full items-end gap-2 overflow-x-auto px-3 pt-12 lg:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 onScroll={updateShelfOverflow}
             >
                 {composeItems.map((item) => (
