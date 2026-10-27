@@ -665,34 +665,36 @@ const DevAgentPanel = () => {
 
     const phaseIndex = PHASE_INDEX[phase] ?? -1;
 
-    // A single line that updates in place - never a growing list of actions.
-    const activityLine = activity && (
-        <div className="flex justify-start">
-            <p className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
-                {activity}
-            </p>
+    const progressPill = running ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
+            {STEPS.map((step, index) => {
+                const done = phaseIndex > index;
+                const active = phaseIndex === index;
+                return (
+                    <span
+                        key={step.key}
+                        className={`inline-flex items-center gap-2 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
+                    >
+                        {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
+                        {step.label}
+                    </span>
+                );
+            })}
         </div>
-    );
+    ) : null;
 
-    // The live process belongs to the run started by the last user message, so it
-    // is anchored there - never after the reply it produced.
-    const processStrip = running ? (
+    // Headline first (how far along), then the detail of what it is doing right now.
+    // Anchored to the user message that started the run, never below the reply.
+    const processStrip = (running || activity) ? (
         <div className="flex justify-start">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
-                {STEPS.map((step, index) => {
-                    const done = phaseIndex > index;
-                    const active = phaseIndex === index;
-                    return (
-                        <span
-                            key={step.key}
-                            className={`inline-flex items-center gap-1.5 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
-                        >
-                            {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
-                            {step.label}
-                        </span>
-                    );
-                })}
+            <div className="flex flex-col items-start gap-2">
+                {progressPill}
+                {activity && (
+                    <p className="inline-flex items-center gap-2 pl-3 text-xs text-slate-500">
+                        {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
+                        {activity}
+                    </p>
+                )}
             </div>
         </div>
     ) : null;
@@ -736,7 +738,6 @@ const DevAgentPanel = () => {
 
     const liveRun = (
         <>
-            {activityLine}
             {processStrip}
             {liveThread}
         </>
