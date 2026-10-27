@@ -5,7 +5,7 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
-import { parseMailAttachments } from './attachments.js';
+import { deleteAttachmentFile, parseMailAttachments } from './attachments.js';
 import { slugify } from '../utils/slug.js';
 import { sendMail } from './mailer.js';
 import { findSettingsForEmail, getSettings, markAutoresponderSent } from './settings-store.js';
@@ -778,7 +778,12 @@ const importMessageFromImap = async ({
     const messageId = parsed.messageId || `${msg.uid}-${mailbox}`;
     const emailType = isMailboxSender(fromValue) ? 'sent' : 'inbox';
     const attachments = parseMailAttachments(parsed.attachments || []);
+    // Attachments are written to disk before the dedupe check below. If the
+    // message is skipped (already stored or suppressed) the freshly written
+    // files are unreferenced, so delete them instead of leaking them.
+    let attachmentsKept = false;
     const ccValue = createAddressString(parsed.cc);
+    try {
 
     if (isMessageSuppressed(messageId)) {
         return { skipped: true };
@@ -846,6 +851,7 @@ const importMessageFromImap = async ({
             payload: importedEmail,
             deleteAfterImport
         });
+        attachmentsKept = true;
         if (!isSpamFolder) {
             await sendAutoResponderIfNeeded(importedEmail);
             enqueueEmailSummary(importedEmail);
@@ -889,6 +895,7 @@ const importMessageFromImap = async ({
         if (!emailDoc) {
             return { skipped: true };
         }
+        attachmentsKept = true;
         if (!isSpamFolder) {
             await sendAutoResponderIfNeeded(payload);
             enqueueEmailSummary(emailDoc.toObject ? emailDoc.toObject() : emailDoc);
@@ -903,6 +910,7 @@ const importMessageFromImap = async ({
             spam: isSpamFolder ? true : existing.spam,
             in_inbox: isSpamFolder ? false : existing.in_inbox
         });
+        attachmentsKept = true;
         return { skipped: true };
     }
 
@@ -918,11 +926,23 @@ const importMessageFromImap = async ({
         in_inbox: isSpamFolder ? false : labelState.in_inbox,
         labels: labelState.labels
     });
+    attachmentsKept = true;
     if (!isSpamFolder) {
         await sendAutoResponderIfNeeded(payload);
         enqueueEmailSummary(cachedEmail);
     }
     return { synced: true, uid: msg.uid };
+    } finally {
+        if (!attachmentsKept) {
+            for (const attachment of attachments) {
+                try {
+                    deleteAttachmentFile(attachment.storage_path);
+                } catch (error) {
+                    console.error('Failed to clean orphaned attachment', attachment?.storage_path, error?.message || error);
+                }
+            }
+        }
+    }
 };
 
 const syncMailboxFolder = async (client, mailbox, { isSpamFolder = false } = {}) => {
