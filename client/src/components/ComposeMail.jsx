@@ -107,7 +107,7 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = '
         doc.documentElement.style.setProperty('height', '100%', 'important');
         doc.documentElement.style.setProperty('overflow-y', 'auto', 'important');
         const mobileStyles = doc.createElement('style');
-        mobileStyles.textContent = '@media(max-width:500px){body{padding:4px!important;font-size:16px}[data-mailshot-quoted]{margin-left:0!important}}';
+        mobileStyles.textContent = '@media(max-width:640px){body{padding:4px!important;font-size:16px}[data-mailshot-quoted]{margin-left:0!important;padding-left:4px!important}}';
         doc.head.append(mobileStyles);
         editor.innerHTML = valueRef.current || '';
 
