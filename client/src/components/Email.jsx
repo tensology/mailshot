@@ -214,10 +214,42 @@ const Email = ({
                 />
             </div>
 
+            {showArchiveButton && (
+                <button
+                    type="button"
+                    onClick={handleArchiveToggle}
+                    className="flex min-h-[4.75rem] shrink-0 items-center px-1 text-slate-400 opacity-70 transition hover:text-blue-600 hover:opacity-100 focus:opacity-100 focus:outline-none sm:min-h-[4.25rem]"
+                    aria-label={archiveActionLabel}
+                    title={archiveActionLabel}
+                >
+                    <MailshotIcon name={archiveIconName} size={20} />
+                </button>
+            )}
+
+            {readSummaryEnabled && (
+                <button
+                    type="button"
+                    onClick={handleReadSummary}
+                    onContextMenu={onReadSummaryContextMenu}
+                    disabled={readSummaryLoading}
+                    title={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read summary'}
+                    aria-label="Read summary"
+                    className={`flex min-h-[4.75rem] shrink-0 items-center px-1 transition disabled:cursor-wait disabled:opacity-75 sm:min-h-[4.25rem] ${
+                        readAloudReady ? 'hover:text-green-600' : 'hover:text-blue-600'
+                    }`}
+                >
+                    {readSummaryLoading ? (
+                        <MailshotIcon name="refresh" size={20} active />
+                    ) : (
+                        <MailshotIcon name="headphones" size={20} />
+                    )}
+                </button>
+            )}
+
             <button
                 type="button"
                 onClick={toggleStarredEmail}
-                className="flex min-h-[4.75rem] shrink-0 items-center text-slate-400 transition hover:text-amber-500 sm:min-h-[4.25rem]"
+                className="flex min-h-[4.75rem] shrink-0 items-center px-1 text-slate-400 transition hover:text-amber-500 sm:min-h-[4.25rem]"
                 aria-label={email.starred ? 'Unstar' : 'Star'}
             >
                 <MailshotIcon name="star" size={20} className={email.starred ? '' : 'grayscale opacity-55'} />
@@ -284,40 +316,10 @@ const Email = ({
                     )}
                 </div>
                 <div className="mt-0.5 flex shrink-0 items-center justify-end gap-1 text-right text-xs leading-4 text-slate-500 sm:gap-1.5">
-                    {readSummaryEnabled && (
-                        <button
-                            type="button"
-                            onClick={handleReadSummary}
-                            onContextMenu={onReadSummaryContextMenu}
-                            disabled={readSummaryLoading}
-                            title={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read summary'}
-                            aria-label="Read summary"
-                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-75 ${
-                                readAloudReady ? 'hover:bg-green-50' : 'hover:bg-blue-50'
-                            }`}
-                        >
-                            {readSummaryLoading ? (
-                                <MailshotIcon name="refresh" size={20} active />
-                            ) : (
-                                <MailshotIcon name="headphones" size={20} />
-                            )}
-                        </button>
-                    )}
                     <div>
                         <div className="whitespace-nowrap">{dateParts.date}</div>
                         <div className="whitespace-nowrap text-slate-400">{dateParts.time}</div>
                     </div>
-                    {showArchiveButton && (
-                        <button
-                            type="button"
-                            onClick={handleArchiveToggle}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-blue-600 hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                            aria-label={archiveActionLabel}
-                            title={archiveActionLabel}
-                        >
-                            <MailshotIcon name={archiveIconName} size={20} />
-                        </button>
-                    )}
                 </div>
             </div>
         </div>
