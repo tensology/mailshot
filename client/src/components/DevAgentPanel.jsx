@@ -27,6 +27,8 @@ const TOOL_LABELS = {
     write: 'Writing files'
 };
 
+const SITE_URL = 'https://planmycharter.com';
+
 const STEPS = [
     { key: 'thinking', label: 'Thinking' },
     { key: 'developing', label: 'Making changes' },
@@ -64,6 +66,8 @@ const DevAgentPanel = () => {
     });
     const [messages, setMessages] = useState([]);
     const [liveItems, setLiveItems] = useState([]);
+    const [activity, setActivity] = useState('');
+    const [completed, setCompleted] = useState(false);
     const [phase, setPhase] = useState('idle');
     const [running, setRunning] = useState(false);
     const [prompt, setPrompt] = useState('');
@@ -184,12 +188,9 @@ const DevAgentPanel = () => {
                     return [...items, { kind: 'text', text: ev.text }];
                 });
             } else if (ev.type === 'tool_start') {
+                // One line, updated in place - never a growing list.
                 setPhase('developing');
-                setLiveItems((items) => [...items, { kind: 'tool', id: ev.id, name: ev.name, done: false }]);
-            } else if (ev.type === 'tool_end') {
-                setLiveItems((items) => items.map((item) => (
-                    item.kind === 'tool' && item.id === ev.id ? { ...item, done: true } : item
-                )));
+                setActivity(TOOL_LABELS[ev.name] || `Using ${ev.name}`);
             } else if (ev.type === 'notice') {
                 setLiveItems((items) => [...items, { kind: 'notice', text: ev.text }]);
             } else if (ev.type === 'error') {
@@ -221,12 +222,20 @@ const DevAgentPanel = () => {
         } else if (data.type === 'deploy') {
             setRunning(false);
             setDeployable(false);
+            setActivity('');
             setPhase('done');
-            setNotice(data.pushed ? "Done — it's live now" : (data.changed ? 'Could not save it — try again' : 'Nothing to save'));
+            setCompleted(Boolean(data.pushed));
+            try {
+                if (data.pushed) localStorage.setItem('mailshot:devagent-done', activeThreadRef.current);
+                else localStorage.removeItem('mailshot:devagent-done');
+            } catch { /* ignore */ }
+            setNotice(data.pushed ? '' : (data.changed ? 'Could not save it — try again' : 'Nothing to save'));
         } else if (data.type === 'ready_to_deploy') {
             setRunning(false);
             setDeployable(true);
+            setActivity('');
             setPhase('done');
+            setCompleted(false);
             setNotice('Ready — click Make it live');
         } else if (data.type === 'error') {
             setRunning(false);
@@ -333,6 +342,10 @@ const DevAgentPanel = () => {
         activeThreadRef.current = threadId;
         setMessages([]);
         setLiveItems([]);
+        setActivity('');
+        let doneKey = null;
+        try { doneKey = localStorage.getItem('mailshot:devagent-done'); } catch { /* ignore */ }
+        setCompleted(Boolean(threadId) && doneKey === threadId);
         setPhase('idle');
         setNotice('');
         setDeployable(false);
@@ -405,6 +418,9 @@ const DevAgentPanel = () => {
         setPrompt('');
         setFiles([]);
         setLiveItems([]);
+        setActivity('');
+        setCompleted(false);
+        try { localStorage.removeItem('mailshot:devagent-done'); } catch { /* ignore */ }
         setNotice('');
         setDeployable(false);
         setPhase('thinking');
@@ -425,8 +441,13 @@ const DevAgentPanel = () => {
         try {
             const response = await API(API_URLS.applyDev, { message: prompt.trim().slice(0, 80) }, activeThreadId);
             setDeployable(false);
-            setPhase('idle');
-            setNotice(response.data?.pushed ? "Done — it's live now" : 'Nothing to save');
+            setActivity('');
+            setPhase('done');
+            setCompleted(Boolean(response.data?.pushed));
+            try {
+                if (response.data?.pushed) localStorage.setItem('mailshot:devagent-done', activeThreadId);
+            } catch { /* ignore */ }
+            setNotice(response.data?.pushed ? '' : 'Nothing to save');
         } catch (error) {
             setPhase('idle');
             setNotice(error?.response?.data || 'Could not put it live — try again');
@@ -553,7 +574,33 @@ const DevAgentPanel = () => {
     );
 
     const phaseIndex = PHASE_INDEX[phase] ?? -1;
-    const progressStrip = running && (
+
+    // A single line that updates in place - never a growing list of actions.
+    const activityLine = activity && (
+        <div className="flex justify-start">
+            <p className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
+                {activity}
+            </p>
+        </div>
+    );
+
+    const progressStrip = completed ? (
+        <div className="flex justify-start">
+            <div className="inline-flex flex-wrap items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-sm">
+                <span className="text-emerald-400">✓</span>
+                <span className="font-medium">Updated — go and check the website</span>
+                <a
+                    href={SITE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-blue-300 underline underline-offset-2 transition hover:text-blue-200"
+                >
+                    planmycharter.com ↗
+                </a>
+            </div>
+        </div>
+    ) : running ? (
         <div className="flex justify-start">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
                 {STEPS.map((step, index) => {
@@ -571,32 +618,19 @@ const DevAgentPanel = () => {
                 })}
             </div>
         </div>
-    );
+    ) : null;
 
-    const liveThread = liveItems.map((item, index) => {
-        if (item.kind === 'tool') {
-            return (
-                <div key={`tool-${item.id || index}`} className="flex justify-start">
-                    <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${item.done ? 'border-slate-200 bg-white text-slate-500' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
-                        {item.done ? '✓' : <MailshotIcon name="refresh" size={12} active />}
-                        {TOOL_LABELS[item.name] || `Using ${item.name}`}
-                    </div>
-                </div>
-            );
-        }
-        if (item.kind === 'notice') {
-            return (
-                <div key={`notice-${index}`} className="flex justify-start">
-                    <p className={`text-xs ${item.error ? 'font-medium text-red-600' : 'text-slate-400'}`}>{item.text}</p>
-                </div>
-            );
-        }
-        return (
+    const liveThread = liveItems.map((item, index) => (
+        item.kind === 'notice' ? (
+            <div key={`notice-${index}`} className="flex justify-start">
+                <p className={`text-xs ${item.error ? 'font-medium text-red-600' : 'text-slate-400'}`}>{item.text}</p>
+            </div>
+        ) : (
             <div key={`text-${index}`} className="flex justify-start">
                 <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">{item.text}</div>
             </div>
-        );
-    });
+        )
+    ));
 
     return (
         <>
@@ -698,6 +732,7 @@ const DevAgentPanel = () => {
                                     </div>
                                 ))}
 
+                                {activityLine}
                                 {progressStrip}
                                 {liveThread}
                             </div>
