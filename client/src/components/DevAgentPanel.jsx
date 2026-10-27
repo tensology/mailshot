@@ -34,6 +34,7 @@ const DevAgentPanel = () => {
     const [notice, setNotice] = useState('');
     const [dragging, setDragging] = useState(false);
     const [threadToDelete, setThreadToDelete] = useState(null);
+    const [deployable, setDeployable] = useState(false);
     const wsRef = useRef(null);
     const fileInputRef = useRef(null);
     const scrollRef = useRef(null);
@@ -138,16 +139,19 @@ const DevAgentPanel = () => {
                     setTool('');
                 }
             } else if (data.type === 'diff') {
-                setNotice(data.changed ? 'Changes ready to deploy' : 'No file changes');
+                setDeployable(Boolean(data.changed));
+                setNotice(data.changed ? 'Ready to go live' : 'Nothing changed yet');
             } else if (data.type === 'deploy') {
                 setRunning(false);
-                setNotice(data.pushed ? `Deployed ${data.head || ''}` : (data.changed ? 'Commit failed' : 'Nothing to deploy'));
+                setDeployable(false);
+                setNotice(data.pushed ? "Done — it's live now" : (data.changed ? 'Could not save it — try again' : 'Nothing to save'));
             } else if (data.type === 'ready_to_deploy') {
                 setRunning(false);
-                setNotice('Changes ready — click Apply & deploy');
+                setDeployable(true);
+                setNotice('Ready — click Make it live');
             } else if (data.type === 'error') {
                 setRunning(false);
-                setNotice(data.message || 'Run failed');
+                setNotice(data.message || 'Something went wrong — try again');
             }
         };
         socket.onclose = () => {
@@ -247,6 +251,7 @@ const DevAgentPanel = () => {
         setThinking('');
         setTool('');
         setNotice('');
+        setDeployable(false);
         setRunning(true);
         try {
             await API(API_URLS.postDevPrompt, form, threadId);
@@ -258,12 +263,13 @@ const DevAgentPanel = () => {
 
     const applyDeploy = useCallback(async () => {
         if (!activeThreadId) return;
-        setNotice('Committing and deploying…');
+        setNotice('Saving and putting it live…');
         try {
             const response = await API(API_URLS.applyDev, { message: prompt.trim().slice(0, 80) }, activeThreadId);
-            setNotice(response.data?.pushed ? `Deployed ${response.data.head || ''}` : 'Nothing to deploy');
+            setDeployable(false);
+            setNotice(response.data?.pushed ? "Done — it's live now" : 'Nothing to save');
         } catch (error) {
-            setNotice(error?.response?.data || 'Deploy failed');
+            setNotice(error?.response?.data || 'Could not put it live — try again');
         }
     }, [activeThreadId, prompt]);
 
@@ -291,7 +297,8 @@ const DevAgentPanel = () => {
         if (!activeThreadId) return;
         try {
             await API(API_URLS.discardDev, {}, activeThreadId);
-            setNotice('Changes discarded');
+            setDeployable(false);
+            setNotice('Changes undone');
         } catch (error) {
             setNotice(error?.response?.data || 'Discard failed');
         }
@@ -347,9 +354,9 @@ const DevAgentPanel = () => {
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }}
-                    rows={1}
-                    placeholder="Ask the dev agent to change the code…"
-                    className="max-h-28 min-h-[2.25rem] flex-1 resize-none bg-transparent px-1 py-2 text-sm outline-none"
+                    rows={2}
+                    placeholder={'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
+                    className="max-h-28 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-1.5 text-sm outline-none"
                 />
                 <button
                     type="button"
@@ -372,8 +379,7 @@ const DevAgentPanel = () => {
                     </button>
                 )}
             </div>
-            <div className="mt-1.5 flex items-center justify-between gap-3 px-1">
-                <span className="text-[11px] text-slate-400">Enter to run · Shift+Enter for a new line</span>
+            <div className="mt-1 flex items-center justify-end gap-3 px-1">
                 <label htmlFor="dev-auto-deploy" className="flex cursor-pointer select-none items-center gap-2 text-xs font-medium text-slate-600">
                     Auto deploy
                     <input
@@ -433,7 +439,7 @@ const DevAgentPanel = () => {
                             <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold text-slate-900">{activeThread?.title || 'Dev agent'}</p>
-                                    <p className="truncate text-xs text-slate-500">DeepSeek V4.1 Flash · PlanMyCharter</p>
+                                    <p className="truncate text-xs text-slate-500">Changes to PlanMyCharter</p>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
@@ -475,13 +481,13 @@ const DevAgentPanel = () => {
 
                             <div className="border-t border-slate-200 px-4 py-3">
                                 {notice && <p className="mb-2 text-xs text-slate-600">{notice}</p>}
-                                {notice.startsWith('Changes ready') && !autoDeploy && (
+                                {deployable && !autoDeploy && (
                                     <div className="mb-2 flex items-center gap-2">
                                         <button type="button" onClick={applyDeploy} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
-                                            Apply &amp; deploy
+                                            Make it live
                                         </button>
                                         <button type="button" onClick={discard} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
-                                            Discard changes
+                                            Undo changes
                                         </button>
                                     </div>
                                 )}
