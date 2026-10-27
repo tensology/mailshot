@@ -7,13 +7,23 @@ const cache = new Map();
 
 const fishKeyFor = (settings = {}) => String(settings.tts?.fishaudio_key || '').trim();
 
-const mapVoice = (item = {}) => ({
-    id: String(item._id || item.id || '').trim(),
-    name: String(item.title || '').trim() || 'Voice',
-    cover_image: String(item.cover_image || '').trim(),
-    languages: Array.isArray(item.languages) ? item.languages.map(String) : [],
-    tags: Array.isArray(item.tags) ? item.tags.map(String) : []
-});
+// Fish's cover_image paths are not publicly served, so give every voice a stable
+// character face seeded from its id (client can swap this later).
+const DICEBEAR_BASE = 'https://api.dicebear.com/9.x/avataaars/svg';
+const avatarFor = (seed) => `${DICEBEAR_BASE}?seed=${encodeURIComponent(String(seed || 'voice'))}&backgroundType=gradientLinear`;
+
+const mapVoice = (item = {}) => {
+    const id = String(item._id || item.id || '').trim();
+    const name = String(item.title || '').trim() || 'Voice';
+    return {
+        id,
+        name,
+        cover_image: String(item.cover_image || '').trim(),
+        avatar_url: avatarFor(id || name),
+        languages: Array.isArray(item.languages) ? item.languages.map(String) : [],
+        tags: Array.isArray(item.tags) ? item.tags.map(String) : []
+    };
+};
 
 export const listFishAudioVoices = async (settings = {}) => {
     const key = fishKeyFor(settings);
@@ -62,6 +72,7 @@ export const listFishAudioVoices = async (settings = {}) => {
             id: activeVoiceId,
             name: 'Current voice',
             cover_image: '',
+            avatar_url: avatarFor(activeVoiceId),
             languages: [],
             tags: []
         });

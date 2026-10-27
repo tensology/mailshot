@@ -120,15 +120,20 @@ const formatClock = (seconds) => {
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 };
 
-const VoiceAvatar = ({ voice, size = 40 }) => (
-    voice?.cover_image
-        ? <img src={voice.cover_image} alt="" loading="lazy" className="h-full w-full object-cover" />
-        : (
+const VoiceAvatar = ({ voice, size = 40 }) => {
+    const [failed, setFailed] = useState(false);
+    const src = voice?.avatar_url || voice?.cover_image || '';
+
+    if (!src || failed) {
+        return (
             <span className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
                 <MailshotIcon name="headphones" size={Math.round(size * 0.7)} />
             </span>
-        )
-);
+        );
+    }
+
+    return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />;
+};
 
 const ReadSummaryPlayer = ({
     job,
