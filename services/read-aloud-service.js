@@ -599,7 +599,12 @@ export const startReadAloudJob = async (email, options = {}) => {
         });
     }
 
-    const storedSummary = force ? '' : getStoredEmailSummary(email);
+    // Only reuse the stored summary when it was produced by the current model;
+    // otherwise leave it empty so the pipeline regenerates a fresh one.
+    const modelKey = summaryModelKey(settings);
+    const storedSummary = (!force && String(email?.read_summary_model || '') === modelKey)
+        ? getStoredEmailSummary(email)
+        : '';
 
     // The email index can point at an older render (different voice/model); only
     // trust it when it matches the cache key for the voice selected right now.
