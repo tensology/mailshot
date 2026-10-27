@@ -38,6 +38,15 @@ export const providerDefaults = {
 
 export const getProviderConfig = (provider) => providerDefaults[provider] || providerDefaults.openai;
 
+// Identifies which provider/model produced a stored summary so stale summaries
+// (e.g. from a previous model) can be regenerated.
+export const summaryModelKey = (settings = {}) => {
+    const ai = settings.ai || {};
+    const provider = String(ai.summary_provider || ai.provider || '').trim();
+    const model = String(ai.summary_model || ai.model || '').trim();
+    return `${provider}:${model}`;
+};
+
 export const buildProviderUrl = (provider, path) => {
     const config = getProviderConfig(provider);
     return `${String(config.base_url).replace(/\/+$/, '')}${path}`;

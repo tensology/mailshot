@@ -4,8 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
-import { summarizeEmailWithSettings } from './ai-provider.js';
-import { buildSummaryPrompt, getStoredEmailSummary } from './email-summary-service.js';
+import { summarizeEmailWithSettings, summaryModelKey } from './ai-provider.js';
+import { buildSummaryPrompt, getStoredEmailSummary, safePersistEmailReadAloudFields } from './email-summary-service.js';
 import { getSettings } from './settings-store.js';
 import { hasSummaryProviderConfigured } from './ai-provider.js';
 import {
@@ -449,12 +449,26 @@ const processJob = async (job, email, settings, summaryText = '', options = {}) 
     try {
         job.status = 'processing';
         logPipelineEvent('tts.job.start', logContext);
-        const storedSummary = force ? '' : (summaryText || getStoredEmailSummary(email));
+        const modelKey = summaryModelKey(settings);
+        const storedModel = String(email?.read_summary_model || '');
+        // Regenerate when the stored summary came from a different model/provider
+        // (stale/truncated) or when the caller asked for a rebuild.
+        const storedSummary = summaryText
+            || (force || storedModel !== modelKey ? '' : getStoredEmailSummary(email));
         const summary = storedSummary || await summarizeEmailWithSettings({
             settings,
             prompt: buildSummaryPrompt(email),
             trace: getEmailLogContext(email)
         });
+
+        if (!storedSummary && email?._id) {
+            await safePersistEmailReadAloudFields(email, {
+                read_summary: summary,
+                read_summary_status: 'ready',
+                read_summary_model: modelKey,
+                read_summary_at: new Date()
+            }).catch(() => {});
+        }
 
         job.summary = summary;
         await generateAudioForSummary(job, summary, email, settings);

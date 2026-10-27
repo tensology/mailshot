@@ -22,6 +22,7 @@ test('only queues inbox emails that still need a summary', () => {
     assert.equal(needsReadAloudPipeline({
         type: 'inbox',
         read_summary_status: 'ready',
+        read_summary_model: '',
         read_aloud_status: 'processing'
     }), false);
 

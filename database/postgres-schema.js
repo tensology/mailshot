@@ -115,6 +115,7 @@ ON integration_audit_events (resource_type, resource_id, occurred_at DESC);
 `;
 
 const MAILBOX_SCHEMA_MIGRATIONS = [
+    "ALTER TABLE emails ADD COLUMN IF NOT EXISTS read_summary_model TEXT NOT NULL DEFAULT ''",
     'ALTER TABLE emails ADD COLUMN IF NOT EXISTS muted_until TIMESTAMPTZ',
     'ALTER TABLE emails ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMPTZ',
     'ALTER TABLE emails ADD COLUMN IF NOT EXISTS scheduled_send_at TIMESTAMPTZ',

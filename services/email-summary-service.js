@@ -1,6 +1,6 @@
 import Email from '../model/email.js';
 import { isDbConnected } from '../database/db.js';
-import { hasSummaryProviderConfigured, summarizeEmailWithSettings } from './ai-provider.js';
+import { hasSummaryProviderConfigured, summarizeEmailWithSettings, summaryModelKey } from './ai-provider.js';
 import { getSettings } from './settings-store.js';
 import {
     getCachedEmails,
@@ -168,7 +168,18 @@ const processReadAloudPipeline = async (email) => {
             read_aloud_status: email.read_aloud_status || ''
         });
 
+        const modelKey = summaryModelKey(settings);
         let summary = getStoredEmailSummary(current);
+        if (summary && String(current.read_summary_model || '') !== modelKey) {
+            // Stored by a different model/provider - regenerate so it is not stale/truncated.
+            logPipelineEvent('summary.generate.stale', {
+                ...getEmailLogContext(current),
+                stored_model: String(current.read_summary_model || ''),
+                model: modelKey,
+                summary_length: summary.length
+            }, 'warn');
+            summary = '';
+        }
         if (!summary) {
             logPipelineEvent('summary.generate.start', getEmailLogContext(current));
             summary = await summarizeEmailWithSettings({
@@ -183,6 +194,7 @@ const processReadAloudPipeline = async (email) => {
             current = await safePersistEmailReadAloudFields(current, {
                 read_summary: summary,
                 read_summary_status: 'ready',
+                read_summary_model: modelKey,
                 read_summary_at: new Date()
             });
         } else {
@@ -195,6 +207,7 @@ const processReadAloudPipeline = async (email) => {
         await safePersistEmailReadAloudFields(current, {
             read_summary: summary,
             read_summary_status: 'ready',
+            read_summary_model: modelKey,
             read_aloud_status: current.read_aloud_status === 'ready' ? 'ready' : '',
             read_summary_at: current.read_summary_at || new Date()
         });

@@ -77,6 +77,7 @@ const normalizeEmailPayload = (payload = {}) => ({
     in_reply_to: String(payload.in_reply_to || ''),
     read_summary: String(payload.read_summary || ''),
     read_summary_status: String(payload.read_summary_status || ''),
+    read_summary_model: String(payload.read_summary_model || ''),
     read_summary_at: payload.read_summary_at || null,
     read_aloud_status: String(payload.read_aloud_status || ''),
     imap_mailbox: String(payload.imap_mailbox || 'INBOX'),
@@ -111,6 +112,7 @@ export const mapEmailRowToMailboxEmail = (row = {}) => ({
     in_reply_to: row.in_reply_to || '',
     read_summary: row.read_summary || '',
     read_summary_status: row.read_summary_status || '',
+    read_summary_model: row.read_summary_model || '',
     read_summary_at: row.read_summary_at || null,
     read_aloud_status: row.read_aloud_status || '',
     imap_mailbox: row.imap_mailbox || 'INBOX',
@@ -388,14 +390,14 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     id, message_id, type, subject, body, body_html, from_address, to_address,
                     cc_address, bcc_address, date_value, name, image, read, labels, references_json,
                     starred, bin, archived, spam, in_inbox, in_reply_to, read_summary,
-                    read_summary_status, read_summary_at, read_aloud_status, imap_mailbox, imap_uid,
+                    read_summary_status, read_summary_model, read_summary_at, read_aloud_status, imap_mailbox, imap_uid,
                     scheduled_send_at
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
                     $9, $10, $11, $12, $13, $14, $15::jsonb, $16::jsonb,
                     $17, $18, $19, $20, $21, $22, $23,
-                    $24, $25, $26, $27, $28,
-                    $29
+                    $24, $25, $26, $27, $28, $29,
+                    $30
                 )
                 ON CONFLICT (id)
                 DO UPDATE SET
@@ -415,6 +417,7 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     in_reply_to = EXCLUDED.in_reply_to,
                     read_summary = EXCLUDED.read_summary,
                     read_summary_status = EXCLUDED.read_summary_status,
+                    read_summary_model = EXCLUDED.read_summary_model,
                     read_summary_at = EXCLUDED.read_summary_at,
                     read_aloud_status = EXCLUDED.read_aloud_status,
                     imap_mailbox = EXCLUDED.imap_mailbox,
@@ -456,6 +459,7 @@ export const createMailboxRepository = ({ pool, deleteAttachmentFileFn = deleteA
                     email.in_reply_to,
                     email.read_summary,
                     email.read_summary_status,
+                    email.read_summary_model,
                     email.read_summary_at,
                     email.read_aloud_status,
                     email.imap_mailbox,
