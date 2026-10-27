@@ -74,16 +74,49 @@ const useKeyboardInset = () => {
         if (!viewport) {
             return undefined;
         }
+        let timer = null;
         const update = () => {
-            const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+            // iOS keeps the layout viewport tall and shrinks only the visual one;
+            // Android with resizes-content shrinks both. Taking the taller of the
+            // two gives the right answer on each.
+            const layoutBottom = Math.max(
+                document.documentElement?.clientHeight || 0,
+                window.innerHeight || 0
+            );
+            const covered = layoutBottom - (viewport.offsetTop + viewport.height);
             setInset(covered > 40 ? Math.round(covered) : 0);
+        };
+        // Some browsers only settle the visual viewport well after focus.
+        const poll = () => {
+            if (timer) {
+                clearInterval(timer);
+            }
+            let ticks = 0;
+            timer = setInterval(() => {
+                update();
+                if (++ticks > 24) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+            }, 250);
         };
         viewport.addEventListener('resize', update);
         viewport.addEventListener('scroll', update);
+        window.addEventListener('resize', update);
+        window.addEventListener('orientationchange', update);
+        document.addEventListener('focusin', poll);
+        document.addEventListener('focusout', poll);
         update();
         return () => {
+            if (timer) {
+                clearInterval(timer);
+            }
             viewport.removeEventListener('resize', update);
             viewport.removeEventListener('scroll', update);
+            window.removeEventListener('resize', update);
+            window.removeEventListener('orientationchange', update);
+            document.removeEventListener('focusin', poll);
+            document.removeEventListener('focusout', poll);
         };
     }, []);
     return inset;
@@ -791,7 +824,7 @@ const DevAgentPanel = () => {
             {/* Floating composer. On phones it sits flush in the footer. */}
             {!open && (
                 <div
-                    className={`fixed z-[75] print:hidden ${isMobile ? 'inset-x-0 bottom-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-4 right-4 w-[min(34rem,calc(100vw-2rem))]'}`}
+                    className={`fixed z-[75] print:hidden ${isMobile ? `inset-x-0 bottom-0 px-2 ${keyboardInset ? 'pb-1' : 'pb-[max(0.5rem,env(safe-area-inset-bottom))]'}` : 'bottom-4 right-4 w-[min(34rem,calc(100vw-2rem))]'}`}
                     style={isMobile && keyboardInset ? { bottom: keyboardInset } : undefined}
                 >
                     {renderComposer(false)}
@@ -821,7 +854,7 @@ const DevAgentPanel = () => {
                     </header>
 
                     {messagesPanel}
-                    <div className="shrink-0 pb-[max(0.25rem,env(safe-area-inset-bottom))]">{composerPanel}</div>
+                    <div className={`shrink-0 ${keyboardInset ? 'pb-1' : 'pb-[max(0.25rem,env(safe-area-inset-bottom))]'}`}>{composerPanel}</div>
 
                     {drawerOpen && (
                         <div className="fixed inset-0 z-[100] bg-slate-900/50" onClick={() => setDrawerOpen(false)}>
