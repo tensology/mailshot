@@ -194,19 +194,16 @@ const ReadSummaryPlayer = ({
                 onEnded={() => setPlaying(false)}
             />
 
-            <div className="flex items-start gap-3">
+            <div className="flex items-center gap-3">
                 <div className="shrink-0">
                     <button
                         type="button"
                         onClick={() => setPickerOpen(true)}
-                        className="relative h-14 w-14 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 shadow-lg"
+                        className="h-14 w-14 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 shadow-lg transition hover:border-slate-500"
                         title="Change voice"
                         aria-label="Change voice"
                     >
                         <VoiceAvatar voice={activeVoice} size={56} />
-                        <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-tl-lg bg-black/60 text-white">
-                            <MailshotIcon name="chevron-down" size={14} />
-                        </span>
                     </button>
                 </div>
 
@@ -215,7 +212,7 @@ const ReadSummaryPlayer = ({
                     <p className="truncate text-xs text-slate-400">{isPreparing ? 'Preparing…' : 'Fish Audio · read summary'}</p>
                 </div>
 
-                <IconButton label="Close player" size="sm" onClick={onClose} className="shrink-0 text-slate-300 hover:bg-slate-800">
+                <IconButton label="Close player" size="sm" onClick={onClose} className="shrink-0 self-start text-slate-300 hover:bg-slate-800">
                     <MailshotIcon name="close" size={20} />
                 </IconButton>
             </div>
@@ -299,7 +296,7 @@ const ReadSummaryPlayer = ({
                                 </p>
                             )}
                             {!voicesLoading && filteredVoices.length > 0 && (
-                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                                <div className="grid auto-rows-fr grid-cols-3 gap-3 sm:grid-cols-4">
                                     {filteredVoices.map((voice) => {
                                         const isActive = voice.id === activeVoiceId;
                                         return (
@@ -310,9 +307,9 @@ const ReadSummaryPlayer = ({
                                                     setPickerOpen(false);
                                                     onSelectVoice?.(voice.id);
                                                 }}
-                                                className={`flex flex-col items-center gap-2 rounded-xl p-2 transition ${isActive ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-slate-100'}`}
+                                                className={`flex h-full flex-col items-center justify-start gap-2 rounded-xl p-2 transition ${isActive ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-slate-100'}`}
                                             >
-                                                <span className={`h-20 w-20 overflow-hidden rounded-full border-2 ${isActive ? 'border-blue-400' : 'border-slate-200'}`}>
+                                                <span className={`h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 ${isActive ? 'border-blue-400' : 'border-slate-200'}`}>
                                                     <VoiceAvatar voice={voice} size={80} />
                                                 </span>
                                                 <span className="line-clamp-2 min-h-[2.5rem] text-center text-xs font-medium text-slate-700">{voice.name}</span>
