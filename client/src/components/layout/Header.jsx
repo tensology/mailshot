@@ -5,6 +5,7 @@ import { useLayout } from '../../context/LayoutContext';
 import IconButton from '../ui/IconButton';
 import SettingsDialog from '../SettingsDialog';
 import MailshotIcon from '../ui/MailshotIcon';
+import { getProfilePhoto } from '../../utils/profilePhoto';
 
 const Header = () => {
     const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -13,6 +14,7 @@ const Header = () => {
     const navigate = useNavigate();
     const { logout, username, isSuperuser } = useAuth();
     const { toggleSidebar } = useLayout();
+    const profilePhoto = getProfilePhoto(username);
 
     const handleLogout = async () => {
         await logout();
@@ -66,7 +68,9 @@ const Header = () => {
                             title={username ? `Signed in as ${username}` : 'Account settings'}
                             className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 sm:flex"
                         >
-                            <MailshotIcon name="settings" size={20} />
+                            {profilePhoto
+                                ? <img src={profilePhoto} alt="" className="h-7 w-7 rounded-full object-cover object-center" />
+                                : <MailshotIcon name="settings" size={20} />}
                             <span className="max-w-[140px] truncate">{username || 'Account'}</span>
                             <MailshotIcon name="chevron-down" size={18} />
                         </button>
@@ -75,7 +79,9 @@ const Header = () => {
                             className="sm:hidden"
                             onClick={() => setAccountMenuOpen((value) => !value)}
                         >
-                            <MailshotIcon name="settings" size={24} />
+                            {profilePhoto
+                                ? <img src={profilePhoto} alt="" className="h-8 w-8 rounded-full object-cover object-center" />
+                                : <MailshotIcon name="settings" size={24} />}
                         </IconButton>
 
                         {accountMenuOpen && (

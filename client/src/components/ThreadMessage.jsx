@@ -1,6 +1,7 @@
 import { emptyProfilePic } from '../constants/constant';
 import { parseSenderEmail, parseSenderName } from '../utils/emailFormatter';
 import QuotedContent from './common/QuotedContent';
+import { getProfilePhoto } from '../utils/profilePhoto';
 
 const ThreadMessage = ({ message, isLatest = false }) => {
     const senderName = parseSenderName(message.from);
@@ -16,9 +17,9 @@ const ThreadMessage = ({ message, isLatest = false }) => {
         <article className={`border-t py-5 first:border-t-0 ${frameClass}`}>
             <div className="mx-auto grid w-full max-w-full grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3">
                 <img
-                    src={emptyProfilePic}
+                    src={getProfilePhoto(senderEmail) || emptyProfilePic}
                     alt=""
-                    className="mt-1 h-10 w-10 shrink-0 rounded-full bg-slate-100"
+                    className="mt-1 h-10 w-10 shrink-0 rounded-full bg-slate-100 object-cover object-center"
                 />
                 <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
