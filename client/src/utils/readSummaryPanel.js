@@ -6,7 +6,7 @@ export const getDefaultReadSummaryPosition = ({
     panelWidth = 384,
     panelHeight = 160
 } = {}) => ({
-    x: PANEL_MARGIN,
+    x: Math.max(PANEL_MARGIN, Math.round((viewportWidth - panelWidth) / 2)),
     y: Math.max(PANEL_MARGIN, viewportHeight - panelHeight - PANEL_MARGIN)
 });
 

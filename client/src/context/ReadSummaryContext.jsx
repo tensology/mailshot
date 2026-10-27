@@ -88,13 +88,27 @@ const storePanelPosition = (position) => {
     }
 };
 
-const ReadSummaryShell = ({ children, tone = 'default' }) => (
+const ReadSummaryShell = ({ children, panelRef, position, onPointerDown, tone = 'default' }) => (
     <div
-        className={`fixed inset-x-0 bottom-0 z-[80] border-t bg-white px-3 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.12)] ${
+        ref={panelRef}
+        className={`fixed z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-md border bg-white p-3 shadow-2xl ${
             tone === 'preparing' ? 'border-blue-100' : 'border-slate-200'
         }`}
+        style={{
+            left: `${position.x}px`,
+            top: `${position.y}px`
+        }}
     >
-        <div className="mx-auto w-full max-w-3xl">{children}</div>
+        <button
+            type="button"
+            onPointerDown={onPointerDown}
+            className="mb-2 flex h-5 w-full touch-none cursor-grab items-center justify-center rounded-md text-slate-300 transition hover:bg-slate-50 hover:text-slate-500 active:cursor-grabbing"
+            aria-label="Move read summary panel"
+            title="Move"
+        >
+            <span className="h-1 w-8 rounded-full bg-current" />
+        </button>
+        {children}
     </div>
 );
 

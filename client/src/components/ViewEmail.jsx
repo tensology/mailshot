@@ -673,7 +673,7 @@ const ViewEmail = () => {
                             disabled={readSummaryLoading}
                             className={`${toolbarButtonClass} ${readAloudReady ? 'text-green-600 hover:bg-green-50' : 'text-blue-600 hover:bg-blue-50'}`}
                         >
-                            {readSummaryLoading ? <MailshotIcon name="refresh" size={28} active /> : <MailshotIcon name="speaker" size={28} />}
+                            {readSummaryLoading ? <MailshotIcon name="refresh" size={28} active /> : <MailshotIcon name="headphones" size={28} />}
                         </IconButton>
                     )}
                     <IconButton size="touch" label="Reply" className={toolbarButtonClass} onClick={() => openPrimaryReplyDraft('reply')}>

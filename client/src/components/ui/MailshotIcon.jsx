@@ -20,6 +20,7 @@ const PALETTES = {
     external: ['#22d3ee', '#0284c7'],
     eye: ['#60a5fa', '#2563eb'],
     forward: ['#22d3ee', '#0369a1'],
+    headphones: ['#2dd4bf', '#0f766e'],
     inbox: ['#60a5fa', '#2563eb'],
     image: ['#c084fc', '#6d28d9'],
     italic: ['#94a3b8', '#475569'],
@@ -75,6 +76,7 @@ const glyph = (name) => {
         case 'eye': return <><path d="M3 12s3-5 9-5 9 5 9 5-3 5-9 5-9-5-9-5z"/><circle cx="12" cy="12" r="2.5"/></>;
         case 'expand': return <><path d="M9 5H5v4M15 5h4v4M9 19H5v-4M15 19h4v-4"/></>;
         case 'forward': return <><path d="m13 7 6 5-6 5v-3H6a3 3 0 0 0-2 1 7 7 0 0 1 7-7h2z"/></>;
+        case 'headphones': return <><path d="M5 14v-2a7 7 0 0 1 14 0v2"/><path d="M5 13h2a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M19 13h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1z"/></>;
         case 'inbox': return <><path d="M5 6h14l2 8v5H3v-5z"/><path d="M3 14h5l2 2h4l2-2h5"/></>;
         case 'image': return <><rect x="5" y="6" width="14" height="12" rx="2"/><circle cx="10" cy="10" r="1.5"/><path d="m7 16 4-4 3 3 2-2 3 3"/></>;
         case 'italic': return <><path d="M10 5h7M7 19h7M14 5 10 19"/></>;

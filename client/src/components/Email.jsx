@@ -290,18 +290,17 @@ const Email = ({
                             onClick={handleReadSummary}
                             onContextMenu={onReadSummaryContextMenu}
                             disabled={readSummaryLoading}
-                            className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition disabled:cursor-wait disabled:opacity-75 ${
-                                readAloudReady
-                                    ? 'border-green-300 bg-green-50 text-green-700 hover:border-green-400 hover:bg-green-100'
-                                    : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100'
+                            title={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read summary'}
+                            aria-label="Read summary"
+                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-75 ${
+                                readAloudReady ? 'hover:bg-green-50' : 'hover:bg-blue-50'
                             }`}
                         >
                             {readSummaryLoading ? (
-                                <MailshotIcon name="refresh" size={18} active />
+                                <MailshotIcon name="refresh" size={20} active />
                             ) : (
-                                <MailshotIcon name="speaker" size={18} />
+                                <MailshotIcon name="headphones" size={20} />
                             )}
-                            <span className="hidden xl:inline">Read Summary</span>
                         </button>
                     )}
                     <div>
