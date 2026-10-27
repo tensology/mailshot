@@ -214,46 +214,48 @@ const Email = ({
                 />
             </div>
 
-            {showArchiveButton && (
+            <div className="flex min-h-[4.75rem] shrink-0 items-center gap-1 px-1 sm:min-h-[4.25rem] sm:gap-1.5">
                 <button
                     type="button"
-                    onClick={handleArchiveToggle}
-                    className="flex min-h-[4.75rem] shrink-0 items-center px-1 text-slate-400 opacity-70 transition hover:text-blue-600 hover:opacity-100 focus:opacity-100 focus:outline-none sm:min-h-[4.25rem]"
-                    aria-label={archiveActionLabel}
-                    title={archiveActionLabel}
+                    onClick={toggleStarredEmail}
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-amber-50 hover:text-amber-500"
+                    aria-label={email.starred ? 'Unstar' : 'Star'}
                 >
-                    <MailshotIcon name={archiveIconName} size={20} />
+                    <MailshotIcon name="star" size={24} className={email.starred ? '' : 'grayscale opacity-55'} />
                 </button>
-            )}
 
-            {readSummaryEnabled && (
-                <button
-                    type="button"
-                    onClick={handleReadSummary}
-                    onContextMenu={onReadSummaryContextMenu}
-                    disabled={readSummaryLoading}
-                    title={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read summary'}
-                    aria-label="Read summary"
-                    className={`flex min-h-[4.75rem] shrink-0 items-center px-1 transition disabled:cursor-wait disabled:opacity-75 sm:min-h-[4.25rem] ${
-                        readAloudReady ? 'hover:text-green-600' : 'hover:text-blue-600'
-                    }`}
-                >
-                    {readSummaryLoading ? (
-                        <MailshotIcon name="refresh" size={20} active />
-                    ) : (
-                        <MailshotIcon name="headphones" size={20} />
-                    )}
-                </button>
-            )}
+                {readSummaryEnabled && (
+                    <button
+                        type="button"
+                        onClick={handleReadSummary}
+                        onContextMenu={onReadSummaryContextMenu}
+                        disabled={readSummaryLoading}
+                        title={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read summary'}
+                        aria-label="Read summary"
+                        className={`flex h-9 w-9 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-75 ${
+                            readAloudReady ? 'hover:bg-green-50 hover:text-green-600' : 'hover:bg-blue-50 hover:text-blue-600'
+                        }`}
+                    >
+                        {readSummaryLoading ? (
+                            <MailshotIcon name="refresh" size={24} active />
+                        ) : (
+                            <MailshotIcon name="headphones" size={24} />
+                        )}
+                    </button>
+                )}
 
-            <button
-                type="button"
-                onClick={toggleStarredEmail}
-                className="flex min-h-[4.75rem] shrink-0 items-center px-1 text-slate-400 transition hover:text-amber-500 sm:min-h-[4.25rem]"
-                aria-label={email.starred ? 'Unstar' : 'Star'}
-            >
-                <MailshotIcon name="star" size={20} className={email.starred ? '' : 'grayscale opacity-55'} />
-            </button>
+                {showArchiveButton && (
+                    <button
+                        type="button"
+                        onClick={handleArchiveToggle}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 opacity-70 transition hover:bg-blue-50 hover:text-blue-600 hover:opacity-100 focus:opacity-100 focus:outline-none"
+                        aria-label={archiveActionLabel}
+                        title={archiveActionLabel}
+                    >
+                        <MailshotIcon name={archiveIconName} size={24} />
+                    </button>
+                )}
+            </div>
 
             <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-2.5">
                 <div className="min-w-0">
