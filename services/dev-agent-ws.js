@@ -6,10 +6,37 @@ import { isAuthConfigured } from './auth-config.js';
 // streams deltas/tool events here and the browser renders them live.
 const clients = new Map();
 
+// Recent agent events per thread, so a browser that joins (or reconnects) mid-run
+// still sees the live progress instead of an empty stream.
+const history = new Map();
+const HISTORY_MAX = 600;
+
+const replayHistory = (ws, threadId) => {
+    const list = history.get(String(threadId || '')) || [];
+    for (const payload of list) {
+        try { ws.send(JSON.stringify(payload)); } catch { /* ignore */ }
+    }
+};
+
 export const broadcast = (threadId, payload) => {
+    const key = String(threadId || '');
+    if (!key) {
+        return;
+    }
+    if (payload?.type === 'agent') {
+        const list = history.get(key) || [];
+        list.push(payload);
+        if (list.length > HISTORY_MAX) {
+            list.splice(0, list.length - HISTORY_MAX);
+        }
+        history.set(key, list);
+    } else if (payload?.type === 'message' && payload.message?.role === 'assistant') {
+        history.delete(key);
+    }
+
     const data = JSON.stringify(payload);
     for (const [ws, meta] of clients.entries()) {
-        if (meta.threadId === threadId && ws.readyState === ws.OPEN) {
+        if (meta.threadId === key && ws.readyState === ws.OPEN) {
             try { ws.send(data); } catch { /* ignore */ }
         }
     }
@@ -49,6 +76,7 @@ export const attachDevAgentWebSocket = (server) => {
                 if (message.type === 'subscribe') {
                     meta.threadId = String(message.threadId || '');
                     ws.send(JSON.stringify({ type: 'subscribed', threadId: meta.threadId }));
+                    replayHistory(ws, meta.threadId);
                 } else if (message.type === 'ping') {
                     ws.send(JSON.stringify({ type: 'pong' }));
                 }

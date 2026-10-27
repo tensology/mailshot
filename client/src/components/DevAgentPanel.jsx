@@ -27,11 +27,12 @@ const TOOL_LABELS = {
     write: 'Writing files'
 };
 
-const PHASE_LABELS = {
-    thinking: 'Thinking',
-    developing: 'Developing',
-    deploying: 'Putting it live'
-};
+const STEPS = [
+    { key: 'thinking', label: 'Thinking' },
+    { key: 'developing', label: 'Making changes' },
+    { key: 'deploying', label: 'Putting it live' }
+];
+const PHASE_INDEX = { thinking: 0, developing: 1, deploying: 2, done: 3 };
 
 const SUGGESTIONS = [
     'Make the dashboard heading bigger',
@@ -179,25 +180,25 @@ const DevAgentPanel = () => {
             if (data.message?.role === 'assistant') {
                 setStreamText('');
                 setTool('');
-                setPhase('idle');
+                setPhase('done');
             }
         } else if (data.type === 'diff') {
             setDeployable(Boolean(data.changed));
             setNotice(data.changed ? 'Ready to go live' : 'Nothing changed yet');
-            setPhase('idle');
+            setPhase(autoDeployRef.current ? 'deploying' : 'done');
         } else if (data.type === 'deploy') {
             setRunning(false);
             setDeployable(false);
-            setPhase('idle');
+            setPhase('done');
             setNotice(data.pushed ? "Done — it's live now" : (data.changed ? 'Could not save it — try again' : 'Nothing to save'));
         } else if (data.type === 'ready_to_deploy') {
             setRunning(false);
             setDeployable(true);
-            setPhase('idle');
+            setPhase('done');
             setNotice('Ready — click Make it live');
         } else if (data.type === 'error') {
             setRunning(false);
-            setPhase('idle');
+            setPhase('done');
             setNotice(data.message || 'Something went wrong — try again');
         }
     }, [pushProcess]);
@@ -512,13 +513,24 @@ const DevAgentPanel = () => {
         </div>
     );
 
+    const phaseIndex = PHASE_INDEX[phase] ?? -1;
     const processBubble = (running || streamText || processLog.length > 0) && (
         <div className="flex justify-start">
             <div className="max-w-[85%] rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">
-                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    <MailshotIcon name="refresh" size={14} active={phase !== 'idle'} />
-                    {PHASE_LABELS[phase] || 'Working'}
-                    {tool ? <span className="font-normal normal-case text-slate-400">· {tool}</span> : null}
+                <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                    {STEPS.map((step, index) => {
+                        const done = phaseIndex > index;
+                        const active = phaseIndex === index;
+                        return (
+                            <span
+                                key={step.key}
+                                className={`inline-flex items-center gap-1 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
+                            >
+                                {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
+                                {step.label}
+                            </span>
+                        );
+                    })}
                 </div>
                 {processLog.length > 0 && (
                     <ul className="mb-1 space-y-0.5">
