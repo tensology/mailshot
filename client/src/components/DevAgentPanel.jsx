@@ -9,6 +9,9 @@ import ConfirmDialog from './common/ConfirmDialog';
 // Dev agent: prompt an AI coding agent against the PlanMyCharter repo. Threads on
 // the left, live streamed output on the right, files/images attachable, and a
 // per-user switch for auto-deploy (off by default; commit + deploy on approval).
+const STORAGE_OPEN = 'mailshot:devagent-open';
+const STORAGE_THREAD = 'mailshot:devagent-thread';
+
 const buildWsUrl = (token) => {
     const base = API_URL && /^https?:/i.test(API_URL) ? new URL(API_URL) : new URL(window.location.origin);
     const scheme = base.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -16,6 +19,26 @@ const buildWsUrl = (token) => {
 };
 
 const fileLabel = (name) => String(name || 'file').replace(/^[0-9a-f]{8}-/, '');
+
+const TOOL_LABELS = {
+    read: 'Reading the files',
+    bash: 'Running a command',
+    edit: 'Editing the files',
+    write: 'Writing files'
+};
+
+const PHASE_LABELS = {
+    thinking: 'Thinking',
+    developing: 'Developing',
+    deploying: 'Putting it live'
+};
+
+const SUGGESTIONS = [
+    'Make the dashboard heading bigger',
+    'Change the main button colour',
+    'Fix the wording on the homepage',
+    'Add a new field to the charter form'
+];
 
 // Real hover tooltip (not the browser's default title tooltip).
 const Tooltip = ({ label, children }) => (
@@ -31,13 +54,18 @@ const DevAgentPanel = () => {
     const { isAuthenticated } = useAuth();
     const [enabled, setEnabled] = useState(false);
     const [autoDeploy, setAutoDeploy] = useState(false);
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(() => {
+        try { return localStorage.getItem(STORAGE_OPEN) === '1'; } catch { return false; }
+    });
     const [threads, setThreads] = useState([]);
-    const [activeThreadId, setActiveThreadId] = useState('');
+    const [activeThreadId, setActiveThreadId] = useState(() => {
+        try { return localStorage.getItem(STORAGE_THREAD) || ''; } catch { return ''; }
+    });
     const [messages, setMessages] = useState([]);
     const [streamText, setStreamText] = useState('');
-    const [thinking, setThinking] = useState('');
     const [tool, setTool] = useState('');
+    const [phase, setPhase] = useState('idle');
+    const [processLog, setProcessLog] = useState([]);
     const [running, setRunning] = useState(false);
     const [prompt, setPrompt] = useState('');
     const [files, setFiles] = useState([]);
@@ -45,17 +73,26 @@ const DevAgentPanel = () => {
     const [dragging, setDragging] = useState(false);
     const [threadToDelete, setThreadToDelete] = useState(null);
     const [deployable, setDeployable] = useState(false);
+    const [connected, setConnected] = useState(false);
     const wsRef = useRef(null);
     const fileInputRef = useRef(null);
     const scrollRef = useRef(null);
-    const activeThreadRef = useRef('');
+    const activeThreadRef = useRef(activeThreadId);
+    const autoDeployRef = useRef(false);
+    const reconnectRef = useRef(null);
+
+    useEffect(() => { autoDeployRef.current = autoDeploy; }, [autoDeploy]);
 
     const loadSettings = useCallback(async () => {
         try {
             const response = await API(API_URLS.getDevSettings, {}, '');
             setEnabled(Boolean(response.data?.enabled));
             setAutoDeploy(Boolean(response.data?.auto_deploy));
-            setRunning(Boolean(response.data?.running));
+            // If a run is already going for the thread we restored, pick it back up.
+            if (response.data?.running && response.data?.running_thread_id && response.data.running_thread_id === activeThreadRef.current) {
+                setRunning(true);
+                setPhase('developing');
+            }
         } catch {
             setEnabled(false);
         }
@@ -87,19 +124,85 @@ const DevAgentPanel = () => {
         }
     }, []);
 
-    const selectThread = useCallback((threadId) => {
-        setActiveThreadId(threadId);
-        activeThreadRef.current = threadId;
-        setStreamText('');
-        setThinking('');
-        setTool('');
-        setNotice('');
-        if (threadId) {
-            loadMessages(threadId);
-        }
-    }, [loadMessages]);
+    // Remember the panel + thread so a refresh drops you back exactly where you were.
+    useEffect(() => {
+        try {
+            if (open) localStorage.setItem(STORAGE_OPEN, '1');
+            else localStorage.removeItem(STORAGE_OPEN);
+        } catch { /* ignore */ }
+    }, [open]);
 
-    // WebSocket: subscribe to the active thread and stream the agent live.
+    useEffect(() => {
+        activeThreadRef.current = activeThreadId;
+        try {
+            if (activeThreadId) localStorage.setItem(STORAGE_THREAD, activeThreadId);
+            else localStorage.removeItem(STORAGE_THREAD);
+        } catch { /* ignore */ }
+    }, [activeThreadId]);
+
+    // Restore the saved thread on load.
+    useEffect(() => {
+        if (isAuthenticated && enabled && activeThreadRef.current) {
+            loadMessages(activeThreadRef.current);
+        }
+    }, [isAuthenticated, enabled, loadMessages]);
+
+    const pushProcess = useCallback((label) => {
+        setProcessLog((log) => (log[log.length - 1] === label ? log : [...log.slice(-8), label]));
+    }, []);
+
+    const handleEvent = useCallback((data) => {
+        if (data.type === 'agent') {
+            const ev = data.event || {};
+            if (ev.type === 'delta') {
+                setPhase('developing');
+                setStreamText((value) => value + ev.text);
+            } else if (ev.type === 'tool') {
+                const name = ev.name || 'tool';
+                setTool(name);
+                setPhase('developing');
+                pushProcess(TOOL_LABELS[name] || `Working (${name})`);
+            }
+        } else if (data.type === 'message') {
+            setMessages((list) => {
+                const next = [...list];
+                if (data.message?.role === 'user') {
+                    const idx = next.findIndex((entry) => entry.local && entry.content === data.message.content);
+                    if (idx >= 0) {
+                        next[idx] = data.message;
+                        return next;
+                    }
+                }
+                next.push(data.message);
+                return next;
+            });
+            if (data.message?.role === 'assistant') {
+                setStreamText('');
+                setTool('');
+                setPhase('idle');
+            }
+        } else if (data.type === 'diff') {
+            setDeployable(Boolean(data.changed));
+            setNotice(data.changed ? 'Ready to go live' : 'Nothing changed yet');
+            setPhase('idle');
+        } else if (data.type === 'deploy') {
+            setRunning(false);
+            setDeployable(false);
+            setPhase('idle');
+            setNotice(data.pushed ? "Done — it's live now" : (data.changed ? 'Could not save it — try again' : 'Nothing to save'));
+        } else if (data.type === 'ready_to_deploy') {
+            setRunning(false);
+            setDeployable(true);
+            setPhase('idle');
+            setNotice('Ready — click Make it live');
+        } else if (data.type === 'error') {
+            setRunning(false);
+            setPhase('idle');
+            setNotice(data.message || 'Something went wrong — try again');
+        }
+    }, [pushProcess]);
+
+    // WebSocket with auto-reconnect; resubscribes to the active thread on reopen.
     useEffect(() => {
         if (!enabled || !isAuthenticated) {
             return undefined;
@@ -109,72 +212,55 @@ const DevAgentPanel = () => {
             return undefined;
         }
         let closed = false;
-        let socket;
-        try {
-            socket = new WebSocket(buildWsUrl(token));
-        } catch {
-            return undefined;
-        }
-        wsRef.current = socket;
-        socket.onopen = () => {
-            if (activeThreadRef.current) {
-                socket.send(JSON.stringify({ type: 'subscribe', threadId: activeThreadRef.current }));
+        let attempts = 0;
+        let socket = null;
+
+        const connect = () => {
+            try {
+                socket = new WebSocket(buildWsUrl(token));
+            } catch {
+                return;
             }
-        };
-        socket.onmessage = (event) => {
-            let data;
-            try { data = JSON.parse(event.data); } catch { return; }
-            if (data.type === 'agent') {
-                const ev = data.event || {};
-                if (ev.type === 'delta') setStreamText((value) => value + ev.text);
-                else if (ev.type === 'thinking') setThinking((value) => (value + ev.text).slice(-2000));
-                else if (ev.type === 'tool') setTool(ev.name || 'tool');
-            } else if (data.type === 'message') {
-                setMessages((list) => {
-                    const next = [...list];
-                    // Replace the optimistic user bubble once the server confirms it.
-                    if (data.message?.role === 'user') {
-                        const idx = next.findIndex((entry) => entry.local && entry.content === data.message.content);
-                        if (idx >= 0) {
-                            next[idx] = data.message;
-                            return next;
-                        }
-                    }
-                    next.push(data.message);
-                    return next;
-                });
-                if (data.message?.role === 'assistant') {
-                    setStreamText('');
-                    setThinking('');
-                    setTool('');
+            wsRef.current = socket;
+            socket.onopen = () => {
+                attempts = 0;
+                setConnected(true);
+                if (activeThreadRef.current) {
+                    socket.send(JSON.stringify({ type: 'subscribe', threadId: activeThreadRef.current }));
                 }
-            } else if (data.type === 'diff') {
-                setDeployable(Boolean(data.changed));
-                setNotice(data.changed ? 'Ready to go live' : 'Nothing changed yet');
-            } else if (data.type === 'deploy') {
-                setRunning(false);
-                setDeployable(false);
-                setNotice(data.pushed ? "Done — it's live now" : (data.changed ? 'Could not save it — try again' : 'Nothing to save'));
-            } else if (data.type === 'ready_to_deploy') {
-                setRunning(false);
-                setDeployable(true);
-                setNotice('Ready — click Make it live');
-            } else if (data.type === 'error') {
-                setRunning(false);
-                setNotice(data.message || 'Something went wrong — try again');
-            }
-        };
-        socket.onclose = () => {
-            if (!closed) {
+            };
+            socket.onmessage = (event) => {
+                let data;
+                try { data = JSON.parse(event.data); } catch { return; }
+                handleEvent(data);
+            };
+            socket.onclose = () => {
                 wsRef.current = null;
-            }
+                setConnected(false);
+                if (closed) {
+                    return;
+                }
+                attempts += 1;
+                const delay = Math.min(15000, 800 * attempts);
+                reconnectRef.current = setTimeout(connect, delay);
+            };
+            socket.onerror = () => {
+                try { socket.close(); } catch { /* ignore */ }
+            };
         };
+
+        connect();
         return () => {
             closed = true;
-            try { socket.close(); } catch { /* ignore */ }
+            if (reconnectRef.current) {
+                clearTimeout(reconnectRef.current);
+                reconnectRef.current = null;
+            }
+            try { socket?.close(); } catch { /* ignore */ }
             wsRef.current = null;
+            setConnected(false);
         };
-    }, [enabled, isAuthenticated]);
+    }, [enabled, isAuthenticated, handleEvent]);
 
     useEffect(() => {
         if (open && !threads.length) {
@@ -187,7 +273,7 @@ const DevAgentPanel = () => {
         if (node) {
             node.scrollTop = node.scrollHeight;
         }
-    }, [messages, streamText]);
+    }, [messages, streamText, processLog]);
 
     const subscribe = useCallback((threadId) => {
         const socket = wsRef.current;
@@ -196,6 +282,20 @@ const DevAgentPanel = () => {
         }
     }, []);
 
+    const selectThread = useCallback((threadId) => {
+        setActiveThreadId(threadId);
+        activeThreadRef.current = threadId;
+        setStreamText('');
+        setTool('');
+        setPhase('idle');
+        setProcessLog([]);
+        setNotice('');
+        setDeployable(false);
+        if (threadId) {
+            loadMessages(threadId);
+        }
+    }, [loadMessages]);
+
     const handleSelectThread = useCallback((threadId) => {
         selectThread(threadId);
         subscribe(threadId);
@@ -203,7 +303,7 @@ const DevAgentPanel = () => {
 
     const newThread = useCallback(async () => {
         try {
-            const response = await API(API_URLS.createDevThread, { title: 'New thread' }, '');
+            const response = await API(API_URLS.createDevThread, { title: 'New change' }, '');
             const thread = response.data;
             setThreads((list) => [thread, ...list]);
             selectThread(thread.id);
@@ -231,10 +331,10 @@ const DevAgentPanel = () => {
         setOpen(true);
         let threadId = activeThreadId;
         if (!threadId) {
-            const created = await API(API_URLS.createDevThread, { title: text.slice(0, 60) || 'New thread' }, '').catch(() => null);
+            const created = await API(API_URLS.createDevThread, { title: text.slice(0, 60) || 'New change' }, '').catch(() => null);
             threadId = created?.data?.id;
             if (!threadId) {
-                setNotice('Could not create a thread');
+                setNotice('Could not start — try again');
                 return;
             }
             setThreads((list) => [created.data, ...list]);
@@ -258,27 +358,32 @@ const DevAgentPanel = () => {
         setPrompt('');
         setFiles([]);
         setStreamText('');
-        setThinking('');
         setTool('');
+        setProcessLog([]);
         setNotice('');
         setDeployable(false);
+        setPhase('thinking');
         setRunning(true);
         try {
             await API(API_URLS.postDevPrompt, form, threadId);
         } catch (error) {
             setRunning(false);
-            setNotice(error?.response?.data || 'Could not start the run');
+            setPhase('idle');
+            setNotice(error?.response?.data || 'Could not start — try again');
         }
     }, [prompt, files, activeThreadId, selectThread, subscribe]);
 
     const applyDeploy = useCallback(async () => {
         if (!activeThreadId) return;
+        setPhase('deploying');
         setNotice('Saving and putting it live…');
         try {
             const response = await API(API_URLS.applyDev, { message: prompt.trim().slice(0, 80) }, activeThreadId);
             setDeployable(false);
+            setPhase('idle');
             setNotice(response.data?.pushed ? "Done — it's live now" : 'Nothing to save');
         } catch (error) {
+            setPhase('idle');
             setNotice(error?.response?.data || 'Could not put it live — try again');
         }
     }, [activeThreadId, prompt]);
@@ -310,7 +415,7 @@ const DevAgentPanel = () => {
             setDeployable(false);
             setNotice('Changes undone');
         } catch (error) {
-            setNotice(error?.response?.data || 'Discard failed');
+            setNotice(error?.response?.data || 'Could not undo — try again');
         }
     }, [activeThreadId]);
 
@@ -369,7 +474,7 @@ const DevAgentPanel = () => {
                     placeholder={'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
                     className="max-h-28 min-h-[2.75rem] flex-1 resize-none bg-transparent px-1 py-1.5 text-sm outline-none"
                 />
-                <Tooltip label={running ? 'Running…' : 'Run'}>
+                <Tooltip label={running ? 'Working…' : 'Run'}>
                     <button
                         type="button"
                         onClick={send}
@@ -403,6 +508,29 @@ const DevAgentPanel = () => {
                         </button>
                     </Tooltip>
                 )}
+            </div>
+        </div>
+    );
+
+    const processBubble = (running || streamText || processLog.length > 0) && (
+        <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">
+                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <MailshotIcon name="refresh" size={14} active={phase !== 'idle'} />
+                    {PHASE_LABELS[phase] || 'Working'}
+                    {tool ? <span className="font-normal normal-case text-slate-400">· {tool}</span> : null}
+                </div>
+                {processLog.length > 0 && (
+                    <ul className="mb-1 space-y-0.5">
+                        {processLog.map((entry, index) => (
+                            <li key={`${entry}-${index}`} className="flex items-center gap-1.5 text-xs text-slate-500">
+                                <span className="h-1 w-1 rounded-full bg-slate-400" />
+                                {entry}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                {streamText && <p className="whitespace-pre-wrap">{streamText}</p>}
             </div>
         </div>
     );
@@ -451,8 +579,11 @@ const DevAgentPanel = () => {
                         <section className="flex min-w-0 flex-1 flex-col">
                             <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                                 <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-slate-900">{activeThread?.title || 'Dev agent'}</p>
-                                    <p className="truncate text-xs text-slate-500">Changes to PlanMyCharter</p>
+                                    <p className="truncate text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
+                                    <p className="truncate text-xs text-slate-500">
+                                        {activeThread?.title || 'Tell it what you would like changed'}
+                                        {!connected ? ' · reconnecting…' : ''}
+                                    </p>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
@@ -462,6 +593,24 @@ const DevAgentPanel = () => {
                             </header>
 
                             <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-4 py-4">
+                                {!messages.length && !running && (
+                                    <div className="mx-auto max-w-md py-8 text-center">
+                                        <p className="text-sm font-medium text-slate-700">What would you like to change?</p>
+                                        <div className="mt-3 flex flex-wrap justify-center gap-2">
+                                            {SUGGESTIONS.map((suggestion) => (
+                                                <button
+                                                    key={suggestion}
+                                                    type="button"
+                                                    onClick={() => setPrompt(suggestion)}
+                                                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                                                >
+                                                    {suggestion}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {messages.map((message) => (
                                     <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
@@ -476,20 +625,8 @@ const DevAgentPanel = () => {
                                         </div>
                                     </div>
                                 ))}
-                                {(running || streamText || tool) && (
-                                    <div className="flex justify-start">
-                                        <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">
-                                            {tool && <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">using {tool}</p>}
-                                            {streamText}
-                                            {!streamText && (
-                                                <span className="inline-flex items-center gap-1.5 text-slate-500">
-                                                    <MailshotIcon name="refresh" size={16} active />
-                                                    {tool ? 'working…' : 'Thinking…'}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+
+                                {processBubble}
                             </div>
 
                             <div className="border-t border-slate-200 px-4 py-3">

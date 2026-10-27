@@ -53,10 +53,33 @@ export const attachDevAgentWebSocket = (server) => {
                     ws.send(JSON.stringify({ type: 'pong' }));
                 }
             });
+            ws.on('pong', () => {
+                const meta = clients.get(ws);
+                if (meta) meta.awaitingPong = false;
+            });
             ws.on('close', () => clients.delete(ws));
             ws.on('error', () => clients.delete(ws));
         });
     });
+
+    // Keep connections alive through proxies and drop dead ones.
+    const heartbeat = setInterval(() => {
+        for (const [ws, meta] of clients.entries()) {
+            if (ws.readyState !== ws.OPEN) {
+                clients.delete(ws);
+                continue;
+            }
+            if (meta.awaitingPong) {
+                try { ws.terminate(); } catch { /* ignore */ }
+                clients.delete(ws);
+                continue;
+            }
+            meta.awaitingPong = true;
+            try { ws.ping(); } catch { /* ignore */ }
+        }
+    }, 30000);
+    heartbeat.unref?.();
+    wss.on('close', () => clearInterval(heartbeat));
 
     return wss;
 };

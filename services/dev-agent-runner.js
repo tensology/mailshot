@@ -47,6 +47,8 @@ const git = async (args, cwd = WORKTREE) => {
 
 export const isRunning = () => Boolean(active);
 
+export const currentRun = () => (active ? { threadId: active.threadId, startedAt: active.startedAt } : null);
+
 export const ensureWorktree = async () => {
     fs.mkdirSync(ROOT, { recursive: true });
     fs.mkdirSync(HOME, { recursive: true });

@@ -9,7 +9,7 @@ import {
     listMessages,
     addMessage
 } from '../services/dev-agent-store.js';
-import { runAgent, commitAndDeploy, diffSummary, isRunning, uploadsDir, discardChanges } from '../services/dev-agent-runner.js';
+import { runAgent, commitAndDeploy, diffSummary, isRunning, currentRun, uploadsDir, discardChanges } from '../services/dev-agent-runner.js';
 import { broadcast } from '../services/dev-agent-ws.js';
 import { getSettings, updateSettingsSection } from '../services/settings-store.js';
 import { getActiveAccount } from '../services/account-context.js';
@@ -50,7 +50,8 @@ export const getDevSettings = async (request, response) => {
         capable: Boolean(getActiveAccount()?.dev_agent_capable),
         enabled: Boolean(settings.dev_agent?.enabled),
         auto_deploy: Boolean(settings.dev_agent?.auto_deploy),
-        running: isRunning()
+        running: isRunning(),
+        running_thread_id: currentRun()?.threadId || ''
     });
 };
 
