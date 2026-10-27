@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import API from '../services/api';
 import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
@@ -675,7 +675,29 @@ const DevAgentPanel = () => {
         </div>
     );
 
-    const progressStrip = completed ? (
+    // The live process belongs to the run started by the last user message, so it
+    // is anchored there - never after the reply it produced.
+    const processStrip = running ? (
+        <div className="flex justify-start">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
+                {STEPS.map((step, index) => {
+                    const done = phaseIndex > index;
+                    const active = phaseIndex === index;
+                    return (
+                        <span
+                            key={step.key}
+                            className={`inline-flex items-center gap-1.5 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
+                        >
+                            {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
+                            {step.label}
+                        </span>
+                    );
+                })}
+            </div>
+        </div>
+    ) : null;
+
+    const completedBanner = completed ? (
         <div className="flex justify-start">
             <div className="inline-flex flex-wrap items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-sm">
                 <span className="text-emerald-400">✓</span>
@@ -690,26 +712,14 @@ const DevAgentPanel = () => {
                 </a>
             </div>
         </div>
-    ) : running ? (
-        <div className="flex justify-start">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
-                {STEPS.map((step, index) => {
-                    const done = phaseIndex > index;
-                    const active = phaseIndex === index;
-                    return (
-                        <span
-                            key={step.key}
-                            className={`inline-flex items-center gap-1 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
-                        >
-                            {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
-                            {step.label}
-                        </span>
-                    );
-                })}
-            </div>
-        </div>
     ) : null;
 
+    let lastUserIndex = -1;
+    messages.forEach((message, index) => {
+        if (message.role === 'user') {
+            lastUserIndex = index;
+        }
+    });
     const liveThread = liveItems.map((item, index) => (
         item.kind === 'notice' ? (
             <div key={`notice-${index}`} className="flex justify-start">
@@ -723,6 +733,14 @@ const DevAgentPanel = () => {
             </div>
         )
     ));
+
+    const liveRun = (
+        <>
+            {activityLine}
+            {processStrip}
+            {liveThread}
+        </>
+    );
 
     const threadsPanel = (
         <>
@@ -781,24 +799,26 @@ const DevAgentPanel = () => {
                 </div>
             )}
 
-            {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                        <Markdown invert={message.role === 'user'}>{message.content}</Markdown>
-                        {Array.isArray(message.meta?.attachments) && message.meta.attachments.length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                                {message.meta.attachments.map((name) => (
-                                    <span key={name} className={`rounded-full px-2 py-0.5 text-[11px] ${message.role === 'user' ? 'bg-blue-500/60' : 'bg-slate-200'}`}>{fileLabel(name)}</span>
-                                ))}
-                            </div>
-                        )}
+            {messages.map((message, index) => (
+                <Fragment key={message.id}>
+                    <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                            <Markdown invert={message.role === 'user'}>{message.content}</Markdown>
+                            {Array.isArray(message.meta?.attachments) && message.meta.attachments.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                    {message.meta.attachments.map((name) => (
+                                        <span key={name} className={`rounded-full px-2 py-0.5 text-[11px] ${message.role === 'user' ? 'bg-blue-500/60' : 'bg-slate-200'}`}>{fileLabel(name)}</span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+                    {index === lastUserIndex && liveRun}
+                </Fragment>
             ))}
 
-            {activityLine}
-            {progressStrip}
-            {liveThread}
+            {lastUserIndex === -1 && liveRun}
+            {completedBanner}
         </div>
     );
 
