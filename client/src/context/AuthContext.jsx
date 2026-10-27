@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
     const [username, setUsername] = useState('');
     const [isSuperuser, setIsSuperuser] = useState(false);
+    const [mustChangePassword, setMustChangePassword] = useState(false);
     const [accounts, setAccounts] = useState([]);
     const [activeAccountId, setActiveAccountId] = useState(() => localStorage.getItem(ACCOUNT_KEY) || '');
     const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +32,7 @@ export const AuthProvider = ({ children }) => {
         const nextActive = pickActiveAccountId(nextAccounts, preferred);
         setUsername(data?.username || fallbackUsername);
         setIsSuperuser(Boolean(data?.is_superuser));
+        setMustChangePassword(Boolean(data?.must_change_password));
         setAccounts(nextAccounts);
         setActiveAccountId(nextActive);
         if (nextActive) {
@@ -44,6 +46,7 @@ export const AuthProvider = ({ children }) => {
         setToken('');
         setUsername('');
         setIsSuperuser(false);
+        setMustChangePassword(false);
         setAccounts([]);
         setActiveAccountId('');
     }, []);
@@ -125,6 +128,16 @@ export const AuthProvider = ({ children }) => {
         clearSession();
     }, [clearSession]);
 
+    const changePassword = useCallback(async (newPassword, confirmPassword) => {
+        const storedToken = localStorage.getItem(TOKEN_KEY);
+        await axios.post(
+            buildAuthUrl(API_URLS.changePassword.endpoint),
+            { new_password: newPassword, confirm_password: confirmPassword },
+            { headers: { Authorization: `Bearer ${storedToken}`, Accept: 'application/json' } }
+        );
+        setMustChangePassword(false);
+    }, []);
+
     // Switching account swaps the entire dataset (mail, labels, contacts,
     // settings). A reload guarantees every view refetches under the new account.
     const switchAccount = useCallback((accountId) => {
@@ -142,6 +155,7 @@ export const AuthProvider = ({ children }) => {
             token,
             username,
             isSuperuser,
+            mustChangePassword,
             accounts,
             activeAccount,
             activeAccountId,
@@ -151,9 +165,10 @@ export const AuthProvider = ({ children }) => {
             login,
             logout,
             restoreSession,
+            changePassword,
             switchAccount
         };
-    }, [token, username, isSuperuser, accounts, activeAccountId, isLoading, login, logout, restoreSession, switchAccount]);
+    }, [token, username, isSuperuser, mustChangePassword, accounts, activeAccountId, isLoading, login, logout, restoreSession, changePassword, switchAccount]);
 
     return (
         <AuthContext.Provider value={value}>

@@ -153,6 +153,7 @@ const buildState = () => {
             name: String(entry.name || '').trim(),
             password: String(entry.password || ''),
             is_superuser: Boolean(entry.is_superuser),
+            must_change_password: Boolean(entry.must_change_password),
             accountIds: accountIds.length ? accountIds : accounts.map((account) => account.id)
         });
     });
@@ -206,6 +207,37 @@ export const accountsForUser = (username) => {
 };
 
 export const isSuperUser = (username) => Boolean(findUser(username)?.is_superuser);
+
+// Rewrites the user's password in accounts.config.json and clears the
+// must-change flag. Secrets stay server-local; the file is gitignored.
+export const updateUserPassword = (username, newPassword) => {
+    const normalized = String(username || '').trim().toLowerCase();
+    const password = String(newPassword || '');
+    if (!normalized || !password) {
+        throw new Error('Username and password are required');
+    }
+    if (!fs.existsSync(CONFIG_FILE)) {
+        throw new Error('Password changes are not available on this deployment');
+    }
+
+    const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    const users = Array.isArray(raw.users) ? raw.users : [];
+    const target = users.find((entry) => (
+        String(entry.username || entry.email || '').trim().toLowerCase() === normalized
+    ));
+    if (!target) {
+        throw new Error('User not found');
+    }
+
+    target.password = password;
+    delete target.must_change_password;
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(raw, null, 2));
+
+    // Drop the cached copy so the next read picks up the new password.
+    configCache = null;
+    configMtime = 0;
+    return true;
+};
 
 export const publicAccount = (account) => ({
     id: account.id,

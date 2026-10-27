@@ -57,7 +57,8 @@ import {
     login,
     logout,
     getCurrentSession,
-    getAuthStatus
+    getAuthStatus,
+    changePassword
 } from '../controller/auth-controller.js';
 
 import {
@@ -81,6 +82,8 @@ routes.get('/auth/me', getCurrentSession);
 routes.post('/auth/logout', logout);
 
 routes.use(requireAuth);
+
+routes.post('/auth/change-password', changePassword);
 
 routes.post('/save', saveSendEmails);
 routes.post('/send', upload.array('attachments', 10), requireAccountContext, sendEmail);

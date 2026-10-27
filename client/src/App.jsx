@@ -8,6 +8,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ReadSummaryProvider } from './context/ReadSummaryContext';
 import { UndoDeleteProvider } from './context/UndoDeleteContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ChangePasswordDialog from './components/ChangePasswordDialog';
 
 const ErrorComponent = lazy(() => import('./components/common/ErrorComponent'));
 const Login = lazy(() => import('./pages/Login'));
@@ -40,6 +41,7 @@ function App() {
     return (
         <Suspense fallback={<SuspenseLoader />}>
             <AuthProvider>
+                <ChangePasswordDialog />
                 <DataProvider>
                     <ComposeProvider>
                         <ReadSummaryProvider>

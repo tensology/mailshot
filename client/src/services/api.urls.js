@@ -11,6 +11,10 @@ export const API_URLS = {
         endpoint: 'auth/me',
         method: 'GET'
     },
+    changePassword: {
+        endpoint: 'auth/change-password',
+        method: 'POST'
+    },
     getSettings: {
         endpoint: 'settings',
         method: 'GET',

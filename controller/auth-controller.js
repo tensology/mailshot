@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { findUser, accountsForUser, publicAccount, isSuperUser } from '../services/accounts-config.js';
+import { findUser, accountsForUser, publicAccount, isSuperUser, updateUserPassword } from '../services/accounts-config.js';
 import { isAuthConfigured } from '../services/auth-config.js';
 import { createSession, getSession, revokeSession } from '../services/auth-store.js';
 import {
@@ -32,7 +32,9 @@ const sessionPayload = (username) => {
     const accounts = accountsForUser(username).map(publicAccount);
     return {
         username,
+        name: findUser(username)?.name || '',
         is_superuser: isSuperUser(username),
+        must_change_password: Boolean(findUser(username)?.must_change_password),
         accounts,
         default_account_id: accounts[0]?.id || null
     };
@@ -106,4 +108,29 @@ export const getAuthStatus = (_, response) => {
     return response.status(200).json({
         configured: isAuthConfigured()
     });
+};
+
+export const changePassword = (request, response) => {
+    const username = request.auth?.username;
+    if (!username) {
+        return response.status(401).json('Unauthorized');
+    }
+
+    const newPassword = String(request.body?.new_password || '');
+    const confirmPassword = String(request.body?.confirm_password || '');
+
+    if (newPassword.length < 6) {
+        return response.status(400).json('Choose a password of at least 6 characters');
+    }
+    if (newPassword !== confirmPassword) {
+        return response.status(400).json('The two passwords do not match');
+    }
+
+    try {
+        updateUserPassword(username, newPassword);
+    } catch (error) {
+        return response.status(400).json(error.message || 'Could not update the password');
+    }
+
+    return response.status(200).json({ ok: true });
 };
