@@ -133,13 +133,22 @@ export const postDevPrompt = async (request, response) => {
     // Kick off the run in the background; stream everything over the WebSocket.
     runAgent({ threadId, prompt, attachments, onEvent: (event) => broadcast(threadId, { type: 'agent', event }) })
         .then(async (result) => {
+            const failed = !result.ok;
+            const content = result.text
+                || (failed
+                    ? 'Sorry — that run stopped before it finished. Try again, or ask for a smaller piece at a time.'
+                    : 'Done.');
             const assistantMessage = await addMessage({
                 threadId,
                 role: 'assistant',
-                content: result.text || (result.ok ? '(done)' : '(no output)'),
+                content,
                 meta: { ok: result.ok, code: result.code }
             });
             broadcast(threadId, { type: 'message', message: assistantMessage });
+            if (failed) {
+                broadcast(threadId, { type: 'error', message: content });
+                return;
+            }
             broadcast(threadId, { type: 'diff', ...(await diffSummary()) });
 
             const settings = await getSettings();
@@ -151,7 +160,17 @@ export const postDevPrompt = async (request, response) => {
             }
         })
         .catch(async (error) => {
-            broadcast(threadId, { type: 'error', message: error.message });
+            const message = `Sorry — that run failed: ${error.message}`;
+            try {
+                const assistantMessage = await addMessage({
+                    threadId,
+                    role: 'assistant',
+                    content: message,
+                    meta: { ok: false, error: String(error.message || '') }
+                });
+                broadcast(threadId, { type: 'message', message: assistantMessage });
+            } catch { /* keep going */ }
+            broadcast(threadId, { type: 'error', message });
         });
 
     return response.status(202).json({ ok: true, thread_id: threadId });

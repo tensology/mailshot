@@ -165,6 +165,12 @@ const DevAgentPanel = () => {
                 setLiveItems((items) => items.map((item) => (
                     item.kind === 'tool' && item.id === ev.id ? { ...item, done: true } : item
                 )));
+            } else if (ev.type === 'notice') {
+                setLiveItems((items) => [...items, { kind: 'notice', text: ev.text }]);
+            } else if (ev.type === 'error') {
+                setPhase('done');
+                setNotice(ev.text);
+                setLiveItems((items) => [...items, { kind: 'notice', text: ev.text, error: true }]);
             }
         } else if (data.type === 'message') {
             setMessages((list) => {
@@ -531,20 +537,30 @@ const DevAgentPanel = () => {
         </div>
     );
 
-    const liveThread = liveItems.map((item, index) => (
-        item.kind === 'tool' ? (
-            <div key={`tool-${item.id || index}`} className="flex justify-start">
-                <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${item.done ? 'border-slate-200 bg-white text-slate-500' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
-                    {item.done ? '✓' : <MailshotIcon name="refresh" size={12} active />}
-                    {TOOL_LABELS[item.name] || `Using ${item.name}`}
+    const liveThread = liveItems.map((item, index) => {
+        if (item.kind === 'tool') {
+            return (
+                <div key={`tool-${item.id || index}`} className="flex justify-start">
+                    <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${item.done ? 'border-slate-200 bg-white text-slate-500' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
+                        {item.done ? '✓' : <MailshotIcon name="refresh" size={12} active />}
+                        {TOOL_LABELS[item.name] || `Using ${item.name}`}
+                    </div>
                 </div>
-            </div>
-        ) : (
+            );
+        }
+        if (item.kind === 'notice') {
+            return (
+                <div key={`notice-${index}`} className="flex justify-start">
+                    <p className={`text-xs ${item.error ? 'font-medium text-red-600' : 'text-slate-400'}`}>{item.text}</p>
+                </div>
+            );
+        }
+        return (
             <div key={`text-${index}`} className="flex justify-start">
                 <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">{item.text}</div>
             </div>
-        )
-    ));
+        );
+    });
 
     return (
         <>

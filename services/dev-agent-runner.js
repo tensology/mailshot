@@ -13,6 +13,10 @@ const execFileAsync = promisify(execFile);
 const ROOT = process.env.MAILSHOT_DEVAGENT_ROOT || '/opt/mailshot-devagent';
 const MAIN_CHECKOUT = process.env.MAILSHOT_DEVAGENT_CHECKOUT || '/var/www/planmycharter.com';
 const WORKTREE = path.join(ROOT, 'worktree');
+// A scratch "bucket" inside the worktree so the agent can see, crop, rename and
+// copy uploaded files (images, PDFs, anything) with ordinary tools.
+const BUCKET_NAME = '.devagent-files';
+const BUCKET = path.join(WORKTREE, BUCKET_NAME);
 const HOME = path.join(ROOT, 'home');
 const SESSIONS = path.join(ROOT, 'sessions');
 const BRANCH = 'mailshot-devagent';
@@ -49,16 +53,31 @@ export const isRunning = () => Boolean(active);
 
 export const currentRun = () => (active ? { threadId: active.threadId, startedAt: active.startedAt } : null);
 
+// Keep the scratch bucket out of git without touching the project's own .gitignore.
+const ensureBucket = async () => {
+    fs.mkdirSync(BUCKET, { recursive: true });
+    try {
+        const resolved = await git(['rev-parse', '--git-path', 'info/exclude']);
+        if (!resolved.ok || !resolved.stdout) return;
+        const target = path.isAbsolute(resolved.stdout) ? resolved.stdout : path.resolve(WORKTREE, resolved.stdout);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        const current = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
+        if (!current.split('\n').some((line) => line.trim() === `${BUCKET_NAME}/`)) {
+            fs.writeFileSync(target, `${current.replace(/\s*$/, '')}\n${BUCKET_NAME}/\n`);
+        }
+    } catch { /* ignore */ }
+};
+
 export const ensureWorktree = async () => {
     fs.mkdirSync(ROOT, { recursive: true });
     fs.mkdirSync(HOME, { recursive: true });
     fs.mkdirSync(SESSIONS, { recursive: true });
-    if (fs.existsSync(path.join(WORKTREE, '.git'))) {
-        return;
+    if (!fs.existsSync(path.join(WORKTREE, '.git'))) {
+        // Share the object store with the live checkout; no extra clone.
+        await execFileAsync('git', ['-C', MAIN_CHECKOUT, 'fetch', 'origin', '--prune'], { maxBuffer: 20 * 1024 * 1024 });
+        await execFileAsync('git', ['-C', MAIN_CHECKOUT, 'worktree', 'add', '-B', BRANCH, WORKTREE, 'origin/main'], { maxBuffer: 20 * 1024 * 1024 });
     }
-    // Share the object store with the live checkout; no extra clone.
-    await execFileAsync('git', ['-C', MAIN_CHECKOUT, 'fetch', 'origin', '--prune'], { maxBuffer: 20 * 1024 * 1024 });
-    await execFileAsync('git', ['-C', MAIN_CHECKOUT, 'worktree', 'add', '-B', BRANCH, WORKTREE, 'origin/main'], { maxBuffer: 20 * 1024 * 1024 });
+    await ensureBucket();
 };
 
 // Never reset the worktree between runs - the agent's edits must survive so a
@@ -90,10 +109,26 @@ const parseEvent = (event) => {
     if (event.type === 'tool_execution_end') {
         return { type: 'tool_end', id: event.toolCallId || '', name: event.toolName || 'tool', ok: !truthy(event.isError) };
     }
+    // Long runs: pi summarises old context (and retries hiccups) on its own.
+    if (event.type === 'compaction_start') {
+        return { type: 'notice', text: event.reason === 'overflow' ? 'The conversation got long — tidying it up so it can keep going…' : 'Tidying up the conversation so it can keep going…' };
+    }
+    if (event.type === 'compaction_end') {
+        return { type: 'notice', text: event.aborted ? 'Tidying up was stopped.' : 'Tidied up — carrying on.' };
+    }
+    if (event.type === 'auto_retry_start') {
+        return { type: 'notice', text: 'That attempt hiccupped — trying again…' };
+    }
+    if (event.type === 'auto_retry_end' && event.success === false) {
+        return { type: 'error', text: event.finalError || 'The agent could not finish this change.' };
+    }
+    if (event.type === 'agent_settled' && event.aborted === true) {
+        return { type: 'error', text: 'The run was stopped before it finished.' };
+    }
     return null;
 };
 
-export const uploadsDir = (threadId) => path.join(ROOT, 'uploads', String(threadId || 'thread'));
+export const uploadsDir = (threadId) => path.join(BUCKET, String(threadId || 'thread'));
 
 export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = () => {} }) => {
     if (active) {
@@ -107,10 +142,22 @@ export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = (
         throw new Error('No OpenRouter key configured for this mailbox');
     }
 
-    const fileRefs = (Array.isArray(attachments) ? attachments : [])
+    const fileList = (Array.isArray(attachments) ? attachments : [])
         .map((entry) => String(entry || '').trim())
-        .filter(Boolean)
-        .map((filePath) => `@${filePath}`);
+        .filter(Boolean);
+    const fileRefs = fileList.map((filePath) => `@${filePath}`);
+    const attachmentNote = fileList.length
+        ? [
+            '',
+            'The user attached these files (already on disk, absolute paths):',
+            ...fileList.map((filePath) => `- ${filePath}`),
+            'You may open, inspect, crop, rotate, OCR, rename or copy them wherever they are needed.',
+            'Tools available: pdftotext, pdfinfo, pdftoppm, tesseract, ffmpeg, and python3 with fitz (PyMuPDF) and PIL.',
+            'If the user wants an attached file used on the website, copy it into the right folder and commit it like any other change.',
+            'If it is not clear what to do with a file, ask a short plain-English question before moving on.'
+        ].join('\n')
+        : '';
+    const fullPrompt = `${prompt}${attachmentNote}`;
 
     const args = [
         '--print', '--mode', 'json',
@@ -121,7 +168,7 @@ export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = (
         '--api-key', apiKey,
         '--append-system-prompt', LAYMAN_SYSTEM_PROMPT,
         ...fileRefs,
-        prompt
+        fullPrompt
     ];
 
     const child = spawn('pi', args, {
