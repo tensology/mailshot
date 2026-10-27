@@ -63,14 +63,17 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
     };
 
     return (
-        <div className="px-1">
-            <div className="sticky top-0 z-10 -mx-1 mb-2 flex items-center justify-between bg-white px-3 pb-2 pt-4">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
-                <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
-                    <MailshotIcon name="plus" size={20} />
-                </button>
+        <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 border-b border-slate-100 px-4 pb-2 pt-4">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
+                    <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
+                        <MailshotIcon name="plus" size={20} />
+                    </button>
+                </div>
             </div>
-            <div className="space-y-1">
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2">
+                <div className="space-y-1">
                 {labels.filter((label) => !RESERVED_LABEL_SLUGS.has(label.slug)).map((label) => {
                     const unread = Number(counts[label.slug] || 0);
 
@@ -100,6 +103,7 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
                         </div>
                     );
                 })}
+                </div>
             </div>
 
             <Dialog

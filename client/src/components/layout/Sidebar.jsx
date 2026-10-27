@@ -141,12 +141,10 @@ const Sidebar = ({ onSent }) => {
                 </nav>
 
                 <div className="flex min-h-0 min-w-[16rem] flex-1 flex-col border-t border-slate-200">
-                    <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-                        <LabelSidebar
-                            counts={counts.label_unread || {}}
-                            onNavigate={handleNavigate}
-                        />
-                    </div>
+                    <LabelSidebar
+                        counts={counts.label_unread || {}}
+                        onNavigate={handleNavigate}
+                    />
                     <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-2">
                         <ContactSidebar onNavigate={handleNavigate} />
                     </div>
