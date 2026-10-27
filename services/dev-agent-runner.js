@@ -136,6 +136,23 @@ export const discardChanges = async () => {
 
 const truthy = (value) => String(value).toLowerCase() === 'true';
 
+// Provider usage is reported per assistant response, so totals are summed.
+const addUsage = (base = {}, extra = {}) => {
+    const num = (value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const cost = typeof extra?.cost === 'number' ? extra.cost : num(extra?.cost?.total);
+    return {
+        cost: num(base.cost) + cost,
+        input: num(base.input) + num(extra.input),
+        output: num(base.output) + num(extra.output),
+        cacheRead: num(base.cacheRead) + num(extra.cacheRead),
+        cacheWrite: num(base.cacheWrite) + num(extra.cacheWrite),
+        totalTokens: num(base.totalTokens) + num(extra.totalTokens)
+    };
+};
+
 const parseEvent = (event) => {
     if (event.type === 'message_update' && event.assistantMessageEvent) {
         const ev = event.assistantMessageEvent;
@@ -228,6 +245,7 @@ export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = (
 
     let assistantText = '';
     let buffer = '';
+    let runUsage = {};
     const handleLine = (line) => {
         const text = line.trim();
         if (!text) return;
@@ -238,6 +256,16 @@ export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = (
             onEvent({ type: 'raw', text: text.slice(0, 4000) });
             return;
         }
+
+        // Real cost/token numbers from the provider: `message_update` carries the
+        // running total for the response in flight, `message_end` is authoritative.
+        if (event.type === 'message_update' && event.usage) {
+            onEvent({ type: 'usage', usage: addUsage(runUsage, event.usage), live: true });
+        } else if (event.type === 'message_end' && event.message?.role === 'assistant' && event.message.usage) {
+            runUsage = addUsage(runUsage, event.message.usage);
+            onEvent({ type: 'usage', usage: runUsage, live: false });
+        }
+
         const parsed = parseEvent(event);
         if (parsed) {
             if (parsed.type === 'delta') assistantText += parsed.text;
@@ -265,7 +293,7 @@ export const runAgent = async ({ threadId, prompt, attachments = [], onEvent = (
         if (buffer.trim()) {
             handleLine(buffer);
         }
-        return { ok: code === 0, code, text: assistantText };
+        return { ok: code === 0, code, text: assistantText, usage: runUsage };
     } finally {
         // Always release the lock, whatever happened to the child.
         clearTimeout(timeout);

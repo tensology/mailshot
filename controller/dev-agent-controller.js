@@ -8,7 +8,8 @@ import {
     deleteThread,
     listMessages,
     addMessage,
-    touchThread
+    touchThread,
+    addThreadUsage
 } from '../services/dev-agent-store.js';
 import { runAgent, commitAndDeploy, diffSummary, isRunning, currentRun, uploadsDir, discardChanges, markDeploying, clearDeploying } from '../services/dev-agent-runner.js';
 import { broadcast } from '../services/dev-agent-ws.js';
@@ -147,6 +148,13 @@ export const postDevPrompt = async (request, response) => {
                 meta: { ok: result.ok, code: result.code }
             });
             broadcast(threadId, { type: 'message', message: assistantMessage });
+
+            // Fold this run's real cost/tokens into the thread's session total.
+            try {
+                const usage = await addThreadUsage(threadId, result.usage || {});
+                broadcast(threadId, { type: 'usage_total', usage });
+            } catch { /* usage is informational */ }
+
             if (failed) {
                 broadcast(threadId, { type: 'error', message: content });
                 return;

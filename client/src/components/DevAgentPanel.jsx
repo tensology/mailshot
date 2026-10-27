@@ -29,6 +29,39 @@ const TOOL_LABELS = {
 };
 
 const SITE_URL = 'https://planmycharter.com';
+// Context window for the model the agent runs on (deepseek/deepseek-v4.1-flash).
+const CONTEXT_WINDOW = 1000000;
+
+const EMPTY_USAGE = { cost: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
+
+const num = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const mergeUsage = (base = {}, extra = {}) => ({
+    cost: num(base.cost) + num(extra.cost),
+    input: num(base.input) + num(extra.input),
+    output: num(base.output) + num(extra.output),
+    cacheRead: num(base.cacheRead) + num(extra.cacheRead),
+    cacheWrite: num(base.cacheWrite) + num(extra.cacheWrite),
+    totalTokens: num(base.totalTokens) + num(extra.totalTokens)
+});
+
+const formatCost = (value) => {
+    const cost = num(value);
+    if (cost <= 0) return '$0.00';
+    if (cost < 0.01) return `$${cost.toFixed(4)}`;
+    if (cost < 1) return `$${cost.toFixed(3)}`;
+    return `$${cost.toFixed(2)}`;
+};
+
+const formatTokens = (value) => {
+    const count = num(value);
+    if (count >= 1000000) return `${(count / 1000000).toFixed(2)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return String(Math.round(count));
+};
 
 const STEPS = [
     { key: 'thinking', label: 'Thinking' },
@@ -139,6 +172,8 @@ const DevAgentPanel = () => {
     const [liveItems, setLiveItems] = useState([]);
     const [activity, setActivity] = useState('');
     const [completed, setCompleted] = useState(false);
+    const [sessionUsage, setSessionUsage] = useState(EMPTY_USAGE);
+    const [liveUsage, setLiveUsage] = useState(EMPTY_USAGE);
     const [phase, setPhase] = useState('idle');
     const [running, setRunning] = useState(false);
     const [prompt, setPrompt] = useState('');
@@ -246,7 +281,10 @@ const DevAgentPanel = () => {
             setRunning(true);
             setPhase('deploying');
         }
-    }, [activeThreadId, threads]);
+        if (!running) {
+            setSessionUsage(thread.usage || EMPTY_USAGE);
+        }
+    }, [activeThreadId, threads, running]);
 
     const handleEvent = useCallback((data) => {
         if (data.type === 'agent') {
@@ -264,6 +302,8 @@ const DevAgentPanel = () => {
                 // One line, updated in place - never a growing list.
                 setPhase('developing');
                 setActivity(TOOL_LABELS[ev.name] || `Using ${ev.name}`);
+            } else if (ev.type === 'usage') {
+                setLiveUsage(ev.usage || EMPTY_USAGE);
             } else if (ev.type === 'notice') {
                 setLiveItems((items) => [...items, { kind: 'notice', text: ev.text }]);
             } else if (ev.type === 'error') {
@@ -314,6 +354,11 @@ const DevAgentPanel = () => {
             setRunning(false);
             setPhase('done');
             setNotice(data.message || 'Something went wrong — try again');
+        } else if (data.type === 'usage_total') {
+            const usage = data.usage || EMPTY_USAGE;
+            setSessionUsage(usage);
+            setLiveUsage(EMPTY_USAGE);
+            setThreads((list) => list.map((entry) => (entry.id === activeThreadRef.current ? { ...entry, usage } : entry)));
         } else if (data.type === 'status') {
             if (data.status === 'running') {
                 setRunning(true);
@@ -462,6 +507,7 @@ const DevAgentPanel = () => {
         setMessages([]);
         setLiveItems([]);
         setActivity('');
+        setLiveUsage(EMPTY_USAGE);
         let doneKey = null;
         try { doneKey = localStorage.getItem('mailshot:devagent-done'); } catch { /* ignore */ }
         setCompleted(Boolean(threadId) && doneKey === threadId);
@@ -540,6 +586,7 @@ const DevAgentPanel = () => {
         setFiles([]);
         setLiveItems([]);
         setActivity('');
+        setLiveUsage(EMPTY_USAGE);
         setCompleted(false);
         try { localStorage.removeItem('mailshot:devagent-done'); } catch { /* ignore */ }
         setNotice('');
@@ -699,6 +746,19 @@ const DevAgentPanel = () => {
     );
 
     const phaseIndex = PHASE_INDEX[phase] ?? -1;
+    const totalUsage = mergeUsage(sessionUsage, liveUsage);
+    const contextPct = Math.max(0, Math.min(100, Math.round((totalUsage.totalTokens / CONTEXT_WINDOW) * 100)));
+
+    const costBadge = (totalUsage.cost > 0 || totalUsage.totalTokens > 0) ? (
+        <Tooltip
+            label={`Session: ${formatTokens(totalUsage.totalTokens)} tokens · in ${formatTokens(totalUsage.input)} · out ${formatTokens(totalUsage.output)} · cache ${formatTokens(totalUsage.cacheRead)}`}
+            placement="bottom"
+        >
+            <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+                {formatCost(totalUsage.cost)}
+            </span>
+        </Tooltip>
+    ) : null;
 
     const progressPill = running ? (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
@@ -721,14 +781,29 @@ const DevAgentPanel = () => {
     // Headline first (how far along), then the detail of what it is doing right now.
     // Anchored to the user message that started the run, never below the reply.
     const processStrip = (running || activity) ? (
-        <div className="flex justify-start">
-            <div className="flex flex-col items-start gap-2">
+        <div className="flex w-full justify-start">
+            <div className="flex w-full flex-col items-start gap-2">
                 {progressPill}
                 {activity && (
-                    <p className="inline-flex items-center gap-2 pl-3 text-xs text-slate-500">
-                        {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
-                        {activity}
-                    </p>
+                    <div className="flex w-full items-center gap-3 pl-3">
+                        <p className="inline-flex items-center gap-2 text-xs text-slate-500">
+                            {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
+                            {activity}
+                        </p>
+                        <Tooltip
+                            label={`Context used: ${formatTokens(totalUsage.totalTokens)} of ${formatTokens(CONTEXT_WINDOW)} tokens`}
+                            placement="top"
+                            className="ml-auto"
+                        >
+                            <span className="relative inline-flex h-4 w-16 items-center justify-center overflow-hidden rounded-full bg-slate-200 align-middle">
+                                <span
+                                    className="absolute inset-y-0 left-0 rounded-full bg-blue-500 transition-all duration-500"
+                                    style={{ width: `${contextPct}%` }}
+                                />
+                                <span className="relative text-[9px] font-semibold text-slate-700">{contextPct}%</span>
+                            </span>
+                        </Tooltip>
+                    </div>
                 )}
             </div>
         </div>
@@ -902,6 +977,7 @@ const DevAgentPanel = () => {
                             </button>
                         </Tooltip>
                         <p className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
+                        {costBadge}
                         <Tooltip label="Close" placement="bottom">
                             <button type="button" onClick={() => setOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100" aria-label="Close">
                                 <MailshotIcon name="close" size={22} />
@@ -931,6 +1007,7 @@ const DevAgentPanel = () => {
                             <header className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
                                 <p className="truncate text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
                                 <div className="flex items-center gap-1">
+                                    {costBadge}
                                     <Tooltip label={fullscreen ? 'Exit full screen' : 'Full screen'} placement="bottom">
                                         <button
                                             type="button"
