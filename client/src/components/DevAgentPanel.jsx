@@ -4,6 +4,7 @@ import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
 import { getAuthToken, useAuth } from '../context/AuthContext';
 import MailshotIcon from './ui/MailshotIcon';
+import ConfirmDialog from './common/ConfirmDialog';
 
 // Dev agent: prompt an AI coding agent against the PlanMyCharter repo. Threads on
 // the left, live streamed output on the right, files/images attachable, and a
@@ -32,6 +33,7 @@ const DevAgentPanel = () => {
     const [files, setFiles] = useState([]);
     const [notice, setNotice] = useState('');
     const [dragging, setDragging] = useState(false);
+    const [threadToDelete, setThreadToDelete] = useState(null);
     const wsRef = useRef(null);
     const fileInputRef = useRef(null);
     const scrollRef = useRef(null);
@@ -265,6 +267,26 @@ const DevAgentPanel = () => {
         }
     }, [activeThreadId, prompt]);
 
+    const handleDeleteThread = useCallback(async () => {
+        const target = threadToDelete;
+        if (!target) {
+            return;
+        }
+        setThreadToDelete(null);
+        setThreads((list) => list.filter((thread) => thread.id !== target.id));
+        if (activeThreadRef.current === target.id) {
+            activeThreadRef.current = '';
+            setActiveThreadId('');
+            setMessages([]);
+            setStreamText('');
+        }
+        try {
+            await API(API_URLS.deleteDevThread, {}, target.id);
+        } catch {
+            loadThreads();
+        }
+    }, [threadToDelete, loadThreads]);
+
     const discard = useCallback(async () => {
         if (!activeThreadId) return;
         try {
@@ -314,11 +336,11 @@ const DevAgentPanel = () => {
                 <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100"
                     title="Attach files or images"
                     aria-label="Attach files or images"
                 >
-                    <MailshotIcon name="attach" size={20} />
+                    <MailshotIcon name="attach" size={32} />
                 </button>
                 <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => setFiles((list) => [...list, ...Array.from(event.target.files || [])].slice(0, 10))} />
                 <textarea
@@ -350,12 +372,16 @@ const DevAgentPanel = () => {
                     </button>
                 )}
             </div>
-            <div className="mt-1.5 flex items-center justify-between gap-2 px-1">
-                <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                    <input type="checkbox" checked={autoDeploy} onChange={(event) => toggleSetting({ auto_deploy: event.target.checked })} />
-                    Auto-deploy after each prompt
-                </label>
-                <span className="hidden text-[11px] text-slate-400 sm:inline">Enter to run · Shift+Enter for a new line</span>
+            <p className="mt-1 px-1 text-[11px] text-slate-400">Enter to run · Shift+Enter for a new line</p>
+            <div className="mt-1 flex items-center justify-between gap-2 px-1">
+                <label htmlFor="dev-auto-deploy" className="cursor-pointer text-xs text-slate-600">Auto-deploy after each prompt</label>
+                <input
+                    id="dev-auto-deploy"
+                    type="checkbox"
+                    className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    checked={autoDeploy}
+                    onChange={(event) => toggleSetting({ auto_deploy: event.target.checked })}
+                />
             </div>
         </div>
     );
@@ -378,14 +404,24 @@ const DevAgentPanel = () => {
                             </div>
                             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2">
                                 {threads.map((thread) => (
-                                    <button
-                                        key={thread.id}
-                                        type="button"
-                                        onClick={() => handleSelectThread(thread.id)}
-                                        className={`mb-1 block w-full truncate rounded-md px-2.5 py-2 text-left text-sm transition ${thread.id === activeThreadId ? 'bg-blue-100 font-medium text-blue-900' : 'text-slate-700 hover:bg-slate-100'}`}
-                                    >
-                                        {thread.title || 'Untitled'}
-                                    </button>
+                                    <div key={thread.id} className="group mb-1 flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSelectThread(thread.id)}
+                                            className={`min-w-0 flex-1 truncate rounded-md px-2.5 py-2 text-left text-sm transition ${thread.id === activeThreadId ? 'bg-blue-100 font-medium text-blue-900' : 'text-slate-700 hover:bg-slate-100'}`}
+                                        >
+                                            {thread.title || 'Untitled'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setThreadToDelete(thread)}
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600 ${thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                            title="Delete thread"
+                                            aria-label={`Delete ${thread.title || 'thread'}`}
+                                        >
+                                            <MailshotIcon name="delete" size={16} />
+                                        </button>
+                                    </div>
                                 ))}
                                 {!threads.length && <p className="px-2 py-4 text-xs text-slate-500">No threads yet.</p>}
                             </div>
@@ -398,7 +434,6 @@ const DevAgentPanel = () => {
                                     <p className="truncate text-xs text-slate-500">DeepSeek V4.1 Flash · PlanMyCharter</p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <button type="button" onClick={() => toggleSetting({ enabled: false })} className="text-xs text-slate-500 hover:text-slate-800">Turn off</button>
                                     <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
                                         <MailshotIcon name="close" size={20} />
                                     </button>
@@ -454,6 +489,15 @@ const DevAgentPanel = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={Boolean(threadToDelete)}
+                title="Delete thread?"
+                message={threadToDelete ? `Delete “${threadToDelete.title || 'this thread'}”? This removes the chat history only, not any code changes already deployed.` : ''}
+                confirmLabel="Delete thread"
+                onConfirm={handleDeleteThread}
+                onCancel={() => setThreadToDelete(null)}
+            />
         </>
     );
 };
