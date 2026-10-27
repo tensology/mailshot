@@ -11,10 +11,20 @@ const clients = new Map();
 const history = new Map();
 const HISTORY_MAX = 600;
 
+// The last terminal-ish event per thread. Without this a client that reconnects
+// after the run finished would never learn it ended, leaving the thread locked.
+const latestState = new Map();
+const STATE_MAX = 300;
+
 const replayHistory = (ws, threadId) => {
-    const list = history.get(String(threadId || '')) || [];
+    const key = String(threadId || '');
+    const list = history.get(key) || [];
     for (const payload of list) {
         try { ws.send(JSON.stringify(payload)); } catch { /* ignore */ }
+    }
+    const state = latestState.get(key);
+    if (state) {
+        try { ws.send(JSON.stringify(state)); } catch { /* ignore */ }
     }
 };
 
@@ -32,6 +42,11 @@ export const broadcast = (threadId, payload) => {
         history.set(key, list);
     } else if (payload?.type === 'message' && payload.message?.role === 'assistant') {
         history.delete(key);
+    } else if (['status', 'deploy', 'ready_to_deploy', 'error'].includes(payload?.type)) {
+        latestState.set(key, payload);
+        if (latestState.size > STATE_MAX) {
+            latestState.delete(latestState.keys().next().value);
+        }
     }
 
     const data = JSON.stringify(payload);

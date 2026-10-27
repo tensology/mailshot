@@ -389,6 +389,41 @@ const DevAgentPanel = () => {
         };
     }, [enabled, isAuthenticated, handleEvent]);
 
+    // Safety net: if the live socket ever drops mid-run we can miss the "finished"
+    // event, which would leave the thread stuck with Run disabled forever. Poll
+    // until the server agrees the run is over, then unlock and pull the reply in.
+    useEffect(() => {
+        if (!running || !enabled || !isAuthenticated) {
+            return undefined;
+        }
+        let cancelled = false;
+        const check = async () => {
+            try {
+                const response = await API(API_URLS.getDevSettings, {}, '');
+                if (cancelled) {
+                    return;
+                }
+                const serverRunning = Boolean(response.data?.running);
+                const serverThread = response.data?.running_thread_id || '';
+                const stillOurs = serverRunning && (!serverThread || serverThread === activeThreadRef.current);
+                if (stillOurs) {
+                    return;
+                }
+                setRunning(false);
+                setPhase('done');
+                setActivity('');
+                if (activeThreadRef.current) {
+                    loadMessages(activeThreadRef.current);
+                }
+            } catch { /* try again on the next tick */ }
+        };
+        const timer = setInterval(check, 8000);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [running, enabled, isAuthenticated, loadMessages]);
+
     // Load the thread list early so a restored thread can show its run state.
     useEffect(() => {
         if (enabled && isAuthenticated && !threads.length) {
