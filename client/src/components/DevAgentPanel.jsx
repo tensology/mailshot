@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import API from '../services/api';
 import { API_URLS } from '../services/api.urls';
 import { API_URL } from '../config/env';
@@ -71,6 +71,7 @@ const DevAgentPanel = () => {
     const [notice, setNotice] = useState('');
     const [dragging, setDragging] = useState(false);
     const [threadToDelete, setThreadToDelete] = useState(null);
+    const [fullscreen, setFullscreen] = useState(false);
     const [deployable, setDeployable] = useState(false);
     const [connected, setConnected] = useState(false);
     const wsRef = useRef(null);
@@ -432,11 +433,6 @@ const DevAgentPanel = () => {
         }
     }, []);
 
-    const activeThread = useMemo(
-        () => threads.find((thread) => thread.id === activeThreadId) || null,
-        [threads, activeThreadId]
-    );
-
     if (!enabled || !isAuthenticated) {
         return null;
     }
@@ -569,10 +565,10 @@ const DevAgentPanel = () => {
             </div>
 
             {open && (
-                <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setOpen(false)}>
-                    <div className="flex h-[85vh] w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                <div className={`fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm ${fullscreen ? 'p-0' : 'p-4'}`} onClick={() => setOpen(false)}>
+                    <div className={`flex overflow-hidden bg-white shadow-2xl ${fullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[85vh] w-full max-w-6xl rounded-2xl'}`} onClick={(event) => event.stopPropagation()}>
                         <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
-                            <div className="flex items-center justify-between border-b border-slate-200 px-3 py-3">
+                            <div className="flex h-14 items-center justify-between border-b border-slate-200 px-3">
                                 <span className="text-sm font-semibold text-slate-900">Threads</span>
                                 <button type="button" onClick={newThread} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100" title="New thread">
                                     <MailshotIcon name="plus" size={18} />
@@ -604,15 +600,19 @@ const DevAgentPanel = () => {
                         </aside>
 
                         <section className="flex min-w-0 flex-1 flex-col">
-                            <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                                <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
-                                    <p className="truncate text-xs text-slate-500">
-                                        {activeThread?.title || 'Tell it what you would like changed'}
-                                        {!connected ? ' · reconnecting…' : ''}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
+                            <header className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
+                                <p className="truncate text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
+                                <div className="flex items-center gap-1">
+                                    <Tooltip label={fullscreen ? 'Exit full screen' : 'Full screen'}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFullscreen((value) => !value)}
+                                            className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100"
+                                            aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
+                                        >
+                                            <MailshotIcon name={fullscreen ? 'collapse' : 'expand'} size={20} />
+                                        </button>
+                                    </Tooltip>
                                     <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
                                         <MailshotIcon name="close" size={20} />
                                     </button>

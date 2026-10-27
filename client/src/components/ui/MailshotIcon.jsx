@@ -27,6 +27,7 @@ const PALETTES = {
     list: ['#94a3b8', '#475569'],
     close: ['#fb7185', '#be123c'],
     expand: ['#818cf8', '#4338ca'],
+collapse: ['#818cf8', '#4338ca'],
     logout: ['#fb7185', '#be123c'],
     mail: ['#38bdf8', '#1d4ed8'],
     menu: ['#94a3b8', '#475569'],
@@ -76,6 +77,7 @@ const glyph = (name) => {
         case 'external': return <><path d="M13 5h6v6"/><path d="m19 5-8 8"/><path d="M17 14v5H5V7h5"/></>;
         case 'eye': return <><path d="M3 12s3-5 9-5 9 5 9 5-3 5-9 5-9-5-9-5z"/><circle cx="12" cy="12" r="2.5"/></>;
         case 'expand': return <><path d="M9 5H5v4M15 5h4v4M9 19H5v-4M15 19h4v-4"/></>;
+case 'collapse': return <><path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"/></>;
         case 'forward': return <><path d="m13 7 6 5-6 5v-3H6a3 3 0 0 0-2 1 7 7 0 0 1 7-7h2z"/></>;
         case 'headphones': return <><path d="M5 14v-2a7 7 0 0 1 14 0v2"/><path d="M5 13h2a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M19 13h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1z"/></>;
         case 'inbox': return <><path d="M5 6h14l2 8v5H3v-5z"/><path d="M3 14h5l2 2h4l2-2h5"/></>;
