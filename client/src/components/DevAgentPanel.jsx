@@ -79,10 +79,10 @@ const SUGGESTIONS = [
 ];
 
 // Real hover tooltip (not the browser's default title tooltip).
-const Tooltip = ({ label, placement = 'top', className = '', children }) => (
+const Tooltip = ({ label, placement = 'top', className = '', wrap = false, children }) => (
     <span className={`group/tip relative inline-flex ${className}`}>
         {children}
-        <span className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 ${placement === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
+        <span className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 rounded-md bg-slate-900 px-2 py-1 text-center text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 ${wrap ? 'w-max max-w-[14rem] whitespace-normal' : 'whitespace-nowrap'} ${placement === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
             {label}
         </span>
     </span>
@@ -757,6 +757,7 @@ const DevAgentPanel = () => {
         <Tooltip
             label={`Session: ${formatTokens(totalUsage.totalTokens)} tokens · in ${formatTokens(totalUsage.input)} · out ${formatTokens(totalUsage.output)} · cache ${formatTokens(totalUsage.cacheRead)}`}
             placement="bottom"
+            wrap
         >
             <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
                 {formatCost(totalUsage.cost)}
@@ -765,7 +766,7 @@ const DevAgentPanel = () => {
     ) : null;
 
     const progressPill = running ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
             {STEPS.map((step, index) => {
                 const done = phaseIndex > index;
                 const active = phaseIndex === index;
@@ -785,31 +786,32 @@ const DevAgentPanel = () => {
     // Headline first (how far along), then the detail of what it is doing right now.
     // Anchored to the user message that started the run, never below the reply.
     const processStrip = (running || activity) ? (
-        <div className="flex w-full justify-start">
-            <div className="flex w-full flex-col items-start gap-2">
-                {progressPill}
-                {activity && (
-                    <div className="flex w-full items-center gap-3 pl-3">
-                        <p className="inline-flex items-center gap-2 text-xs text-slate-500">
-                            {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
-                            {activity}
-                        </p>
-                        <Tooltip
-                            label={`Step ${stepNumber} of ${STEPS.length} · ${STEPS[stepNumber - 1].label} — context ${formatTokens(totalUsage.totalTokens)} of ${formatTokens(CONTEXT_WINDOW)} tokens (${contextPct}%)`}
-                            placement="top"
-                            className="ml-auto"
-                        >
-                            <span className="relative inline-flex h-4 w-16 items-center justify-center overflow-hidden rounded-full bg-slate-200 align-middle">
-                                <span
-                                    className="absolute inset-y-0 left-0 rounded-full bg-blue-500 transition-all duration-500"
-                                    style={{ width: `${stepPct}%` }}
-                                />
-                                <span className="relative text-[9px] font-semibold text-slate-700">{stepPct}%</span>
-                            </span>
-                        </Tooltip>
-                    </div>
-                )}
-            </div>
+        <div className="flex w-full min-w-0 flex-col items-start gap-2">
+            {running && (
+                <div className="flex w-full min-w-0 items-center gap-3">
+                    {progressPill}
+                    <Tooltip
+                        label={`Step ${stepNumber} of ${STEPS.length} · ${STEPS[stepNumber - 1].label} — context ${formatTokens(totalUsage.totalTokens)} of ${formatTokens(CONTEXT_WINDOW)} tokens (${contextPct}%)`}
+                        placement="top"
+                        wrap
+                        className="shrink-0"
+                    >
+                        <span className="relative inline-flex h-4 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 align-middle">
+                            <span
+                                className="absolute inset-y-0 left-0 rounded-full bg-blue-500 transition-all duration-500"
+                                style={{ width: `${stepPct}%` }}
+                            />
+                            <span className="relative text-[9px] font-semibold text-slate-700">{stepPct}%</span>
+                        </span>
+                    </Tooltip>
+                </div>
+            )}
+            {activity && (
+                <p className="inline-flex max-w-full min-w-0 items-center gap-2 pl-3 text-xs text-slate-500">
+                    {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
+                    <span className="truncate">{activity}</span>
+                </p>
+            )}
         </div>
     ) : null;
 
@@ -895,7 +897,7 @@ const DevAgentPanel = () => {
     );
 
     const messagesPanel = (
-        <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-white px-4 py-4">
+        <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto overscroll-contain bg-white px-4 py-4">
             {!messages.length && !running && (
                 <div className="mx-auto max-w-md py-8 text-center">
                     <p className="text-sm font-medium text-slate-700">What would you like to change?</p>
