@@ -9,7 +9,10 @@ import {
     listMessages,
     addMessage,
     touchThread,
-    addThreadUsage
+    addThreadUsage,
+    restoreThread,
+    listDeletedThreads,
+    purgeThread
 } from '../services/dev-agent-store.js';
 import { runAgent, commitAndDeploy, diffSummary, isRunning, currentRun, uploadsDir, discardChanges, markDeploying, clearDeploying } from '../services/dev-agent-runner.js';
 import { broadcast } from '../services/dev-agent-ws.js';
@@ -94,6 +97,34 @@ export const postDevThread = async (request, response) => {
 export const deleteDevThread = async (request, response) => {
     if (!(await requireEnabled(request, response))) return;
     await deleteThread(request.params.id);
+    return response.status(200).json({ ok: true, restorable: true });
+};
+
+export const getDeletedDevThreads = async (request, response) => {
+    if (!(await requireEnabled(request, response))) return;
+    try {
+        return response.status(200).json(await listDeletedThreads());
+    } catch (error) {
+        return response.status(500).json(error.message);
+    }
+};
+
+export const restoreDevThread = async (request, response) => {
+    if (!(await requireEnabled(request, response))) return;
+    try {
+        const thread = await restoreThread(request.params.id);
+        if (!thread) {
+            return response.status(404).json('Thread not found');
+        }
+        return response.status(200).json(thread);
+    } catch (error) {
+        return response.status(500).json(error.message);
+    }
+};
+
+export const purgeDevThread = async (request, response) => {
+    if (!(await requireEnabled(request, response))) return;
+    await purgeThread(request.params.id);
     return response.status(200).json({ ok: true });
 };
 

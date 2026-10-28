@@ -137,6 +137,8 @@ ON integration_audit_events (resource_type, resource_id, occurred_at DESC);
 const MAILBOX_SCHEMA_MIGRATIONS = [
     "ALTER TABLE emails ADD COLUMN IF NOT EXISTS read_summary_model TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE dev_threads ADD COLUMN IF NOT EXISTS usage JSONB NOT NULL DEFAULT '{}'::jsonb",
+    'ALTER TABLE dev_threads ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ',
+    'CREATE INDEX IF NOT EXISTS dev_threads_deleted_idx ON dev_threads (deleted_at)',
     'ALTER TABLE emails ADD COLUMN IF NOT EXISTS muted_until TIMESTAMPTZ',
     'ALTER TABLE emails ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMPTZ',
     'ALTER TABLE emails ADD COLUMN IF NOT EXISTS scheduled_send_at TIMESTAMPTZ',

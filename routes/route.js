@@ -84,7 +84,10 @@ import {
     postDevPrompt,
     postDevApply,
     getDevDiff,
-    postDevDiscard
+    postDevDiscard,
+    getDeletedDevThreads,
+    restoreDevThread,
+    purgeDevThread
 } from '../controller/dev-agent-controller.js';
 
 const routes = express.Router();
@@ -104,6 +107,9 @@ routes.post('/dev/settings', updateDevSettings);
 routes.get('/dev/threads', getDevThreads);
 routes.post('/dev/threads', postDevThread);
 routes.delete('/dev/threads/:id', deleteDevThread);
+routes.get('/dev/threads/trash', getDeletedDevThreads);
+routes.post('/dev/threads/:id/restore', restoreDevThread);
+routes.delete('/dev/threads/:id/purge', purgeDevThread);
 routes.get('/dev/threads/:id/messages', getDevMessages);
 routes.get('/dev/threads/:id/diff', getDevDiff);
 routes.post('/dev/threads/:id/apply', postDevApply);

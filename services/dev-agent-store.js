@@ -29,7 +29,7 @@ const mapMessage = (row = {}) => ({
 export const listThreads = async () => {
     const pool = requirePool();
     const result = await pool.query(
-        'SELECT id, title, status, usage, created_at, updated_at FROM dev_threads ORDER BY updated_at DESC LIMIT 100'
+        'SELECT id, title, status, usage, created_at, updated_at FROM dev_threads WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100'
     );
     return result.rows.map(mapThread);
 };
@@ -94,7 +94,31 @@ export const addThreadUsage = async (id, delta = {}) => {
     return result.rows[0]?.usage || {};
 };
 
+// Soft delete: the thread and its messages are kept so an accidental delete can
+// be undone. `purgeThread` is the only thing that truly removes data.
 export const deleteThread = async (id) => {
+    const pool = requirePool();
+    await pool.query('UPDATE dev_threads SET deleted_at = NOW() WHERE id = $1', [id]);
+};
+
+export const restoreThread = async (id) => {
+    const pool = requirePool();
+    const result = await pool.query(
+        'UPDATE dev_threads SET deleted_at = NULL WHERE id = $1 RETURNING id, title, status, usage, created_at, updated_at',
+        [id]
+    );
+    return result.rows[0] ? mapThread(result.rows[0]) : null;
+};
+
+export const listDeletedThreads = async () => {
+    const pool = requirePool();
+    const result = await pool.query(
+        'SELECT id, title, status, usage, created_at, updated_at, deleted_at FROM dev_threads WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 100'
+    );
+    return result.rows.map((row) => ({ ...mapThread(row), deleted_at: row.deleted_at }));
+};
+
+export const purgeThread = async (id) => {
     const pool = requirePool();
     await pool.query('DELETE FROM dev_threads WHERE id = $1', [id]);
 };
