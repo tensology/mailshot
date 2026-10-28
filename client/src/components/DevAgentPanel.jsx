@@ -79,10 +79,10 @@ const SUGGESTIONS = [
 ];
 
 // Real hover tooltip (not the browser's default title tooltip).
-const Tooltip = ({ label, placement = 'top', className = '', wrap = false, children }) => (
+const Tooltip = ({ label, placement = 'top', align = 'center', className = '', wrap = false, children }) => (
     <span className={`group/tip relative inline-flex ${className}`}>
         {children}
-        <span className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 rounded-md bg-slate-900 px-2 py-1 text-center text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 ${wrap ? 'w-max max-w-[14rem] whitespace-normal' : 'whitespace-nowrap'} ${placement === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
+        <span className={`pointer-events-none absolute z-20 rounded-md bg-slate-900 px-2 py-1 text-center text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 ${align === 'right' ? 'right-0' : align === 'left' ? 'left-0' : 'left-1/2 -translate-x-1/2'} ${wrap ? 'w-max max-w-[14rem] whitespace-normal' : 'whitespace-nowrap'} ${placement === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
             {label}
         </span>
     </span>
@@ -757,6 +757,7 @@ const DevAgentPanel = () => {
         <Tooltip
             label={`Session: ${formatTokens(totalUsage.totalTokens)} tokens · in ${formatTokens(totalUsage.input)} · out ${formatTokens(totalUsage.output)} · cache ${formatTokens(totalUsage.cacheRead)}`}
             placement="bottom"
+            align="right"
             wrap
         >
             <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
@@ -793,6 +794,7 @@ const DevAgentPanel = () => {
                     <Tooltip
                         label={`Step ${stepNumber} of ${STEPS.length} · ${STEPS[stepNumber - 1].label} — context ${formatTokens(totalUsage.totalTokens)} of ${formatTokens(CONTEXT_WINDOW)} tokens (${contextPct}%)`}
                         placement="top"
+                        align="right"
                         wrap
                         className="shrink-0"
                     >
