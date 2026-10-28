@@ -767,7 +767,7 @@ const DevAgentPanel = () => {
     ) : null;
 
     const progressPill = running ? (
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
             {STEPS.map((step, index) => {
                 const done = phaseIndex > index;
                 const active = phaseIndex === index;
@@ -796,7 +796,7 @@ const DevAgentPanel = () => {
                         placement="top"
                         align="right"
                         wrap
-                        className="shrink-0"
+                        className="ml-auto shrink-0"
                     >
                         <span className="relative inline-flex h-4 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 align-middle">
                             <span
