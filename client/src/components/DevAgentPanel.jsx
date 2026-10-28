@@ -172,6 +172,9 @@ const DevAgentPanel = () => {
     const [messages, setMessages] = useState([]);
     const [liveItems, setLiveItems] = useState([]);
     const [activity, setActivity] = useState('');
+    const [thinking, setThinking] = useState('');
+    const [steps, setSteps] = useState([]);
+    const [showWork, setShowWork] = useState(false);
     const [completed, setCompleted] = useState(false);
     const [sessionUsage, setSessionUsage] = useState(EMPTY_USAGE);
     const [liveUsage, setLiveUsage] = useState(EMPTY_USAGE);
@@ -299,10 +302,16 @@ const DevAgentPanel = () => {
                     }
                     return [...items, { kind: 'text', text: ev.text }];
                 });
+            } else if (ev.type === 'thinking') {
+                // The model's reasoning, streamed so it can be inspected mid-run.
+                setThinking((text) => (text + ev.text).slice(-12000));
             } else if (ev.type === 'tool_start') {
-                // One line, updated in place - never a growing list.
+                // One headline line, plus a step in the expandable work list.
                 setPhase('developing');
                 setActivity(TOOL_LABELS[ev.name] || `Using ${ev.name}`);
+                setSteps((list) => [...list, { key: ev.id || `${Date.now()}-${list.length}`, name: ev.name, summary: ev.summary || '', ok: null }]);
+            } else if (ev.type === 'tool_end') {
+                setSteps((list) => list.map((step) => (ev.id && step.key === ev.id ? { ...step, ok: ev.ok } : step)));
             } else if (ev.type === 'usage') {
                 setLiveUsage(ev.usage || EMPTY_USAGE);
             } else if (ev.type === 'notice') {
@@ -328,6 +337,7 @@ const DevAgentPanel = () => {
             if (data.message?.role === 'assistant') {
                 setLiveItems([]);
                 setPhase('done');
+                setShowWork(false);
             }
         } else if (data.type === 'diff') {
             setDeployable(Boolean(data.changed));
@@ -508,6 +518,9 @@ const DevAgentPanel = () => {
         setMessages([]);
         setLiveItems([]);
         setActivity('');
+        setThinking('');
+        setSteps([]);
+        setShowWork(true);
         setLiveUsage(EMPTY_USAGE);
         let doneKey = null;
         try { doneKey = localStorage.getItem('mailshot:devagent-done'); } catch { /* ignore */ }
@@ -854,9 +867,50 @@ const DevAgentPanel = () => {
         )
     ));
 
+    const hasWork = Boolean(running || thinking || steps.length);
+    const workArea = hasWork ? (
+        <div className="w-full min-w-0">
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/80">
+                <button
+                    type="button"
+                    onClick={() => setShowWork((value) => !value)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+                    aria-expanded={showWork}
+                >
+                    {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
+                    <span>{running ? 'Working — see what it is doing' : 'What it did'}</span>
+                    {steps.length > 0 && (
+                        <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-normal text-slate-600">{steps.length} step{steps.length === 1 ? '' : 's'}</span>
+                    )}
+                    <span className="ml-auto text-[11px] font-normal text-slate-400">{showWork ? 'Hide' : 'Show'}</span>
+                </button>
+                {showWork && (
+                    <div className="scrollbar-thin max-h-56 overflow-y-auto border-t border-slate-200 px-3 py-2">
+                        {thinking && (
+                            <p className="mb-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-slate-500">{thinking}</p>
+                        )}
+                        {steps.length > 0 && (
+                            <ol className="space-y-1">
+                                {steps.map((step) => (
+                                    <li key={step.key} className="flex min-w-0 items-start gap-2 text-[11px] text-slate-600">
+                                        <span className="mt-px shrink-0">{step.ok === false ? '✗' : step.ok === true ? '✓' : '•'}</span>
+                                        <span className="shrink-0 font-medium">{TOOL_LABELS[step.name] || step.name}</span>
+                                        {step.summary && <code className="min-w-0 truncate rounded bg-slate-200/70 px-1 font-mono text-[10px] text-slate-700">{step.summary}</code>}
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
+                        {!thinking && !steps.length && <p className="text-[11px] text-slate-400">Waiting for the agent…</p>}
+                    </div>
+                )}
+            </div>
+        </div>
+    ) : null;
+
     const liveRun = (
         <>
             {processStrip}
+            {workArea}
             {liveThread}
         </>
     );

@@ -153,6 +153,20 @@ const addUsage = (base = {}, extra = {}) => {
     };
 };
 
+// A short, human-useful hint for the activity list: the command being run or the
+// file being touched, rather than the whole argument blob.
+const toolSummary = (args) => {
+    if (!args || typeof args !== 'object') return '';
+    const pick = args.command ?? args.path ?? args.file_path ?? args.filePath ?? args.query ?? args.url ?? args.pattern;
+    const text = pick ? String(pick) : '';
+    if (text) return text.replace(/\s+/g, ' ').trim().slice(0, 240);
+    try {
+        return JSON.stringify(args).slice(0, 240);
+    } catch {
+        return '';
+    }
+};
+
 const parseEvent = (event) => {
     if (event.type === 'message_update' && event.assistantMessageEvent) {
         const ev = event.assistantMessageEvent;
@@ -161,7 +175,7 @@ const parseEvent = (event) => {
         return null;
     }
     if (event.type === 'tool_execution_start') {
-        return { type: 'tool_start', id: event.toolCallId || '', name: event.toolName || 'tool' };
+        return { type: 'tool_start', id: event.toolCallId || '', name: event.toolName || 'tool', summary: toolSummary(event.args) };
     }
     if (event.type === 'tool_execution_end') {
         return { type: 'tool_end', id: event.toolCallId || '', name: event.toolName || 'tool', ok: !truthy(event.isError) };
