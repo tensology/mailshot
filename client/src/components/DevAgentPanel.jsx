@@ -881,7 +881,7 @@ const DevAgentPanel = () => {
                         >
                             {thread.title || 'Untitled'}
                         </button>
-                        <Tooltip label="Delete thread" placement="bottom" className={isMobile || thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}>
+                        <Tooltip label="Delete thread" placement="bottom" align="right" className={isMobile || thread.id === activeThreadId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}>
                             <button
                                 type="button"
                                 onClick={() => setThreadToDelete(thread)}
