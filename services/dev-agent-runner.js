@@ -311,24 +311,33 @@ export const diffSummary = async () => {
 };
 
 export const commitAndDeploy = async ({ threadId, message }) => {
+    const head = (await git(['rev-parse', 'HEAD'])).stdout;
+    const originMain = (await git(['rev-parse', 'origin/main'])).stdout;
     const status = await git(['status', '--porcelain']);
-    if (!status.stdout) {
+    const dirty = Boolean(status.stdout);
+    // The agent sometimes commits its own work. That still has to ship, so push
+    // whenever the branch is ahead of origin/main, not only when files are dirty.
+    if (!dirty && (!head || head === originMain)) {
         return { changed: false, committed: false, pushed: false };
     }
-    await git(['add', '-A']);
-    const commitMessage = String(message || `Mailshot dev-agent: ${threadId}`).slice(0, 100);
-    const commit = await git([
-        '-c', 'user.email=support@tensology.com',
-        '-c', 'user.name=Mailshot Dev Agent',
-        'commit', '-m', commitMessage
-    ]);
-    if (!commit.ok) {
-        return { changed: true, committed: false, pushed: false, error: commit.stderr };
+    let committed = false;
+    if (dirty) {
+        await git(['add', '-A']);
+        const commitMessage = String(message || `Mailshot dev-agent: ${threadId}`).slice(0, 100);
+        const commit = await git([
+            '-c', 'user.email=support@tensology.com',
+            '-c', 'user.name=Mailshot Dev Agent',
+            'commit', '-m', commitMessage
+        ]);
+        if (!commit.ok) {
+            return { changed: true, committed: false, pushed: false, error: commit.stderr };
+        }
+        committed = true;
     }
     const push = await git(['push', 'origin', 'HEAD:main']);
     return {
         changed: true,
-        committed: true,
+        committed,
         pushed: push.ok,
         error: push.ok ? '' : push.stderr,
         head: (await git(['rev-parse', '--short', 'HEAD'])).stdout
