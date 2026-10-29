@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+    buildSummaryPrompt,
     isReadAloudReady,
     needsReadAloudPipeline,
     safePersistEmailReadAloudFields
@@ -70,4 +71,13 @@ test('safe read-aloud persistence contains transient write failures', async (t) 
     assert.equal(logs.length, 1);
     assert.match(String(logs[0][0]), /summary\.persist\.failed/);
     assert.match(String(logs[0][0]), /Connection terminated unexpectedly/);
+});
+
+test('spoken explanation uses adaptive depth and retains important details beyond the old input cap', () => {
+    const body = 'Project context. '.repeat(600) + 'Final decision: payment of R 42000 is due on 12 November.';
+    const prompt = buildSummaryPrompt({ from: 'Project owner', subject: 'Detailed project decision', body });
+    assert.ok(prompt.includes(body));
+    assert.match(prompt, /no fixed sentence count or target playback duration/);
+    assert.match(prompt, /each important topic/);
+    assert.doesNotMatch(prompt, /2 to 4 short sentences/);
 });

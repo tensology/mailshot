@@ -52,3 +52,11 @@ test('cleanupReadAloudAudio removes stale temporary render directories', () => {
 
     assert.equal(fs.existsSync(tempDir), false);
 });
+
+test('long explanations retain their final action through all speech chunks', () => {
+    const summary = 'The project has several milestones, each requiring approval before the next stage. '.repeat(50) + 'Finally, send the signed approval by Friday.';
+    const chunks = splitSummaryForTts(summary);
+    assert.ok(chunks.length > 5);
+    assert.equal(chunks.join(' '), summary);
+    assert.ok(chunks.at(-1).endsWith('send the signed approval by Friday.'));
+});

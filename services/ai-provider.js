@@ -69,9 +69,9 @@ export const buildProviderHeaders = (provider, apiKey) => {
     return headers;
 };
 
-const STANDARD_COMPLETION_TOKEN_LIMIT = 220;
-const EXPANDED_COMPLETION_TOKEN_LIMIT = 1800;
-const REASONING_COMPLETION_TOKEN_LIMIT = 1000;
+const STANDARD_COMPLETION_TOKEN_LIMIT = 1800;
+const EXPANDED_COMPLETION_TOKEN_LIMIT = 6000;
+const REASONING_COMPLETION_TOKEN_LIMIT = 4096;
 
 export const FAST_SUMMARY_MODEL_DEFAULTS = {
     openai: 'gpt-4o-mini',
@@ -214,7 +214,7 @@ export const modelSupportsTemperature = (model = '') => !modelUsesMaxCompletionT
 
 export const getCompletionRequestOptions = (provider, model, { expanded = false } = {}) => {
     if (provider === 'anthropic') {
-        return { max_tokens: STANDARD_COMPLETION_TOKEN_LIMIT };
+        return { max_tokens: expanded ? EXPANDED_COMPLETION_TOKEN_LIMIT : STANDARD_COMPLETION_TOKEN_LIMIT };
     }
 
     if (modelUsesMaxCompletionTokens(model)) {
@@ -252,7 +252,9 @@ export const extractSummary = (provider, payload = {}) => {
     return '';
 };
 
-export const wasSummaryTruncated = (payload = {}) => payload?.choices?.[0]?.finish_reason === 'length';
+export const wasSummaryTruncated = (payload = {}) => (
+    payload?.choices?.[0]?.finish_reason === 'length' || payload?.stop_reason === 'max_tokens'
+);
 
 const isTokenLimitParameterError = (message = '') => {
     const normalized = String(message).toLowerCase();
@@ -302,7 +304,7 @@ const adjustBodyForProviderError = (body = {}, message = '') => {
 };
 
 const buildSummaryBody = ({ provider, model, prompt, expanded = false }) => {
-    const system = 'You summarize email for spoken playback. Return only the final summary. Be concise, natural, and useful. Do not include reasoning, analysis, markdown, or preamble. Do not mention raw headers unless they matter.';
+    const system = 'You summarize email for spoken playback. Return only the final summary. Be natural, clear, and sufficiently detailed to explain the substance. Match the depth to the email rather than forcing a short summary. Do not include reasoning, analysis, markdown, or preamble. Do not mention raw headers unless they matter.';
 
     if (provider === 'anthropic') {
         return {
@@ -402,14 +404,18 @@ const requestSummaryWithRetries = async ({ provider, config, apiKey, model, prom
     }
 
     let summary = extractSummary(provider, payload);
-    if (!summary && wasSummaryTruncated(payload)) {
+    if (wasSummaryTruncated(payload)) {
         logPipelineEvent('summary.provider.retry_expanded', {
             ...trace,
             provider,
             model,
-            reason: 'empty_summary_after_length_finish'
+            reason: 'summary_hit_token_limit'
         }, 'warn');
-        body = buildSummaryBody({ provider, model, prompt, expanded: true });
+        // Preserve parameter compatibility adjustments made on the first request.
+        const expandedOptions = getCompletionRequestOptions(provider, model, { expanded: true });
+        const expandedLimit = expandedOptions.max_completion_tokens || expandedOptions.max_tokens;
+        const limitField = Object.prototype.hasOwnProperty.call(body, 'max_completion_tokens') ? 'max_completion_tokens' : 'max_tokens';
+        body = { ...body, [limitField]: expandedLimit };
         ({ result, payload } = await requestSummary({ provider, config, apiKey, body }));
 
         if (!result.ok) {
@@ -419,6 +425,10 @@ const requestSummaryWithRetries = async ({ provider, config, apiKey, model, prom
         }
 
         summary = extractSummary(provider, payload);
+    }
+
+    if (wasSummaryTruncated(payload)) {
+        throw new Error('The AI provider cut off the explanation before it finished. Please rebuild the summary.');
     }
 
     logPipelineEvent('summary.provider.complete', {

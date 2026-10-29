@@ -41,7 +41,7 @@ const stripHtml = (value = '') => String(value || '')
     .replace(/\s+/g, ' ')
     .trim();
 
-const truncate = (value = '', limit = 8000) => {
+const truncate = (value = '', limit = 60000) => {
     const text = String(value || '');
     return text.length > limit ? `${text.slice(0, limit)}\n\n[Email truncated for summarization.]` : text;
 };
@@ -53,9 +53,12 @@ export const buildSummaryPrompt = (email = {}) => {
     const body = truncate(stripHtml(email.body || email.body_html || ''));
 
     return [
-        'Summarize this email for audio playback in 2 to 4 short sentences.',
-        'Start with "This email is about..." or equivalent natural phrasing.',
-        'Mention the sender, the core point, and any action/date/deadline if present.',
+        'Explain this email naturally for someone listening rather than reading it.',
+        'Use your judgment to match the length and depth to the substance and complexity of the email. There is no fixed sentence count or target playback duration.',
+        'A simple notification may need only a brief explanation. A detailed email needs a fuller explanation covering each important topic, the relevant context, and what it means for the recipient.',
+        'Identify the sender and purpose, then explain the key facts, decisions, requests, amounts, dates, deadlines, and next steps where present. Preserve qualifications and distinctions that affect the meaning.',
+        'Explain the actual substance rather than merely listing topics or saying that the email contains information. Do not invent context or actions that are not supported by the email.',
+        'Omit repetitive boilerplate, tracking links, and signatures. Use complete sentences and natural transitions suitable for spoken playback, without markdown or a forced opening phrase.',
         '',
         `From: ${from}`,
         `To: ${to}`,
