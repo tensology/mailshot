@@ -6,6 +6,7 @@ import { getAuthToken, useAuth } from './AuthContext';
 import IconButton from '../components/ui/IconButton';
 import Toast from '../components/ui/Toast';
 import MailshotIcon from '../components/ui/MailshotIcon';
+import ReadAloudVoicePicker from '../components/ReadAloudVoicePicker';
 import {
     clampReadSummaryPosition,
     getDefaultReadSummaryPosition
@@ -106,21 +107,6 @@ const formatClock = (seconds) => {
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 };
 
-const VoiceAvatar = ({ voice, size = 40 }) => {
-    const [failed, setFailed] = useState(false);
-    const src = voice?.avatar_url || voice?.cover_image || '';
-
-    if (!src || failed) {
-        return (
-            <span className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
-                <MailshotIcon name="headphones" size={Math.round(size * 0.7)} />
-            </span>
-        );
-    }
-
-    return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover" />;
-};
-
 const ReadSummaryPlayer = ({
     job,
     audioUrl,
@@ -132,22 +118,17 @@ const ReadSummaryPlayer = ({
     voices = [],
     activeVoiceId = '',
     onSelectVoice,
-    voicesLoading = false
+    voicesLoading = false,
+    voicesError = '',
+    onRetryVoices
 }) => {
     const audioRef = useRef(null);
     const [playing, setPlaying] = useState(false);
     const [current, setCurrent] = useState(0);
     const [duration, setDuration] = useState(0);
     const [rate, setRate] = useState(1);
-    const [pickerOpen, setPickerOpen] = useState(false);
-    const [query, setQuery] = useState('');
-
     const activeVoice = voices.find((voice) => voice.id === activeVoiceId) || null;
     const progress = duration > 0 ? Math.min(100, (current / duration) * 100) : 0;
-    const normalizedQuery = query.trim().toLowerCase();
-    const filteredVoices = normalizedQuery
-        ? voices.filter((voice) => voice.name.toLowerCase().includes(normalizedQuery))
-        : voices;
 
     const togglePlay = () => {
         const audio = audioRef.current;
@@ -195,17 +176,7 @@ const ReadSummaryPlayer = ({
             />
 
             <div className="flex items-center gap-3">
-                <div className="shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => setPickerOpen(true)}
-                        className="h-14 w-14 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 shadow-lg transition hover:border-slate-500"
-                        title="Change voice"
-                        aria-label="Change voice"
-                    >
-                        <VoiceAvatar voice={activeVoice} size={56} />
-                    </button>
-                </div>
+                <ReadAloudVoicePicker voices={voices} activeVoiceId={activeVoiceId} loading={voicesLoading} error={voicesError} onRetry={onRetryVoices} onSelect={onSelectVoice} />
 
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{activeVoice?.name || 'Read summary'}</p>
@@ -263,68 +234,6 @@ const ReadSummaryPlayer = ({
 
             {!audioUrl && <p className="mt-2 text-xs text-amber-400">Audio file is not available yet.</p>}
 
-            {pickerOpen && (
-                <div
-                    className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-                    onClick={() => setPickerOpen(false)}
-                >
-                    <div
-                        className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                            <h2 className="text-base font-semibold text-slate-900">Choose a voice</h2>
-                            <IconButton label="Close" size="sm" onClick={() => setPickerOpen(false)}>
-                                <MailshotIcon name="close" size={20} />
-                            </IconButton>
-                        </div>
-                        <div className="border-b border-slate-100 px-4 py-3">
-                            <input
-                                type="search"
-                                value={query}
-                                onChange={(event) => setQuery(event.target.value)}
-                                placeholder="Search voices"
-                                autoFocus
-                                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                            />
-                        </div>
-                        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4">
-                            {voicesLoading && <p className="py-6 text-center text-sm text-slate-500">Loading voices…</p>}
-                            {!voicesLoading && !filteredVoices.length && (
-                                <p className="py-6 text-center text-sm text-slate-500">
-                                    {query ? `No voices match “${query}”.` : 'No voices available.'}
-                                </p>
-                            )}
-                            {!voicesLoading && filteredVoices.length > 0 && (
-                                <div className="grid auto-rows-fr grid-cols-3 gap-3 sm:grid-cols-4">
-                                    {filteredVoices.map((voice) => {
-                                        const isActive = voice.id === activeVoiceId;
-                                        return (
-                                            <button
-                                                key={voice.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    setPickerOpen(false);
-                                                    onSelectVoice?.(voice.id);
-                                                }}
-                                                className={`flex h-full flex-col items-center justify-start gap-2 rounded-xl p-2 transition ${isActive ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-slate-100'}`}
-                                            >
-                                                <span className={`h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 ${isActive ? 'border-blue-400' : 'border-slate-200'}`}>
-                                                    <VoiceAvatar voice={voice} size={80} />
-                                                </span>
-                                                <span className="line-clamp-2 min-h-[2.5rem] text-center text-xs font-medium text-slate-700">{voice.name}</span>
-                                                {voice.is_default && (
-                                                    <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">Default</span>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
         </ReadSummaryShell>
     );
 };
@@ -358,6 +267,7 @@ export const ReadSummaryProvider = ({ children }) => {
     const [voices, setVoices] = useState([]);
     const [activeVoiceId, setActiveVoiceId] = useState('');
     const [voicesLoading, setVoicesLoading] = useState(false);
+    const [voicesError, setVoicesError] = useState('');
     const [playerEmailId, setPlayerEmailId] = useState('');
     const panelRef = useRef(null);
     const voicesLoadedRef = useRef(false);
@@ -581,9 +491,11 @@ export const ReadSummaryProvider = ({ children }) => {
 
     const loadVoices = useCallback(async () => {
         setVoicesLoading(true);
+        setVoicesError('');
         const result = await requestApi(API_URLS.getTtsVoices, {}, '');
         setVoicesLoading(false);
         if (result.error) {
+            setVoicesError(typeof result.error === 'string' ? result.error : 'Voices could not be loaded. Please try again.');
             return;
         }
         setVoices(Array.isArray(result.data?.voices) ? result.data.voices : []);
@@ -596,14 +508,13 @@ export const ReadSummaryProvider = ({ children }) => {
         }
         const result = await requestApi(API_URLS.updateTtsVoice, { voice_id: voiceId }, '');
         if (result.error) {
-            handleError(result.error);
-            return;
+            throw new Error(typeof result.error === 'string' ? result.error : 'The voice could not be saved. Please try again.');
         }
         setActiveVoiceId(result.data?.active_voice_id || voiceId);
         if (playerEmailId) {
             startReadSummary(playerEmailId, { force: true });
         }
-    }, [handleError, playerEmailId, startReadSummary]);
+    }, [playerEmailId, startReadSummary]);
 
     // Load the voice library (and the account's saved voice) as soon as the user
     // is signed in, so the player/modal show the right character after a refresh.
@@ -706,6 +617,8 @@ export const ReadSummaryProvider = ({ children }) => {
                     activeVoiceId={activeVoiceId}
                     onSelectVoice={selectVoice}
                     voicesLoading={voicesLoading}
+                    voicesError={voicesError}
+                    onRetryVoices={loadVoices}
                 />
             )}
             {!playerJob && (pendingJobId || pendingEmailId) && (
