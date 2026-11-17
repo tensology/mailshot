@@ -135,7 +135,7 @@ const MoveToLabelMenu = ({
                 </IconButton>
 
                 {open && (
-                    <div className="absolute left-0 top-full z-20 mt-1 min-w-[12rem] overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                    <div className="fixed inset-x-3 z-20 mt-1 max-h-[min(50dvh,20rem)] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg sm:absolute sm:left-0 sm:right-auto sm:top-full sm:min-w-[12rem]">
                         <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                             {buttonLabel}
                         </p>
