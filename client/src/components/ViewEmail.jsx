@@ -28,7 +28,8 @@ import MailshotFileIcon from './ui/MailshotFileIcon';
 import MailshotIcon from './ui/MailshotIcon';
 import Spinner from './ui/Spinner';
 import Toast from './ui/Toast';
-import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
+import { getLabelDisplayName } from '../utils/labels';
+import { useLabels } from '../context/LabelsContext';
 import { useReadSummary } from '../context/ReadSummaryContext';
 import { useUndoDelete } from '../context/UndoDeleteContext';
 import { isDeleteKeyboardShortcut, getThreadSelectionIds } from '../utils/mailActions';
@@ -44,7 +45,7 @@ const ViewEmail = () => {
     const { username } = useAuth();
     const { openComposeDraft } = useCompose();
     const getThreadService = useApi(API_URLS.getEmailThread);
-    const getLabelsService = useApi(API_URLS.getLabels);
+    const { labels, labelNameMap } = useLabels();
     const updateEmailLabelsService = useApi(API_URLS.updateEmailLabels);
     const toggleReadService = useApi(API_URLS.toggleReadMail);
     const archiveEmailsService = useApi(API_URLS.archiveEmails);
@@ -66,7 +67,6 @@ const ViewEmail = () => {
         openReadSummaryMenu
     } = useReadSummary();
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-    const [labels, setLabels] = useState([]);
     const [emailLabels, setEmailLabels] = useState([]);
     const [thread, setThread] = useState([]);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -120,17 +120,6 @@ const ViewEmail = () => {
         loadThread();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
-
-    useEffect(() => {
-        getLabelsService.call();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    useEffect(() => {
-        if (Array.isArray(getLabelsService.response)) {
-            setLabels(getLabelsService.response);
-        }
-    }, [getLabelsService.response]);
 
     const sortedThread = [...thread].sort((left, right) => new Date(right.date) - new Date(left.date));
     const latestEmailId = sortedThread[0]?._id || '';
@@ -291,7 +280,7 @@ const ViewEmail = () => {
     };
 
     const confirmMoveToLabel = (labelSlug) => {
-        const message = `Moved to ${getLabelDisplayName(labelSlug, buildLabelNameMap(labels))}`;
+        const message = `Moved to ${getLabelDisplayName(labelSlug, labelNameMap)}`;
 
         if (type === 'inbox' || type === 'bin') {
             setActionNotice(message);
@@ -711,7 +700,7 @@ const ViewEmail = () => {
                                 onClick={() => saveLabels(emailLabels.filter((item) => item !== label))}
                                 className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
                             >
-                                {getLabelDisplayName(label, buildLabelNameMap(labels))} ×
+                                {getLabelDisplayName(label, labelNameMap)} ×
                             </button>
                         ))}
                     </div>

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { NavLink, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
+import { useLabels } from '../context/LabelsContext';
 import { routes } from '../routes/routes';
 import ConfirmDialog from './common/ConfirmDialog';
 import Dialog, { DialogActions, DialogButton } from './ui/Dialog';
@@ -19,25 +20,12 @@ const RESERVED_LABEL_SLUGS = new Set(['archived', 'archive', 'spam']);
 const LabelSidebar = ({ counts = {}, onNavigate }) => {
     const [searchParams] = useSearchParams();
     const activeLabel = searchParams.get('label') || '';
-    const getLabelsService = useApi(API_URLS.getLabels);
+    const { labels, refreshLabels } = useLabels();
     const createLabelService = useApi(API_URLS.createLabel);
     const deleteLabelService = useApi(API_URLS.deleteLabel);
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
-    const [labels, setLabels] = useState([]);
     const [labelToDelete, setLabelToDelete] = useState(null);
-
-    const loadLabels = async () => {
-        const result = await getLabelsService.call();
-        if (!result.error && Array.isArray(result.data)) {
-            setLabels(result.data);
-        }
-    };
-
-    useEffect(() => {
-        loadLabels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     const createLabel = async () => {
         if (!name.trim()) {
@@ -46,9 +34,9 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
 
         const result = await createLabelService.call({ name: name.trim() });
         if (!result.error) {
+            await refreshLabels();
             setOpen(false);
             setName('');
-            loadLabels();
         }
     };
 
@@ -57,9 +45,11 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
             return;
         }
 
-        await deleteLabelService.call({}, labelToDelete._id);
+        const result = await deleteLabelService.call({}, labelToDelete._id);
+        if (!result.error) {
+            await refreshLabels();
+        }
         setLabelToDelete(null);
-        loadLabels();
     };
 
     return (

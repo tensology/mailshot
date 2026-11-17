@@ -25,7 +25,8 @@ import Spinner from './ui/Spinner';
 import MoveToLabelMenu from './MoveToLabelMenu';
 import Toast from './ui/Toast';
 import MailshotIcon from './ui/MailshotIcon';
-import { buildLabelNameMap, getLabelDisplayName } from '../utils/labels';
+import { getLabelDisplayName } from '../utils/labels';
+import { useLabels } from '../context/LabelsContext';
 import { useCompose } from '../context/ComposeContext';
 import { formatAddressListLabel } from '../utils/emailFormatter';
 import { useReadSummary } from '../context/ReadSummaryContext';
@@ -179,12 +180,10 @@ const Emails = () => {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [searchInput, setSearchInput] = useState(searchFilter);
 
-    const [labelNameMap, setLabelNameMap] = useState(new Map());
-    const [availableLabels, setAvailableLabels] = useState([]);
+    const { labels: availableLabels, labelNameMap } = useLabels();
 
     const getEmailsService = useApi(API_URLS.getEmailFromType);
     const getEmailByIdService = useApi(API_URLS.getEmailById);
-    const getLabelsService = useApi(API_URLS.getLabels);
     const syncMailboxService = useApi(API_URLS.syncMailbox);
     const deleteEmailsService = useApi(API_URLS.deleteEmails);
     const moveEmailsToBin = useApi(API_URLS.moveEmailsToBin);
@@ -498,13 +497,6 @@ const Emails = () => {
     }, [page, runMailboxSync, showSyncNotice]);
 
     useEffect(() => {
-        getLabelsService.call().then((result) => {
-            if (!result.error && Array.isArray(result.data)) {
-                setAvailableLabels(result.data);
-                setLabelNameMap(buildLabelNameMap(result.data));
-            }
-        });
-
         const onActionNotice = (event) => {
             showActionToast(event.detail.message);
         };
