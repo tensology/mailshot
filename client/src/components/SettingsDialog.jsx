@@ -306,6 +306,8 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
     const canUseDevAgent = Boolean(activeAccount?.dev_agent_capable);
     const [devAgent, setDevAgent] = useState({ enabled: false, auto_deploy: false });
     const [activeTab, setActiveTab] = useState('signature');
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
+    const [settingsRetry, setSettingsRetry] = useState(0);
 
     useEffect(() => {
         if (!open || !canUseDevAgent) {
@@ -352,8 +354,11 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         if (!open) {
             return;
         }
+        let cancelled = false;
+        setSettingsLoaded(false);
         setActiveTab('signature');
         getSettingsService.call().then((result) => {
+            if (cancelled) return;
             if (result.error) {
                 setToast({ open: true, message: result.error, severity: 'error' });
                 return;
@@ -370,9 +375,11 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setModelsLoaded(Boolean(result.data?.ai?.model));
             setNewEmail('');
             setShowAddEmail(false);
+            setSettingsLoaded(true);
         });
+        return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open]);
+    }, [open, settingsRetry]);
 
     const providerOptions = useMemo(() => Object.entries(providers), [providers]);
     const currentProviderKey = ai.api_key || '';
@@ -692,6 +699,18 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                     </div>
                 )}
 
+                {!settingsLoaded && activeTab !== 'appearance' && (
+                    <div role="status" className="text-sm text-slate-500 dark:text-slate-400">
+                        {getSettingsService.error ? (
+                            <div className="space-y-2">
+                                <p>Could not load settings. Your saved settings have not been changed.</p>
+                                <Button variant="secondary" onClick={() => setSettingsRetry((value) => value + 1)}>Retry</Button>
+                            </div>
+                        ) : 'Loading settings...'}
+                    </div>
+                )}
+
+                <fieldset hidden={!settingsLoaded} disabled={!settingsLoaded} className="min-w-0">
                 {(activeTab === 'signature' || activeTab === 'autoresponder') && (
                     <div className="mb-5 space-y-2">
                         <span className="block text-sm font-medium text-slate-700 dark:text-slate-200">Email address</span>
@@ -1061,6 +1080,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         </div>
                     </div>
                 )}
+                </fieldset>
             </div>
             <Toast
                 open={toast.open}
