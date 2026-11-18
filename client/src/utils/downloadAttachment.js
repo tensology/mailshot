@@ -56,6 +56,16 @@ export const isSafeAttachmentPreviewType = (contentType = '') => (
     SAFE_PREVIEW_TYPES.has(String(contentType).toLowerCase().split(';', 1)[0].trim())
 );
 
+export const getAttachmentPreviewKind = (contentType = '', filename = '') => {
+    const type = String(contentType).toLowerCase().split(';', 1)[0].trim()
+        || (String(filename).toLowerCase().endsWith('.pdf') ? 'application/pdf' : '');
+    if (!isSafeAttachmentPreviewType(type)) return null;
+    if (type === 'application/pdf') return 'pdf';
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('audio/')) return 'audio';
+    return 'video';
+};
+
 export const loadAttachmentPreview = async ({ call, path, urlObject = URL }) => {
     const result = await call({}, path, { silent: true });
     if (result.error || !result.data) {

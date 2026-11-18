@@ -1,3 +1,4 @@
+import AttachmentPreview from './common/AttachmentPreview';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
@@ -37,7 +38,7 @@ import { getVisibleAttachments } from '../utils/attachments';
 import { getEmbeddableLinks } from '../utils/linkPreviews';
 import {
     downloadAttachment,
-    isSafeAttachmentPreviewType,
+    getAttachmentPreviewKind,
     loadAttachmentPreview
 } from '../utils/downloadAttachment';
 
@@ -468,11 +469,8 @@ const ViewEmail = () => {
                     {messageAttachments.map((attachment) => {
                         const contentType = String(attachment.content_type || '').toLowerCase();
                         const filename = attachment.filename || 'attachment';
-                        const isPdf = contentType === 'application/pdf';
-                        const isImage = contentType.startsWith('image/') && contentType !== 'image/svg+xml';
-                        const isAudio = contentType.startsWith('audio/');
-                        const isVideo = contentType.startsWith('video/');
-                        const canPreview = isSafeAttachmentPreviewType(contentType) && (isPdf || isImage || isAudio || isVideo);
+                        const kind = getAttachmentPreviewKind(contentType, filename);
+                        const canPreview = Boolean(kind);
                         const openPreview = async () => {
                             if (!canPreview) return;
                             const result = await loadAttachmentPreview({
@@ -484,7 +482,7 @@ const ViewEmail = () => {
                                 return;
                             }
                             setPreviewItem({
-                                kind: isPdf ? 'pdf' : isImage ? 'image' : isAudio ? 'audio' : 'video',
+                                kind,
                                 title: filename,
                                 url: result.data,
                                 objectUrl: result.data
@@ -717,38 +715,7 @@ const ViewEmail = () => {
                 </div>
             </div>
 
-            {previewItem && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4" onClick={() => setPreviewItem(null)}>
-                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-md bg-white dark:bg-slate-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-                        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{previewItem.title}</p>
-                                {previewItem.sourceUrl && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{previewItem.sourceUrl}</p>}
-                            </div>
-                            {previewItem.sourceUrl && (
-                                <a href={previewItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-950">
-                                    Open source
-                                </a>
-                            )}
-                            {previewItem.objectUrl && (
-                                <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-950">
-                                    Open in new tab
-                                </a>
-                            )}
-                            <IconButton label="Close preview" size="sm" onClick={() => setPreviewItem(null)}>
-                                <MailshotIcon name="close" size={20} />
-                            </IconButton>
-                        </div>
-                        <div className="min-h-0 flex-1 bg-slate-100 dark:bg-slate-800">
-                            {previewItem.kind === 'image' && <img src={previewItem.url} alt="" className="h-full w-full object-contain" />}
-                            {previewItem.kind === 'video' && <video src={previewItem.url} controls autoPlay className="h-full w-full bg-black" />}
-                            {previewItem.kind === 'audio' && <div className="flex h-full items-center justify-center p-8"><audio src={previewItem.url} controls autoPlay className="w-full max-w-2xl" /></div>}
-                            {previewItem.kind === 'pdf' && <iframe src={`${previewItem.url}#page=1&view=FitH`} title={previewItem.title} className="h-full w-full border-0 bg-white dark:bg-slate-900" />}
-                            {previewItem.kind === 'embed' && <iframe src={previewItem.url} title={previewItem.title} className="h-full w-full border-0 bg-white dark:bg-slate-900" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
-                        </div>
-                    </div>
-                </div>
-            )}
+            <AttachmentPreview item={previewItem} onClose={() => setPreviewItem(null)} />
 
             <ConfirmDialog
                 open={confirmDeleteOpen}

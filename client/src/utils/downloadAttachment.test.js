@@ -4,8 +4,19 @@ import assert from 'node:assert/strict';
 import {
     downloadAttachment,
     isSafeAttachmentPreviewType,
-    loadAttachmentPreview
+    loadAttachmentPreview,
+    getAttachmentPreviewKind
 } from './downloadAttachment.js';
+
+test('preview rendering normalizes MIME parameters and rejects active file types', () => {
+    assert.equal(getAttachmentPreviewKind('application/pdf; charset=binary'), 'pdf');
+    assert.equal(getAttachmentPreviewKind(' Image/PNG ; charset=binary'), 'image');
+    assert.equal(getAttachmentPreviewKind('audio/wav; codecs=1'), 'audio');
+    assert.equal(getAttachmentPreviewKind('video/mp4; codecs=avc1'), 'video');
+    assert.equal(getAttachmentPreviewKind('', 'Document.PDF'), 'pdf');
+    assert.equal(getAttachmentPreviewKind('text/html', 'Document.pdf'), null);
+    assert.equal(getAttachmentPreviewKind('image/svg+xml'), null);
+});
 
 test('downloads an authenticated blob with the requested filename and revokes its URL', async () => {
     const calls = [];
