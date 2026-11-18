@@ -46,6 +46,7 @@ const AttachmentPreview = ({ item, onClose }) => {
 
     if (!item) return null;
 
+    const pdfUnavailable = item.kind === 'pdf' && navigator.pdfViewerEnabled === false;
     const linkClass = 'inline-flex min-h-10 shrink-0 items-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800';
     return createPortal(
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 p-3 sm:p-4"
@@ -64,8 +65,10 @@ const AttachmentPreview = ({ item, onClose }) => {
                     <IconButton label="Close preview" onClick={onClose}><MailshotIcon name="close" size={20} /></IconButton>
                 </header>
                 <div className="min-h-0 flex-1 overflow-auto bg-slate-100 dark:bg-slate-800">
-                    {failed ? (
-                        <p role="alert" className="p-4 text-sm text-slate-700 dark:text-slate-200">This preview could not be loaded. Open the file in a new tab to view it.</p>
+                    {failed || pdfUnavailable ? (
+                        <p role="alert" className="p-4 text-sm text-slate-700 dark:text-slate-200">
+                            {pdfUnavailable ? 'This browser cannot display this PDF here.' : 'This preview could not be loaded.'} Open the file in a new tab to view it.
+                        </p>
                     ) : (
                         <>
                             {item.kind === 'image' && <img src={item.url} alt={item.title} onError={() => setFailed(true)} className="h-full w-full object-contain" />}
