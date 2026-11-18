@@ -306,19 +306,16 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                 ? applySignatureHtml(baseHtml, selectedSignature.html)
                 : baseHtml;
             if (!cancelled) {
-                appliedSignatureRef.current = shouldApplySignature ? selectedSignature.html : '';
+                const applyLoadedSignature = shouldApplySignature && !hasUserEditedRef.current;
+                appliedSignatureRef.current = applyLoadedSignature ? selectedSignature.html : '';
                 setSignatureOptions(signatures);
                 setSelectedSignatureEmail(selectedSignature.email || '');
-                setSignatureEnabled(shouldApplySignature);
+                setSignatureEnabled(applyLoadedSignature);
                 setTemplates(Array.isArray(settingsResult.data?.general?.templates)
                     ? settingsResult.data.general.templates
                     : []);
-                setScheduledAt(draft.scheduled_send_at
-                    ? new Date(draft.scheduled_send_at).toISOString().slice(0, 16)
-                    : '');
-                setToRecipients(parseRecipientList(draft.to));
-                setToInput('');
-                setData({
+                // A slow settings response must not replace a message already being edited.
+                if (!hasUserEditedRef.current) setData({
                     to: '',
                     cc: draft.cc || '',
                     bcc: draft.bcc || '',
@@ -343,6 +340,9 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
         setSignatureEnabled(false);
         setToRecipients(parseRecipientList(draft.to));
         setToInput('');
+        setScheduledAt(draft.scheduled_send_at
+            ? new Date(draft.scheduled_send_at).toISOString().slice(0, 16)
+            : '');
         appliedSignatureRef.current = '';
 
         getContactsService.call().then((result) => {
