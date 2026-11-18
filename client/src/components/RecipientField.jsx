@@ -82,7 +82,7 @@ const RecipientField = ({
 
     return (
         <div ref={rootRef} className="relative flex min-w-0 flex-1 items-center gap-2">
-            <span className="w-8 shrink-0 text-xs text-slate-500">{label}</span>
+            <span className="w-8 shrink-0 text-xs text-slate-500 dark:text-slate-400">{label}</span>
             <div className="relative min-w-0 flex-1">
                 <input
                     name={name}
@@ -101,7 +101,7 @@ const RecipientField = ({
                     <ul
                         id={listId}
                         role="listbox"
-                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 shadow-lg"
                     >
                         {suggestions.map((contact, index) => {
                             const displayName = cleanContactName(contact.name);
@@ -113,14 +113,14 @@ const RecipientField = ({
                                         role="option"
                                         aria-selected={isActive}
                                         className={`flex w-full flex-col items-start px-3 py-2 text-left text-sm ${
-                                            isActive ? 'bg-blue-50 text-blue-900' : 'text-slate-800 hover:bg-slate-50'
+                                            isActive ? 'bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-200' : 'text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-950'
                                         }`}
                                         onMouseDown={(event) => event.preventDefault()}
                                         onClick={() => chooseSuggestion(contact)}
                                     >
                                         <span className="font-medium">{displayName || contact.email}</span>
                                         {displayName ? (
-                                            <span className="text-xs text-slate-500">{contact.email}</span>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">{contact.email}</span>
                                         ) : null}
                                     </button>
                                 </li>

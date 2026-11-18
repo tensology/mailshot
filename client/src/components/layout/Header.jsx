@@ -56,7 +56,7 @@ const Header = () => {
     }, [accountMenuOpen]);
 
     return (
-        <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur">
             <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
                 <IconButton label="Open menu" onClick={toggleSidebar}>
                     <MailshotIcon name="menu" size={24} />
@@ -64,7 +64,7 @@ const Header = () => {
 
                 <div className="flex min-w-0 items-center gap-2">
                     <img src="/mailshot-icon-192.png" alt="" className="h-9 w-9 object-contain drop-shadow-sm" />
-                    <span className="inline text-base font-semibold text-slate-900">Mailshot</span>
+                    <span className="inline text-base font-semibold text-slate-900 dark:text-slate-100">Mailshot</span>
                 </div>
 
                 <div className="ml-auto flex items-center gap-1">
@@ -75,12 +75,12 @@ const Header = () => {
                             aria-expanded={accountMenuOpen}
                             aria-haspopup="menu"
                             title={username ? `Signed in as ${username}` : 'Account settings'}
-                            className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 sm:flex"
+                            className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 sm:flex"
                         >
                             {profilePhoto
                                 ? <img src={profilePhoto} alt="" className="h-7 w-7 rounded-full object-cover object-center" />
                                 : <MailshotIcon name="settings" size={20} />}
-                            <span className="whitespace-nowrap font-semibold text-slate-900">{activeAccount?.label || username || 'Account'}</span>
+                            <span className="whitespace-nowrap font-semibold text-slate-900 dark:text-slate-100">{activeAccount?.label || username || 'Account'}</span>
                             <MailshotIcon name="chevron-down" size={18} />
                         </button>
                         <IconButton
@@ -96,11 +96,11 @@ const Header = () => {
                         {accountMenuOpen && (
                             <div
                                 role="menu"
-                                className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl"
+                                className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"
                             >
                                 {hasMultipleAccounts && (
-                                    <div className="border-b border-slate-100 px-2 py-2">
-                                        <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <div className="border-b border-slate-100 dark:border-slate-800 px-2 py-2">
+                                        <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                             Mailboxes
                                         </p>
                                         {accounts.map((entry) => {
@@ -117,21 +117,21 @@ const Header = () => {
                                                     }}
                                                     className={`flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
                                                         isActive
-                                                            ? 'bg-slate-100 font-semibold text-slate-900'
-                                                            : 'text-slate-700 hover:bg-slate-100'
+                                                            ? 'bg-slate-100 dark:bg-slate-800 font-semibold text-slate-900 dark:text-slate-100'
+                                                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                                                     }`}
                                                 >
                                                     {entry.logo
                                                         ? <img src={entry.logo} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" />
                                                         : (
-                                                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                                                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                                                                 <MailshotIcon name="settings" size={18} />
                                                             </span>
                                                         )}
-                                                    <span className="min-w-0 flex-1 font-semibold text-slate-900">
+                                                    <span className="min-w-0 flex-1 font-semibold text-slate-900 dark:text-slate-100">
                                                         {entry.label}
                                                     </span>
-                                                    {isActive && <span aria-hidden="true" className="text-slate-500">✓</span>}
+                                                    {isActive && <span aria-hidden="true" className="text-slate-500 dark:text-slate-400">✓</span>}
                                                 </button>
                                             );
                                         })}
@@ -145,7 +145,7 @@ const Header = () => {
                                             setAccountMenuOpen(false);
                                             setSettingsOpen(true);
                                         }}
-                                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800"
                                     >
                                         <MailshotIcon name="settings" size={20} />
                                         Settings
@@ -154,7 +154,7 @@ const Header = () => {
                                         type="button"
                                         role="menuitem"
                                         onClick={handleLogout}
-                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50"
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-600 dark:text-red-300 transition hover:bg-red-50 dark:hover:bg-red-950"
                                     >
                                         <MailshotIcon name="logout" size={20} />
                                         Sign out

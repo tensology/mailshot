@@ -128,11 +128,11 @@ const Contacts = () => {
     }, [contacts, normalizedSearch]);
 
     return (
-        <div className="h-full overflow-y-auto bg-white px-4 py-5 sm:px-6">
+        <div className="h-full overflow-y-auto bg-white dark:bg-slate-900 px-4 py-5 sm:px-6">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-xl font-semibold text-slate-900">Contacts</h1>
-                    <p className="text-sm text-slate-500">Manage people you email often.</p>
+                    <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Contacts</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Manage people you email often.</p>
                 </div>
                 <Button onClick={openCreateDialog}>
                     <MailshotIcon name="plus" size={22} />
@@ -147,7 +147,7 @@ const Contacts = () => {
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search contacts"
-                    className="w-full rounded-md border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none ring-blue-500 transition focus:border-blue-500 focus:ring-2"
+                    className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2.5 pl-10 pr-4 text-sm outline-none ring-blue-500 transition focus:border-blue-500 focus:ring-2"
                 />
             </div>
 
@@ -157,9 +157,9 @@ const Contacts = () => {
                 </div>
             ) : (
                 <>
-                    <div className="hidden overflow-hidden rounded-md border border-slate-200 md:block">
+                    <div className="hidden overflow-hidden rounded-md border border-slate-200 dark:border-slate-700 md:block">
                         <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50 text-left text-slate-600">
+                            <thead className="bg-slate-50 dark:bg-slate-950 text-left text-slate-600 dark:text-slate-300">
                                 <tr>
                                     <th className="px-4 py-3 font-medium">Name</th>
                                     <th className="px-4 py-3 font-medium">Email</th>
@@ -172,11 +172,11 @@ const Contacts = () => {
                                 {visibleContacts.map((contact) => (
                                     <tr
                                         key={contact._id}
-                                        className="cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-50"
+                                        className="cursor-pointer border-t border-slate-100 dark:border-slate-800 transition-colors hover:bg-slate-50 dark:hover:bg-slate-950"
                                         onClick={() => viewMailWithContact(contact)}
                                     >
                                         <td className="px-4 py-3">{contact.name}</td>
-                                        <td className="px-4 py-3 text-blue-700">{contact.email}</td>
+                                        <td className="px-4 py-3 text-blue-700 dark:text-blue-300">{contact.email}</td>
                                         <td className="px-4 py-3">{contact.phone || '—'}</td>
                                         <td className="px-4 py-3">{contact.company || '—'}</td>
                                         <td className="px-4 py-3">
@@ -196,14 +196,14 @@ const Contacts = () => {
                                 ))}
                                 {contacts.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                                        <td colSpan={5} className="px-4 py-10 text-center text-slate-500 dark:text-slate-400">
                                             No contacts yet. Add your first contact to quickly compose messages.
                                         </td>
                                     </tr>
                                 )}
                                 {contacts.length > 0 && visibleContacts.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                                        <td colSpan={5} className="px-4 py-10 text-center text-slate-500 dark:text-slate-400">
                                             No contacts match your search.
                                         </td>
                                     </tr>
@@ -214,17 +214,17 @@ const Contacts = () => {
 
                     <div className="space-y-3 md:hidden">
                         {visibleContacts.map((contact) => (
-                            <div key={contact._id} className="rounded-md border border-slate-200 p-4">
+                            <div key={contact._id} className="rounded-md border border-slate-200 dark:border-slate-700 p-4">
                                 <div className="flex items-start justify-between gap-3">
                                     <button
                                         type="button"
                                         onClick={() => viewMailWithContact(contact)}
                                         className="min-w-0 flex-1 text-left"
                                     >
-                                        <p className="font-medium text-slate-900">{contact.name}</p>
-                                        <p className="text-sm text-blue-700">{contact.email}</p>
-                                        {contact.phone && <p className="text-sm text-slate-500">{contact.phone}</p>}
-                                        {contact.company && <p className="text-sm text-slate-500">{contact.company}</p>}
+                                        <p className="font-medium text-slate-900 dark:text-slate-100">{contact.name}</p>
+                                        <p className="text-sm text-blue-700 dark:text-blue-300">{contact.email}</p>
+                                        {contact.phone && <p className="text-sm text-slate-500 dark:text-slate-400">{contact.phone}</p>}
+                                        {contact.company && <p className="text-sm text-slate-500 dark:text-slate-400">{contact.company}</p>}
                                     </button>
                                     <div className="flex gap-1">
                                         <IconButton label="Compose" onClick={(event) => emailContact(contact, event)}>
@@ -241,12 +241,12 @@ const Contacts = () => {
                             </div>
                         ))}
                         {contacts.length === 0 && (
-                            <div className="rounded-md border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                            <div className="rounded-md border border-dashed border-slate-200 dark:border-slate-700 px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
                                 No contacts yet. Add your first contact to quickly compose messages.
                             </div>
                         )}
                         {contacts.length > 0 && visibleContacts.length === 0 && (
-                            <div className="rounded-md border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                            <div className="rounded-md border border-dashed border-slate-200 dark:border-slate-700 px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
                                 No contacts match your search.
                             </div>
                         )}

@@ -688,14 +688,14 @@ const DevAgentPanel = () => {
             onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
-            className={`rounded-xl border bg-white p-2 shadow-lg transition ${dragging ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'}`}
+            className={`rounded-xl border bg-white dark:bg-slate-900 p-2 shadow-lg transition ${dragging ? 'border-blue-400 ring-2 ring-blue-100 dark:ring-blue-900' : 'border-slate-200 dark:border-slate-700'}`}
         >
             {files.length > 0 && (
                 <div className="mb-1.5 flex flex-wrap gap-1.5">
                     {files.map((file, index) => (
-                        <span key={`${file.name}-${index}`} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                        <span key={`${file.name}-${index}`} className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-200">
                             {fileLabel(file.name)}
-                            <button type="button" onClick={() => setFiles((list) => list.filter((_, i) => i !== index))} className="text-slate-400 hover:text-red-500">×</button>
+                            <button type="button" onClick={() => setFiles((list) => list.filter((_, i) => i !== index))} className="text-slate-400 hover:text-red-500 dark:hover:text-red-300">×</button>
                         </span>
                     ))}
                 </div>
@@ -705,7 +705,7 @@ const DevAgentPanel = () => {
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100`}
+                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800`}
                         aria-label="Attach files"
                     >
                         <MailshotIcon name="attach" size={iconSize} />
@@ -726,7 +726,7 @@ const DevAgentPanel = () => {
                         type="button"
                         onClick={send}
                         disabled={running}
-                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full transition hover:bg-slate-100 disabled:opacity-50`}
+                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full transition hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50`}
                         aria-label="Run"
                     >
                         <MailshotIcon name="send" size={iconSize} className={running ? 'opacity-60' : ''} />
@@ -738,7 +738,7 @@ const DevAgentPanel = () => {
                         onClick={() => toggleSetting({ auto_deploy: !autoDeploy })}
                         aria-label="Auto update"
                         aria-pressed={autoDeploy}
-                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full transition ${autoDeploy ? 'bg-emerald-50' : 'hover:bg-slate-100'}`}
+                        className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full transition ${autoDeploy ? 'bg-emerald-50 dark:bg-emerald-950' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                     >
                         <MailshotIcon name="server" size={iconSize} className={autoDeploy ? '' : 'grayscale opacity-50'} />
                     </button>
@@ -748,7 +748,7 @@ const DevAgentPanel = () => {
                         <button
                             type="button"
                             onClick={() => { setOpen(true); loadThreads(); }}
-                            className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100`}
+                            className={`flex ${ctrlSize} shrink-0 items-center justify-center rounded-full text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800`}
                             aria-label="Expand"
                         >
                             <MailshotIcon name="expand" size={iconSize} />
@@ -773,21 +773,21 @@ const DevAgentPanel = () => {
             align="right"
             wrap
         >
-            <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+            <span className="inline-flex items-center rounded-full bg-sky-100 dark:bg-sky-900 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:text-sky-300">
                 {formatCost(totalUsage.cost)}
             </span>
         </Tooltip>
     ) : null;
 
     const progressPill = running ? (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 px-3 py-1.5 text-[11px]">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-[11px]">
             {STEPS.map((step, index) => {
                 const done = phaseIndex > index;
                 const active = phaseIndex === index;
                 return (
                     <span
                         key={step.key}
-                        className={`inline-flex items-center gap-2 ${done ? 'text-emerald-600' : active ? 'font-semibold text-blue-600' : 'text-slate-400'}`}
+                        className={`inline-flex items-center gap-2 ${done ? 'text-emerald-600 dark:text-emerald-300' : active ? 'font-semibold text-blue-600 dark:text-blue-300' : 'text-slate-400'}`}
                     >
                         {done ? '✓' : active ? <MailshotIcon name="refresh" size={12} active /> : '○'}
                         {step.label}
@@ -811,19 +811,19 @@ const DevAgentPanel = () => {
                         wrap
                         className="ml-auto shrink-0"
                     >
-                        <span className="relative inline-flex h-4 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 align-middle">
+                        <span className="relative inline-flex h-4 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700 align-middle">
                             <span
                                 className="absolute inset-y-0 left-0 rounded-full bg-blue-500 transition-all duration-500"
                                 style={{ width: `${stepPct}%` }}
                             />
-                            <span className="relative text-[9px] font-semibold text-slate-700">{stepPct}%</span>
+                            <span className="relative text-[9px] font-semibold text-slate-700 dark:text-slate-200">{stepPct}%</span>
                         </span>
                     </Tooltip>
                 </div>
             )}
             {activity && (
-                <p className="inline-flex max-w-full min-w-0 items-center gap-2 pl-3 text-xs text-slate-500">
-                    {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
+                <p className="inline-flex max-w-full min-w-0 items-center gap-2 pl-3 text-xs text-slate-500 dark:text-slate-400">
+                    {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500 dark:text-emerald-300">✓</span>}
                     <span className="truncate">{activity}</span>
                 </p>
             )}
@@ -856,11 +856,11 @@ const DevAgentPanel = () => {
     const liveThread = liveItems.map((item, index) => (
         item.kind === 'notice' ? (
             <div key={`notice-${index}`} className="flex justify-start">
-                <p className={`text-xs ${item.error ? 'font-medium text-red-600' : 'text-slate-400'}`}>{item.text}</p>
+                <p className={`text-xs ${item.error ? 'font-medium text-red-600 dark:text-red-300' : 'text-slate-400'}`}>{item.text}</p>
             </div>
         ) : (
             <div key={`text-${index}`} className="flex justify-start">
-                <div className="max-w-[85%] rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-800">
+                <div className="max-w-[85%] rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100">
                     <Markdown>{item.text}</Markdown>
                 </div>
             </div>
@@ -870,32 +870,32 @@ const DevAgentPanel = () => {
     const hasWork = Boolean(running || thinking || steps.length);
     const workArea = hasWork ? (
         <div className="w-full min-w-0">
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/80">
+            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-950/80">
                 <button
                     type="button"
                     onClick={() => setShowWork((value) => !value)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800"
                     aria-expanded={showWork}
                 >
-                    {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500">✓</span>}
+                    {running ? <MailshotIcon name="refresh" size={12} active /> : <span className="text-emerald-500 dark:text-emerald-300">✓</span>}
                     <span>{running ? 'Working — see what it is doing' : 'What it did'}</span>
                     {steps.length > 0 && (
-                        <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-normal text-slate-600">{steps.length} step{steps.length === 1 ? '' : 's'}</span>
+                        <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] font-normal text-slate-600 dark:text-slate-300">{steps.length} step{steps.length === 1 ? '' : 's'}</span>
                     )}
                     <span className="ml-auto text-[11px] font-normal text-slate-400">{showWork ? 'Hide' : 'Show'}</span>
                 </button>
                 {showWork && (
-                    <div className="scrollbar-thin max-h-56 overflow-y-auto border-t border-slate-200 px-3 py-2">
+                    <div className="scrollbar-thin max-h-56 overflow-y-auto border-t border-slate-200 dark:border-slate-700 px-3 py-2">
                         {thinking && (
-                            <p className="mb-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-slate-500">{thinking}</p>
+                            <p className="mb-2 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">{thinking}</p>
                         )}
                         {steps.length > 0 && (
                             <ol className="space-y-1">
                                 {steps.map((step) => (
-                                    <li key={step.key} className="flex min-w-0 items-start gap-2 text-[11px] text-slate-600">
+                                    <li key={step.key} className="flex min-w-0 items-start gap-2 text-[11px] text-slate-600 dark:text-slate-300">
                                         <span className="mt-px shrink-0">{step.ok === false ? '✗' : step.ok === true ? '✓' : '•'}</span>
                                         <span className="shrink-0 font-medium">{TOOL_LABELS[step.name] || step.name}</span>
-                                        {step.summary && <code className="min-w-0 truncate rounded bg-slate-200/70 px-1 font-mono text-[10px] text-slate-700">{step.summary}</code>}
+                                        {step.summary && <code className="min-w-0 truncate rounded bg-slate-200/70 dark:bg-slate-700/70 px-1 font-mono text-[10px] text-slate-700 dark:text-slate-200">{step.summary}</code>}
                                     </li>
                                 ))}
                             </ol>
@@ -917,10 +917,10 @@ const DevAgentPanel = () => {
 
     const threadsPanel = (
         <>
-            <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-3">
-                <span className="text-sm font-semibold text-slate-900">Threads</span>
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-700 px-3">
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Threads</span>
                 <Tooltip label="New thread" placement="bottom">
-                    <button type="button" onClick={newThread} className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100" aria-label="New thread">
+                    <button type="button" onClick={newThread} className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="New thread">
                         <MailshotIcon name="plus" size={18} />
                     </button>
                 </Tooltip>
@@ -931,7 +931,7 @@ const DevAgentPanel = () => {
                         <button
                             type="button"
                             onClick={() => handleSelectThread(thread.id)}
-                            className={`min-w-0 flex-1 truncate rounded-md px-2.5 py-2.5 text-left text-sm transition ${thread.id === activeThreadId ? 'bg-blue-100 font-medium text-blue-900' : 'text-slate-700 hover:bg-slate-100'}`}
+                            className={`min-w-0 flex-1 truncate rounded-md px-2.5 py-2.5 text-left text-sm transition ${thread.id === activeThreadId ? 'bg-blue-100 dark:bg-blue-900 font-medium text-blue-900 dark:text-blue-200' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                         >
                             {thread.title || 'Untitled'}
                         </button>
@@ -939,7 +939,7 @@ const DevAgentPanel = () => {
                             <button
                                 type="button"
                                 onClick={() => setThreadToDelete(thread)}
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 dark:hover:text-red-300"
                                 aria-label={`Delete ${thread.title || 'thread'}`}
                             >
                                 <MailshotIcon name="delete" size={16} />
@@ -947,23 +947,23 @@ const DevAgentPanel = () => {
                         </Tooltip>
                     </div>
                 ))}
-                {!threads.length && <p className="px-2 py-4 text-xs text-slate-500">No threads yet.</p>}
+                {!threads.length && <p className="px-2 py-4 text-xs text-slate-500 dark:text-slate-400">No threads yet.</p>}
             </div>
         </>
     );
 
     const messagesPanel = (
-        <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto overscroll-contain bg-white px-4 py-4">
+        <div ref={scrollRef} className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto overscroll-contain bg-white dark:bg-slate-900 px-4 py-4">
             {!messages.length && !running && (
                 <div className="mx-auto max-w-md py-8 text-center">
-                    <p className="text-sm font-medium text-slate-700">What would you like to change?</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">What would you like to change?</p>
                     <div className="mt-3 flex flex-wrap justify-center gap-2">
                         {SUGGESTIONS.map((suggestion) => (
                             <button
                                 key={suggestion}
                                 type="button"
                                 onClick={() => setPrompt(suggestion)}
-                                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                                className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-700 dark:hover:text-blue-300"
                             >
                                 {suggestion}
                             </button>
@@ -975,12 +975,12 @@ const DevAgentPanel = () => {
             {messages.map((message, index) => (
                 <Fragment key={message.id}>
                     <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                        <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100'}`}>
                             <Markdown invert={message.role === 'user'}>{message.content}</Markdown>
                             {Array.isArray(message.meta?.attachments) && message.meta.attachments.length > 0 && (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                     {message.meta.attachments.map((name) => (
-                                        <span key={name} className={`rounded-full px-2 py-0.5 text-[11px] ${message.role === 'user' ? 'bg-blue-500/60' : 'bg-slate-200'}`}>{fileLabel(name)}</span>
+                                        <span key={name} className={`rounded-full px-2 py-0.5 text-[11px] ${message.role === 'user' ? 'bg-blue-500/60' : 'bg-slate-200 dark:bg-slate-700'}`}>{fileLabel(name)}</span>
                                     ))}
                                 </div>
                             )}
@@ -996,14 +996,14 @@ const DevAgentPanel = () => {
     );
 
     const composerPanel = (
-        <div className="shrink-0 border-t border-slate-200 px-3 py-3 sm:px-4">
-            {notice && <p className="mb-2 text-xs text-slate-600">{notice}</p>}
+        <div className="shrink-0 border-t border-slate-200 dark:border-slate-700 px-3 py-3 sm:px-4">
+            {notice && <p className="mb-2 text-xs text-slate-600 dark:text-slate-300">{notice}</p>}
             {deployable && !autoDeploy && (
                 <div className="mb-2 flex items-center gap-2">
                     <button type="button" onClick={applyDeploy} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
                         Make it live
                     </button>
-                    <button type="button" onClick={discard} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                    <button type="button" onClick={discard} className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100">
                         Undo changes
                     </button>
                 </div>
@@ -1026,22 +1026,22 @@ const DevAgentPanel = () => {
 
             {open && (isMobile ? (
                 /* Phone: a real full-screen takeover, not a modal. */
-                <div className="fixed inset-0 z-[95] flex flex-col bg-white" style={keyboardInset ? { bottom: keyboardInset } : undefined}>
-                    <header className="flex h-14 shrink-0 items-center gap-1 border-b border-slate-200 px-2">
+                <div className="fixed inset-0 z-[95] flex flex-col bg-white dark:bg-slate-900" style={keyboardInset ? { bottom: keyboardInset } : undefined}>
+                    <header className="flex h-14 shrink-0 items-center gap-1 border-b border-slate-200 dark:border-slate-700 px-2">
                         <Tooltip label="Threads" placement="bottom">
                             <button
                                 type="button"
                                 onClick={() => setDrawerOpen(true)}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-100"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800"
                                 aria-label="Threads"
                             >
                                 <MailshotIcon name="menu" size={22} />
                             </button>
                         </Tooltip>
-                        <p className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
+                        <p className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Changes to PlanMyCharter</p>
                         {costBadge}
                         <Tooltip label="Close" placement="bottom">
-                            <button type="button" onClick={() => setOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100" aria-label="Close">
+                            <button type="button" onClick={() => setOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close">
                                 <MailshotIcon name="close" size={22} />
                             </button>
                         </Tooltip>
@@ -1052,7 +1052,7 @@ const DevAgentPanel = () => {
 
                     {drawerOpen && (
                         <div className="fixed inset-0 z-[100] bg-slate-900/50" onClick={() => setDrawerOpen(false)}>
-                            <aside className="flex h-full w-72 max-w-[80vw] flex-col bg-slate-50 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                            <aside className="flex h-full w-72 max-w-[80vw] flex-col bg-slate-50 dark:bg-slate-950 shadow-xl" onClick={(event) => event.stopPropagation()}>
                                 {threadsPanel}
                             </aside>
                         </div>
@@ -1060,28 +1060,28 @@ const DevAgentPanel = () => {
                 </div>
             ) : (
                 <div className={`fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm ${fullscreen ? 'p-0' : 'p-4'}`} onClick={() => setOpen(false)}>
-                    <div className={`flex overflow-hidden bg-white shadow-2xl ${fullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[85vh] w-full max-w-6xl rounded-2xl'}`} onClick={(event) => event.stopPropagation()}>
-                        <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
+                    <div className={`flex overflow-hidden bg-white dark:bg-slate-900 shadow-2xl ${fullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[85vh] w-full max-w-6xl rounded-2xl'}`} onClick={(event) => event.stopPropagation()}>
+                        <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950">
                             {threadsPanel}
                         </aside>
 
                         <section className="flex min-w-0 flex-1 flex-col">
-                            <header className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
-                                <p className="truncate text-sm font-semibold text-slate-900">Changes to PlanMyCharter</p>
+                            <header className="flex h-14 items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4">
+                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">Changes to PlanMyCharter</p>
                                 <div className="flex items-center gap-1">
                                     {costBadge}
                                     <Tooltip label={fullscreen ? 'Exit full screen' : 'Full screen'} placement="bottom">
                                         <button
                                             type="button"
                                             onClick={() => setFullscreen((value) => !value)}
-                                            className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100"
+                                            className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800"
                                             aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
                                         >
                                             <MailshotIcon name={fullscreen ? 'collapse' : 'expand'} size={20} />
                                         </button>
                                     </Tooltip>
                                     <Tooltip label="Close" placement="bottom">
-                                        <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Close">
+                                        <button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close">
                                             <MailshotIcon name="close" size={20} />
                                         </button>
                                     </Tooltip>

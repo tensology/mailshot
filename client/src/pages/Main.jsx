@@ -12,7 +12,7 @@ const Main = () => {
     return (
         <LabelsProvider>
             <LayoutProvider>
-                <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-50">
+                <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
                     <Header />
                     <div className="flex min-h-0 flex-1 overflow-hidden">
                         <Sidebar onSent={() => setRefreshKey((value) => value + 1)} />

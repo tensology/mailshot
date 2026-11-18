@@ -10,6 +10,7 @@ import { MAIL_FROM } from '../config/env';
 import MailshotIcon from './ui/MailshotIcon';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const Switch = ({ checked, onChange }) => (
     <button
@@ -17,7 +18,7 @@ const Switch = ({ checked, onChange }) => (
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${checked ? 'bg-emerald-500' : 'bg-slate-300'}`}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${checked ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
     >
         <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${checked ? 'translate-x-[1.375rem]' : 'translate-x-0.5'}`} />
     </button>
@@ -227,21 +228,21 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
     return (
         <div>
             <div className="mb-1.5 flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-slate-700">{label}</span>
-                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
-                    <button type="button" className="rounded-md p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('bold')} aria-label="Bold">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
+                <div className="flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-1">
+                    <button type="button" className="rounded-md p-1.5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-900" onClick={() => applyCommand('bold')} aria-label="Bold">
                         <MailshotIcon name="bold" size={20} />
                     </button>
-                    <button type="button" className="rounded-md p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('italic')} aria-label="Italic">
+                    <button type="button" className="rounded-md p-1.5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-900" onClick={() => applyCommand('italic')} aria-label="Italic">
                         <MailshotIcon name="italic" size={20} />
                     </button>
-                    <button type="button" className="rounded-md p-1.5 text-slate-600 hover:bg-white" onClick={() => applyCommand('insertUnorderedList')} aria-label="Bullet list">
+                    <button type="button" className="rounded-md p-1.5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-900" onClick={() => applyCommand('insertUnorderedList')} aria-label="Bullet list">
                         <MailshotIcon name="list" size={20} />
                     </button>
                     {allowImages && (
                         <button
                             type="button"
-                            className={`rounded-md p-1.5 hover:bg-white ${showImageInput ? 'bg-white text-blue-600' : 'text-slate-600'}`}
+                            className={`rounded-md p-1.5 hover:bg-white dark:hover:bg-slate-900 ${showImageInput ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300'}`}
                             onClick={() => setShowImageInput((current) => !current)}
                             aria-label="Insert image from URL"
                         >
@@ -251,7 +252,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                 </div>
             </div>
             {allowImages && showImageInput && (
-                <div className="mb-2 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+                <div className="mb-2 flex items-center gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2">
                     <input
                         type="url"
                         value={imageUrl}
@@ -263,14 +264,14 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
                             }
                         }}
                         placeholder="https://example.com/logo.png"
-                        className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        className="min-w-0 flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                     />
                     <IconButton
                         label="Insert image"
                         size="sm"
                         disabled={!isValidImageUrl(imageUrl)}
                         onClick={insertImage}
-                        className="text-emerald-600 hover:bg-emerald-50"
+                        className="text-emerald-600 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950"
                     >
                         <MailshotIcon name="check" size={20} />
                     </IconButton>
@@ -289,7 +290,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
             <div
                 ref={editorRef}
                 contentEditable
-                className="min-h-40 max-h-72 overflow-y-auto rounded-md border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:w-[490px] [&_img]:max-w-full [&_img]:rounded-md"
+                className="min-h-40 max-h-72 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm leading-6 text-slate-900 dark:text-slate-100 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 [&_img]:my-2 [&_img]:block [&_img]:h-auto [&_img]:w-[490px] [&_img]:max-w-full [&_img]:rounded-md"
                 onInput={syncEditor}
                 role="textbox"
                 aria-multiline="true"
@@ -300,6 +301,7 @@ const RichTextEditor = ({ label, value, onChange, allowImages = false, placehold
 };
 
 const SettingsDialog = ({ open, isSuperuser, onClose }) => {
+    const { preference, setTheme } = useTheme();
     const { activeAccount } = useAuth();
     const canUseDevAgent = Boolean(activeAccount?.dev_agent_capable);
     const [devAgent, setDevAgent] = useState({ enabled: false, auto_deploy: false });
@@ -350,6 +352,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
         if (!open) {
             return;
         }
+        setActiveTab('signature');
         getSettingsService.call().then((result) => {
             if (result.error) {
                 setToast({ open: true, message: result.error, severity: 'error' });
@@ -367,7 +370,6 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             setModelsLoaded(Boolean(result.data?.ai?.model));
             setNewEmail('');
             setShowAddEmail(false);
-            setActiveTab('signature');
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
@@ -615,24 +617,28 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
             maxWidthClassName="max-w-3xl"
         >
             <div className="w-[min(46rem,calc(100vw-3rem))] max-w-full">
-                <div className="sticky top-0 z-10 mb-4 flex gap-2 border-b border-slate-100 bg-white">
+                <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                    <button type="button" onClick={() => setActiveTab('appearance')}
+                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'appearance' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}>
+                        Appearance
+                    </button>
                     <button
                         type="button"
-                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'signature' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'signature' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}
                         onClick={() => setActiveTab('signature')}
                     >
                         Signature
                     </button>
                     <button
                         type="button"
-                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'autoresponder' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'autoresponder' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}
                         onClick={() => setActiveTab('autoresponder')}
                     >
                         Auto Responder
                     </button>
                     <button
                         type="button"
-                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'templates' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                        className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'templates' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}
                         onClick={() => setActiveTab('templates')}
                     >
                         Templates
@@ -640,7 +646,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                     {canUseDevAgent && (
                         <button
                             type="button"
-                            className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'devagent' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                            className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'devagent' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}
                             onClick={() => setActiveTab('devagent')}
                         >
                             AI Builder
@@ -650,21 +656,21 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         <>
                             <button
                                 type="button"
-                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'ai' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'ai' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}
                                 onClick={() => setActiveTab('ai')}
                             >
                                 AI
                             </button>
                             <button
                                 type="button"
-                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'tts' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'tts' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}
                                 onClick={() => setActiveTab('tts')}
                             >
                                 TTS
                             </button>
                             <button
                                 type="button"
-                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'tensology' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
+                                className={`border-b-2 px-3 py-2 text-sm font-medium ${activeTab === 'tensology' ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-slate-600 dark:text-slate-300'}`}
                                 onClick={() => setActiveTab('tensology')}
                             >
                                 Tensology
@@ -673,14 +679,27 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                     )}
                 </div>
 
+                {activeTab === 'appearance' && (
+                    <div className="space-y-2">
+                        <label htmlFor="appearance" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Theme</label>
+                        <select id="appearance" value={preference} onChange={(event) => setTheme(event.target.value)}
+                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                            <option value="system">System</option>
+                        </select>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Applies immediately and is remembered in this browser. System follows your device appearance.</p>
+                    </div>
+                )}
+
                 {(activeTab === 'signature' || activeTab === 'autoresponder') && (
                     <div className="mb-5 space-y-2">
-                        <span className="block text-sm font-medium text-slate-700">Email address</span>
+                        <span className="block text-sm font-medium text-slate-700 dark:text-slate-200">Email address</span>
                         <div className="flex items-center gap-2">
                             <select
                                 value={selectedEmail}
                                 onChange={(event) => setSelectedEmail(event.target.value)}
-                                className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                             >
                                 {emailOptions.map((email) => (
                                     <option key={email} value={email}>{email}</option>
@@ -691,7 +710,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 size="sm"
                                 disabled={!canRemoveSelectedEmail}
                                 onClick={removeEmail}
-                                className="shrink-0 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                                className="shrink-0 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 dark:hover:text-red-300 disabled:hover:bg-transparent disabled:hover:text-slate-400"
                             >
                                 <MailshotIcon name="delete" size={20} />
                             </IconButton>
@@ -699,13 +718,13 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                 label="Add email address"
                                 size="sm"
                                 onClick={() => setShowAddEmail((current) => !current)}
-                                className={`shrink-0 ${showAddEmail ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
+                                className={`shrink-0 ${showAddEmail ? 'bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300'}`}
                             >
                                 <MailshotIcon name="plus" size={20} />
                             </IconButton>
                         </div>
                         {showAddEmail && (
-                            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+                            <div className="flex items-center gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-2">
                                 <input
                                     type="email"
                                     value={newEmail}
@@ -717,13 +736,13 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                         }
                                     }}
                                     placeholder="name@example.com"
-                                    className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    className="min-w-0 flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                                 />
                                 <IconButton
                                     label="Confirm add email"
                                     size="sm"
                                     onClick={addEmail}
-                                    className="text-emerald-600 hover:bg-emerald-50"
+                                    className="text-emerald-600 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950"
                                 >
                                     <MailshotIcon name="check" size={20} />
                                 </IconButton>
@@ -759,12 +778,12 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
                 {activeTab === 'autoresponder' && (
                     <div className="space-y-4">
-                        <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
+                        <label className="flex items-center gap-3 text-sm font-medium text-slate-800 dark:text-slate-100">
                             <input
                                 type="checkbox"
                                 checked={Boolean(currentAutoresponder.enabled)}
                                 onChange={(event) => updateAutoresponder({ enabled: event.target.checked })}
-                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-300 focus:ring-blue-500"
                             />
                             Enable auto responder for this email
                         </label>
@@ -783,16 +802,16 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
                 {activeTab === 'templates' && (
                     <div className="space-y-4">
-                        <p className="text-sm text-slate-600">
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
                             Templates appear in Compose. Name, optional subject, and body.
                         </p>
                         {(general.templates || []).length === 0 && (
-                            <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                            <p className="rounded-md border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
                                 No templates yet.
                             </p>
                         )}
                         {(general.templates || []).map((template) => (
-                            <div key={template.id} className="space-y-3 rounded-md border border-slate-200 p-3">
+                            <div key={template.id} className="space-y-3 rounded-md border border-slate-200 dark:border-slate-700 p-3">
                                 <div className="flex items-start gap-2">
                                     <Input
                                         value={template.name}
@@ -804,7 +823,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                         label="Remove template"
                                         size="sm"
                                         onClick={() => removeTemplate(template.id)}
-                                        className="text-slate-500 hover:bg-red-50 hover:text-red-600"
+                                        className="text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 dark:hover:text-red-300"
                                     >
                                         <MailshotIcon name="delete" size={20} />
                                     </IconButton>
@@ -838,7 +857,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                 {activeTab === 'ai' && isSuperuser && (
                     <div className="space-y-4">
                         <label className="block">
-                            <span className="mb-1.5 block text-sm font-medium text-slate-700">Provider</span>
+                            <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Provider</span>
                             <select
                                 value={ai.provider}
                                 onChange={(event) => {
@@ -853,7 +872,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                     setModels([]);
                                     setModelsLoaded(false);
                                 }}
-                                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                             >
                                 {providerOptions.map(([key, provider]) => (
                                     <option key={key} value={key}>{provider.label}</option>
@@ -861,7 +880,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                             </select>
                         </label>
                         {ai.provider === 'nvidia' && (
-                            <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">
+                            <p className="rounded-md border border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-3 py-2 text-xs leading-5 text-blue-900 dark:text-blue-200">
                                 NVIDIA is free and fast for read summaries and background speech. Get a key at
                                 {' '}
                                 <a href="https://build.nvidia.com/models" target="_blank" rel="noopener noreferrer" className="font-semibold underline">build.nvidia.com</a>.
@@ -889,11 +908,11 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         </div>
                         {(modelsLoaded || ai.model) && (
                             <label className="block">
-                                <span className="mb-1.5 block text-sm font-medium text-slate-700">Model</span>
+                                <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Model</span>
                                 <select
                                     value={ai.model}
                                     onChange={(event) => saveModel(event.target.value)}
-                                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                                 >
                                     <option value="">Select a model</option>
                                     {models.map((model) => (
@@ -908,11 +927,11 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                 {activeTab === 'tts' && isSuperuser && (
                     <div className="space-y-4">
                         <label className="block">
-                            <span className="mb-1.5 block text-sm font-medium text-slate-700">Text-to-speech provider</span>
+                            <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Text-to-speech provider</span>
                             <select
                                 value={tts.provider || 'kokoro'}
                                 onChange={(event) => setTts({ ...tts, provider: event.target.value })}
-                                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                             >
                                 <option value="kokoro">Kokoro (on device)</option>
                                 <option value="fishaudio">Fish Audio (online)</option>
@@ -921,11 +940,11 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
                         {(tts.provider || 'kokoro') === 'kokoro' && (
                             <label className="block">
-                                <span className="mb-1.5 block text-sm font-medium text-slate-700">Voice</span>
+                                <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Voice</span>
                                 <select
                                     value={tts.voice}
                                     onChange={(event) => setTts({ ...tts, voice: event.target.value })}
-                                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                                 >
                                     {KOKORO_VOICES.map((voice) => (
                                         <option key={voice.id} value={voice.id}>{voice.label}</option>
@@ -937,7 +956,7 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                         {tts.provider === 'fishaudio' && (
                             <div className="space-y-4">
                                 <label className="block">
-                                    <span className="mb-1.5 block text-sm font-medium text-slate-700">
+                                    <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">
                                         Fish Audio API key{tts.fishaudio_key_set ? ' (saved — leave blank to keep)' : ''}
                                     </span>
                                     <input
@@ -945,25 +964,25 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
                                         value={tts.fishaudio_key || ''}
                                         onChange={(event) => setTts({ ...tts, fishaudio_key: event.target.value })}
                                         placeholder={tts.fishaudio_key_set ? '••••••••' : 'Paste your Fish Audio key'}
-                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                        className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                                     />
                                 </label>
                                 <label className="block">
-                                    <span className="mb-1.5 block text-sm font-medium text-slate-700">Voice / reference ID</span>
+                                    <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Voice / reference ID</span>
                                     <input
                                         type="text"
                                         value={tts.fishaudio_voice || ''}
                                         onChange={(event) => setTts({ ...tts, fishaudio_voice: event.target.value })}
                                         placeholder="Fish Audio voice id"
-                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                        className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                                     />
                                 </label>
                                 <label className="block">
-                                    <span className="mb-1.5 block text-sm font-medium text-slate-700">Model</span>
+                                    <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">Model</span>
                                     <select
                                         value={tts.fishaudio_model || 's2.1-pro-free'}
                                         onChange={(event) => setTts({ ...tts, fishaudio_model: event.target.value })}
-                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                        className="h-10 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                                     >
                                         {FISHAUDIO_MODELS.map((model) => (
                                             <option key={model.id} value={model.id}>{model.label}</option>
@@ -982,19 +1001,19 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
                 {activeTab === 'devagent' && canUseDevAgent && (
                     <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
                             <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-900">PlanMyCharter AI Builder</p>
-                                <p className="mt-0.5 text-sm leading-5 text-slate-500">
+                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">PlanMyCharter AI Builder</p>
+                                <p className="mt-0.5 text-sm leading-5 text-slate-500 dark:text-slate-400">
                                     Prompt the AI to make changes to PlanMyCharter from the box at the bottom-right of Mailshot.
                                 </p>
                             </div>
                             <Switch checked={devAgent.enabled} onChange={(value) => setDevAgentSetting({ enabled: value })} />
                         </div>
-                        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4">
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
                             <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-900">Deploy automatically</p>
-                                <p className="mt-0.5 text-sm leading-5 text-slate-500">
+                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Deploy automatically</p>
+                                <p className="mt-0.5 text-sm leading-5 text-slate-500 dark:text-slate-400">
                                     When on, every prompt is saved and put live straight away. When off, you approve each change yourself.
                                 </p>
                             </div>
@@ -1005,15 +1024,15 @@ const SettingsDialog = ({ open, isSuperuser, onClose }) => {
 
                 {activeTab === 'tensology' && isSuperuser && (
                     <div className="space-y-4">
-                        <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-5 text-blue-900">
+                        <p className="rounded-md border border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-3 py-2 text-sm leading-5 text-blue-900 dark:text-blue-200">
                             Connect Mailshot to the central Tensology API. Generate a Mailshot key in the Tensology admin and paste it here.
                         </p>
-                        <label className="flex items-center gap-3 text-sm font-medium text-slate-800">
+                        <label className="flex items-center gap-3 text-sm font-medium text-slate-800 dark:text-slate-100">
                             <input
                                 type="checkbox"
                                 checked={Boolean(tensology.enabled)}
                                 onChange={(event) => setTensology({ ...tensology, enabled: event.target.checked })}
-                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-300 focus:ring-blue-500"
                             />
                             Enable Tensology connection
                         </label>

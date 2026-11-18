@@ -5,11 +5,11 @@ import MailshotIcon from './MailshotIcon';
 const tones = {
     success: {
         icon: 'check',
-        className: 'border-emerald-200 bg-emerald-50 text-emerald-800'
+        className: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200'
     },
     error: {
         icon: 'alert',
-        className: 'border-red-200 bg-red-50 text-red-800'
+        className: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200'
     }
 };
 

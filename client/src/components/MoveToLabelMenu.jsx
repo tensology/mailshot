@@ -135,8 +135,8 @@ const MoveToLabelMenu = ({
                 </IconButton>
 
                 {open && (
-                    <div className="fixed inset-x-3 z-20 mt-1 max-h-[min(50dvh,20rem)] overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg sm:absolute sm:left-0 sm:right-auto sm:top-full sm:min-w-[12rem]">
-                        <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="fixed inset-x-3 z-20 mt-1 max-h-[min(50dvh,20rem)] overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 shadow-lg sm:absolute sm:left-0 sm:right-auto sm:top-full sm:min-w-[12rem]">
+                        <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             {buttonLabel}
                         </p>
                         {labels.map((label) => (
@@ -144,7 +144,7 @@ const MoveToLabelMenu = ({
                                 key={label._id}
                                 type="button"
                                 onClick={() => moveToLabel(label.slug)}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-950"
                             >
                                 <span className="h-3.5 w-3.5 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: label.color || '#64748b' }} />
                                 {getLabelDisplayName(label.slug, new Map([[label.slug, label.name]]))}
@@ -169,24 +169,24 @@ const MoveToLabelMenu = ({
                     </DialogActions>
                 )}
             >
-                <p className="text-sm leading-6 text-slate-600">
+                <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
                     {pendingRule?.senders?.length === 1
                         ? `Automatically move future emails from ${pendingRule.senders[0]} to ${getLabelDisplayName(pendingRule.label, new Map(labels.map((label) => [label.slug, label.name])))}?`
                         : `Automatically move future emails from these ${pendingRule?.senders?.length || 0} senders to ${getLabelDisplayName(pendingRule?.label, new Map(labels.map((label) => [label.slug, label.name])))}?`}
                 </p>
                 {pendingRule?.senders?.length === 1 && String(pendingRule.senders[0]).includes('@') && (
-                    <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                    <label className="mt-3 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                         <input
                             type="checkbox"
                             checked={ruleMatchMode === 'domain'}
                             onChange={(event) => setRuleMatchMode(event.target.checked ? 'domain' : 'from')}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-300 focus:ring-blue-500"
                         />
                         Match entire @{String(pendingRule.senders[0]).split('@')[1]} domain
                     </label>
                 )}
                 {pendingRule?.senders?.length > 1 && (
-                    <div className="mt-3 max-h-32 overflow-y-auto rounded-md bg-slate-50 p-2 text-xs text-slate-600">
+                    <div className="mt-3 max-h-32 overflow-y-auto rounded-md bg-slate-50 dark:bg-slate-950 p-2 text-xs text-slate-600 dark:text-slate-300">
                         {pendingRule.senders.map((sender) => (
                             <div key={sender} className="truncate py-0.5">{sender}</div>
                         ))}

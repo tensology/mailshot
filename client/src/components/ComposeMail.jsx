@@ -1,5 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTheme } from '../context/ThemeContext';
+import { applyEmailTheme } from '../utils/emailTheme';
 import useApi from '../hooks/useApi';
 import { API_URLS } from '../services/api.urls';
 import { MAIL_FROM, MAILBOX_USER } from '../config/env';
@@ -59,6 +61,7 @@ const resolveDraftHtml = (draft = {}) => (
 );
 
 const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = 'Write your message', className = '' }, ref) => {
+    const { theme } = useTheme();
     const editorRef = useRef(null);
     const valueRef = useRef(value);
     const onChangeRef = useRef(onChange);
@@ -87,7 +90,8 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = '
         if (editorRef.current && editorRef.current.innerHTML !== value) {
             editorRef.current.innerHTML = value || '';
         }
-    }, [value]);
+        applyEmailTheme(editorRef.current?.ownerDocument, theme);
+    }, [value, theme]);
 
     useEffect(() => () => cleanupRef.current(), []);
 
@@ -110,6 +114,7 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = '
         mobileStyles.textContent = '@media(max-width:640px){body{padding:4px!important;font-size:16px}[data-mailshot-quoted]{margin-left:0!important;padding-left:4px!important}}';
         doc.head.append(mobileStyles);
         editor.innerHTML = valueRef.current || '';
+        applyEmailTheme(doc, theme);
 
         const syncEditor = () => {
             if (editor.innerHTML !== valueRef.current) onChangeRef.current(editor.innerHTML);
@@ -150,7 +155,7 @@ const ComposeBodyEditor = forwardRef(({ value, onChange, onDrop, placeholder = '
                 onLoad={initializeEditor}
                 sandbox="allow-same-origin"
                 referrerPolicy="no-referrer"
-                className="h-full min-h-[180px] w-full border-0 bg-white"
+                className="h-full min-h-[180px] w-full border-0 bg-white dark:bg-slate-900"
             />
             {!String(value || '').trim() && (
                 <span className="pointer-events-none absolute left-3 top-3 text-sm text-slate-400">{placeholder}</span>
@@ -918,8 +923,8 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
 
     return (
         <div
-            className={`${isExpanded ? 'fixed' : 'relative'} z-[60] flex flex-col overflow-hidden bg-white shadow-2xl transition-all ${
-                isExpanded ? 'left-0 top-0 rounded-none border-0' : 'rounded-t-2xl border border-b-0 border-slate-200'
+            className={`${isExpanded ? 'fixed' : 'relative'} z-[60] flex flex-col overflow-hidden bg-white dark:bg-slate-900 shadow-2xl transition-all ${
+                isExpanded ? 'left-0 top-0 rounded-none border-0' : 'rounded-t-2xl border border-b-0 border-slate-200 dark:border-slate-700'
             } ${windowClass}`}
         >
             <div
@@ -951,7 +956,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                         <IconButton
                             label={composeState === 'expanded' ? 'Restore' : 'Expand'}
                             size="sm"
-                            className="text-white hover:bg-white/10"
+                            className="text-white hover:bg-white/10 dark:hover:bg-slate-900/10"
                             onClick={() => setComposeState(composeId, composeState === 'expanded' ? 'normal' : 'expanded')}
                         >
                             <MailshotIcon name={composeState === 'expanded' ? 'minimize' : 'expand'} size={22} />
@@ -960,7 +965,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                     <IconButton
                         label="Minimize"
                         size="sm"
-                        className="text-white hover:bg-white/10"
+                        className="text-white hover:bg-white/10 dark:hover:bg-slate-900/10"
                         onClick={(event) => {
                             event.stopPropagation();
                             setComposeState(composeId, isMinimized ? 'normal' : 'minimized');
@@ -971,7 +976,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                     <IconButton
                         label="Close"
                         size="sm"
-                        className="text-white hover:bg-white/10"
+                        className="text-white hover:bg-white/10 dark:hover:bg-slate-900/10"
                         onClick={(event) => {
                             event.stopPropagation();
                             saveDraftAndClose();
@@ -994,19 +999,19 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                     onDrop={addAttachments}
                     className="flex min-h-0 flex-1 flex-col overflow-y-auto"
                 >
-                    <div className="space-y-0 border-b border-slate-100">
+                    <div className="space-y-0 border-b border-slate-100 dark:border-slate-800">
                         <div className="flex items-start gap-2 px-3 py-2">
-                            <span className="w-8 text-xs text-slate-500">To</span>
+                            <span className="w-8 text-xs text-slate-500 dark:text-slate-400">To</span>
                             <div ref={toFieldRef} className="relative flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                                 {toRecipients.map((recipient) => (
                                     <span
                                         key={recipient}
-                                        className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800 ring-1 ring-blue-100"
+                                        className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950 px-2 py-1 text-xs font-medium text-blue-800 dark:text-blue-200 ring-1 ring-blue-100 dark:ring-blue-900"
                                     >
                                         <span className="max-w-[12rem] truncate">{recipient}</span>
                                         <button
                                             type="button"
-                                            className="rounded-full text-blue-500 hover:text-blue-800"
+                                            className="rounded-full text-blue-500 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200"
                                             onClick={() => removeToRecipient(recipient)}
                                             aria-label={`Remove ${recipient}`}
                                         >
@@ -1030,7 +1035,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 {toSuggestions.length > 0 && (
                                     <ul
                                         role="listbox"
-                                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+                                        className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 shadow-lg"
                                     >
                                         {toSuggestions.map((contact, index) => {
                                             const displayName = cleanContactName(contact.name);
@@ -1043,8 +1048,8 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                                         aria-selected={isActive}
                                                         className={`flex w-full flex-col items-start px-3 py-2 text-left text-sm ${
                                                             isActive
-                                                                ? 'bg-blue-50 text-blue-900'
-                                                                : 'text-slate-800 hover:bg-slate-50'
+                                                                ? 'bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-200'
+                                                                : 'text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-950'
                                                         }`}
                                                         onMouseDown={(event) => event.preventDefault()}
                                                         onClick={() => chooseToSuggestion(contact)}
@@ -1053,7 +1058,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                                             {displayName || contact.email}
                                                         </span>
                                                         {displayName ? (
-                                                            <span className="text-xs text-slate-500">
+                                                            <span className="text-xs text-slate-500 dark:text-slate-400">
                                                                 {contact.email}
                                                             </span>
                                                         ) : null}
@@ -1064,7 +1069,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     </ul>
                                 )}
                             </div>
-                            <div className="flex gap-1 text-xs text-slate-500">
+                            <div className="flex gap-1 text-xs text-slate-500 dark:text-slate-400">
                                 {!showCc && (
                                     <button type="button" onClick={() => setShowCc(true)}>Cc</button>
                                 )}
@@ -1074,7 +1079,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             </div>
                         </div>
                         {showCc && (
-                            <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
+                            <div className="flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-3 py-2">
                                 <RecipientField
                                     name="cc"
                                     label="Cc"
@@ -1085,7 +1090,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             </div>
                         )}
                         {showBcc && (
-                            <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
+                            <div className="flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-3 py-2">
                                 <RecipientField
                                     name="bcc"
                                     label="Bcc"
@@ -1095,7 +1100,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 />
                             </div>
                         )}
-                        <div className="border-t border-slate-100 px-3 py-2">
+                        <div className="border-t border-slate-100 dark:border-slate-800 px-3 py-2">
                             <input
                                 name="subject"
                                 placeholder="Subject"
@@ -1118,23 +1123,23 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
 
                         {(savedAttachments.length > 0 || newAttachments.length > 0 || forwardedAttachments.length > 0) && (
                             <aside className={isExpanded && !isMobile
-                                ? 'w-80 shrink-0 space-y-2 overflow-y-auto border-l border-slate-100 px-3 py-3'
-                                : 'max-h-40 shrink-0 space-y-2 overflow-y-auto border-t border-slate-100 px-3 py-2'}
+                                ? 'w-80 shrink-0 space-y-2 overflow-y-auto border-l border-slate-100 dark:border-slate-800 px-3 py-3'
+                                : 'max-h-40 shrink-0 space-y-2 overflow-y-auto border-t border-slate-100 dark:border-slate-800 px-3 py-2'}
                             >
-                                <p className="text-xs font-medium text-slate-500">
+                                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                                     {savedAttachments.length + newAttachments.length + forwardedAttachments.length} attachment{savedAttachments.length + newAttachments.length + forwardedAttachments.length === 1 ? '' : 's'} will be sent with this email
                                 </p>
                                 <div className={isExpanded && !isMobile ? 'grid grid-cols-1 gap-2' : 'grid gap-2 sm:grid-cols-2'}>
                                 {forwardedAttachments.map((attachment, itemIndex) => (
-                                    <div key={`${attachment.emailId}-${attachment.attachmentId}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                                    <div key={`${attachment.emailId}-${attachment.attachmentId}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 py-2">
                                         <MailshotFileIcon filename={attachment.filename} contentType={attachment.content_type} size={34} />
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-xs font-medium text-slate-700">{attachment.name || attachment.filename || 'attachment'}</p>
-                                            <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
+                                            <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{attachment.name || attachment.filename || 'attachment'}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">{formatFileSize(attachment.size)}</p>
                                         </div>
                                         <button
                                             type="button"
-                                            className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-red-600"
+                                            className="rounded-full p-1.5 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 hover:text-red-600 dark:hover:text-red-300"
                                             onClick={() => setForwardedAttachments((current) => current.filter((_, indexToKeep) => indexToKeep !== itemIndex))}
                                             aria-label={`Remove ${attachment.name || attachment.filename || 'attachment'}`}
                                         >
@@ -1143,23 +1148,23 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     </div>
                                 ))}
                                 {savedAttachments.map((attachment) => (
-                                    <div key={attachment.attachment_id} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2">
+                                    <div key={attachment.attachment_id} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-2 py-2">
                                         <MailshotFileIcon filename={attachment.filename} contentType={attachment.content_type} size={34} />
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-xs font-medium text-slate-700">{attachment.filename}</p>
-                                            <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
+                                            <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{attachment.filename}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">{formatFileSize(attachment.size)}</p>
                                         </div>
                                         <button
                                             type="button"
                                             onClick={() => viewSavedAttachment(attachment)}
-                                            className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-blue-600"
+                                            className="rounded-full p-1.5 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 hover:text-blue-600 dark:hover:text-blue-300"
                                             aria-label={`View ${attachment.filename}`}
                                         >
                                             <MailshotIcon name="eye" size={20} />
                                         </button>
                                         <button
                                             type="button"
-                                            className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-red-600"
+                                            className="rounded-full p-1.5 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 hover:text-red-600 dark:hover:text-red-300"
                                             onClick={() => removeSavedAttachment(attachment.attachment_id)}
                                             aria-label={`Remove ${attachment.filename}`}
                                         >
@@ -1168,23 +1173,23 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                     </div>
                                 ))}
                                 {newAttachments.map((file, itemIndex) => (
-                                    <div key={`${file.name}-${file.size}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-2 py-2">
+                                    <div key={`${file.name}-${file.size}-${itemIndex}`} className="flex min-w-0 items-center gap-2 rounded-md border border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-2 py-2">
                                         <MailshotFileIcon filename={file.name} contentType={file.type} size={34} />
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-xs font-medium text-slate-700">{file.name}</p>
-                                            <p className="text-xs text-slate-500">{formatFileSize(file.size)} selected</p>
+                                            <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{file.name}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">{formatFileSize(file.size)} selected</p>
                                         </div>
                                         <button
                                             type="button"
                                             onClick={() => viewNewAttachment(file)}
-                                            className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-blue-600"
+                                            className="rounded-full p-1.5 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 hover:text-blue-600 dark:hover:text-blue-300"
                                             aria-label={`View ${file.name}`}
                                         >
                                             <MailshotIcon name="eye" size={20} />
                                         </button>
                                         <button
                                             type="button"
-                                            className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-red-600"
+                                            className="rounded-full p-1.5 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 hover:text-red-600 dark:hover:text-red-300"
                                             onClick={() => removeNewAttachment(itemIndex)}
                                             aria-label={`Remove ${file.name}`}
                                         >
@@ -1197,7 +1202,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                         )}
                     </div>
 
-                    <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-3 py-3">
+                    <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 dark:border-slate-800 px-3 py-3">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <Button type="submit" disabled={sendQueued || sendEmailService.isLoading} className="rounded-full">
                                 {sendQueued || sendEmailService.isLoading ? <Spinner size={18} className="border-white/30 border-t-white" /> : (
@@ -1209,7 +1214,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             </Button>
                             <button
                                 type="button"
-                                className="inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                                 onClick={() => attachmentInputRef.current?.click()}
                             >
                                 <MailshotIcon name="attach" size={22} />
@@ -1222,7 +1227,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 multiple
                                 onChange={addAttachments}
                             />
-                            <label className="flex items-center gap-1 text-xs text-slate-500">
+                            <label className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                                 <span>Send later</span>
                                 <input
                                     type="datetime-local"
@@ -1231,11 +1236,11 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                         hasUserEditedRef.current = true;
                                         setScheduledAt(event.target.value);
                                     }}
-                                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 focus:border-blue-500"
+                                    className="h-8 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 focus:border-blue-500"
                                 />
                             </label>
                             {templates.length > 0 && (
-                                <label className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                                <label className="flex min-w-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                                     <span>Template</span>
                                     <select
                                         defaultValue=""
@@ -1244,7 +1249,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                             applyTemplate(template);
                                             event.target.value = '';
                                         }}
-                                        className="h-8 max-w-[13rem] rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 focus:border-blue-500"
+                                        className="h-8 max-w-[13rem] rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 focus:border-blue-500"
                                     >
                                         <option value="">Insert…</option>
                                         {templates.map((template) => (
@@ -1254,12 +1259,12 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                                 </label>
                             )}
                             {signatureOptions.length > 1 && (
-                                <label className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                                <label className="flex min-w-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                                     <span>Signature</span>
                                     <select
                                         value={selectedSignatureEmail}
                                         onChange={(event) => changeSignature(event.target.value)}
-                                        className="h-8 max-w-[13rem] rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                        className="h-8 max-w-[13rem] rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                                     >
                                         {signatureOptions.map((option) => (
                                             <option key={option.email} value={option.email}>{option.email}</option>
@@ -1269,7 +1274,7 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                             )}
                             <IconButton
                                 label="Delete draft"
-                                className="ml-auto border-red-100 bg-red-50 text-red-600 hover:border-red-200 hover:bg-red-100 hover:text-red-700"
+                                className="ml-auto border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 hover:border-red-200 dark:hover:border-red-800 hover:bg-red-100 dark:hover:bg-red-900 hover:text-red-700 dark:hover:text-red-300"
                                 onClick={() => setDiscardDialogOpen(true)}
                             >
                                 <MailshotIcon name="delete" size={24} />
@@ -1296,16 +1301,16 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
             />
             {previewItem && createPortal(
                 <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 p-4" onClick={closePreview}>
-                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-                        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
-                            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{previewItem.title}</p>
-                            <button type="button" className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100" onClick={closePreview} aria-label="Close preview">
+                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-md bg-white dark:bg-slate-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+                            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{previewItem.title}</p>
+                            <button type="button" className="rounded-full p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={closePreview} aria-label="Close preview">
                                 <MailshotIcon name="close" size={20} />
                             </button>
                         </div>
-                        <div className="min-h-0 flex-1 bg-slate-100">
+                        <div className="min-h-0 flex-1 bg-slate-100 dark:bg-slate-800">
                             {previewItem.kind === 'image' && <img src={previewItem.url} alt="" className="h-full w-full object-contain" />}
-                            {previewItem.kind === 'pdf' && <iframe src={`${previewItem.url}#page=1&view=FitH`} title={previewItem.title} className="h-full w-full border-0 bg-white" />}
+                            {previewItem.kind === 'pdf' && <iframe src={`${previewItem.url}#page=1&view=FitH`} title={previewItem.title} className="h-full w-full border-0 bg-white dark:bg-slate-900" />}
                             {previewItem.kind === 'video' && <video src={previewItem.url} controls className="h-full w-full bg-black" />}
                             {previewItem.kind === 'audio' && <div className="flex h-full items-center justify-center p-8"><audio src={previewItem.url} controls className="w-full max-w-2xl" /></div>}
                         </div>

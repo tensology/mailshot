@@ -11,7 +11,7 @@ import MailshotIcon from './ui/MailshotIcon';
 
 const labelNavClass = (isActive) => (
     `flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-sm transition ${
-        isActive ? 'bg-blue-100 font-medium text-blue-800' : 'text-slate-700 hover:bg-slate-100'
+        isActive ? 'bg-blue-100 dark:bg-blue-900 font-medium text-blue-800 dark:text-blue-200' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
     }`
 );
 
@@ -54,10 +54,10 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 border-b border-slate-100 px-4 pb-2 pt-4">
+            <div className="shrink-0 border-b border-slate-100 dark:border-slate-800 px-4 pb-2 pt-4">
                 <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Labels</span>
-                    <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 hover:bg-blue-100">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Labels</span>
+                    <button type="button" onClick={() => setOpen(true)} aria-label="Create label" className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 shadow-sm ring-1 ring-blue-100 dark:ring-blue-900 hover:bg-blue-100 dark:hover:bg-blue-900">
                         <MailshotIcon name="plus" size={20} />
                     </button>
                 </div>
@@ -86,7 +86,7 @@ const LabelSidebar = ({ counts = {}, onNavigate }) => {
                                 type="button"
                                 onClick={() => setLabelToDelete(label)}
                                 aria-label={`Delete ${label.name}`}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-600 dark:hover:text-red-300"
                             >
                                 <MailshotIcon name="delete" size={18} />
                             </button>

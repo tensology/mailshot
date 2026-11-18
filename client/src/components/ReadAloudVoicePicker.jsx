@@ -10,7 +10,7 @@ const VoiceAvatar = ({ voice }) => {
 
     return source
         ? <img src={source} alt="" loading="lazy" onError={() => setFailedSources((current) => [...current, source])} className="h-full w-full object-cover" />
-        : <span className="flex h-full w-full items-center justify-center bg-blue-50 text-sm font-medium text-blue-700" aria-hidden="true">{initials || '?'}</span>;
+        : <span className="flex h-full w-full items-center justify-center bg-blue-50 dark:bg-blue-950 text-sm font-medium text-blue-700 dark:text-blue-300" aria-hidden="true">{initials || '?'}</span>;
 };
 
 const ReadAloudVoicePicker = ({ voices = [], activeVoiceId = '', loading = false, error = '', onRetry, onSelect }) => {
@@ -99,25 +99,25 @@ const ReadAloudVoicePicker = ({ voices = [], activeVoiceId = '', loading = false
             <span className="block h-full w-full overflow-hidden rounded-xl"><VoiceAvatar key={activeVoice?.id || 'unselected'} voice={activeVoice} /></span>
             <span className="absolute -bottom-1 -right-1 rounded-full border border-slate-700 bg-slate-900 p-0.5"><ChevronDown className="h-3 w-3 text-slate-200" aria-hidden="true" /></span>
         </button>
-        {open && <div style={{ left: position.left, maxHeight: position.maxHeight }} className={`absolute z-[100] flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white p-3 text-gray-900 shadow-xl ${position.placement === 'above' ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
+        {open && <div style={{ left: position.left, maxHeight: position.maxHeight }} className={`absolute z-[100] flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-gray-900 dark:text-slate-100 shadow-xl ${position.placement === 'above' ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
             <label htmlFor={searchId} className="sr-only">Search voices</label>
-            <div className="flex shrink-0 items-center gap-2 rounded-lg border border-gray-300 px-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100"><Search className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" /><input ref={searchRef} id={searchId} value={query} disabled={!!savingId} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => {
+            <div className="flex shrink-0 items-center gap-2 rounded-lg border border-gray-300 dark:border-slate-600 px-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100"><Search className="h-4 w-4 shrink-0 text-gray-400 dark:text-slate-400" aria-hidden="true" /><input ref={searchRef} id={searchId} value={query} disabled={!!savingId} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => {
                 if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && filteredVoices.length && !loading) {
                     event.preventDefault();
                     optionsRef.current[event.key === 'ArrowDown' ? 0 : filteredVoices.length - 1]?.focus();
                 }
-            }} type="search" placeholder="Search voices" className="h-11 min-w-0 flex-1 bg-transparent text-base text-gray-900 outline-none placeholder:text-gray-400 sm:text-sm" /></div>
+            }} type="search" placeholder="Search voices" className="h-11 min-w-0 flex-1 bg-transparent text-base text-gray-900 dark:text-slate-100 outline-none placeholder:text-gray-400 sm:text-sm" /></div>
             <div id={listId} role="listbox" aria-label="Read-aloud voices" className="mt-2 min-h-0 max-h-64 space-y-1 overflow-y-auto overscroll-contain">
-                {loading ? <p role="status" className="flex items-center gap-2 px-1 py-4 text-sm text-gray-500"><LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Loading voices...</p> : filteredVoices.length ? filteredVoices.map((voice, index) => <button key={voice.id} ref={(node) => { optionsRef.current[index] = node; }} type="button" role="option" aria-selected={voice.id === activeVoiceId} disabled={!!savingId} onClick={() => void choose(voice)} onKeyDown={(event) => {
+                {loading ? <p role="status" className="flex items-center gap-2 px-1 py-4 text-sm text-gray-500 dark:text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />Loading voices...</p> : filteredVoices.length ? filteredVoices.map((voice, index) => <button key={voice.id} ref={(node) => { optionsRef.current[index] = node; }} type="button" role="option" aria-selected={voice.id === activeVoiceId} disabled={!!savingId} onClick={() => void choose(voice)} onKeyDown={(event) => {
                     const moves = { ArrowDown: (index + 1) % filteredVoices.length, ArrowUp: (index + filteredVoices.length - 1) % filteredVoices.length, Home: 0, End: filteredVoices.length - 1 };
                     if (event.key in moves) { event.preventDefault(); optionsRef.current[moves[event.key]]?.focus(); }
-                }} className={`flex w-full items-center gap-3 rounded-lg p-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 disabled:cursor-wait ${voice.id === activeVoiceId ? 'bg-blue-50 text-blue-800' : 'text-gray-800 hover:bg-gray-50'}`}>
+                }} className={`flex w-full items-center gap-3 rounded-lg p-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 disabled:cursor-wait ${voice.id === activeVoiceId ? 'bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200' : 'text-gray-800 dark:text-slate-100 hover:bg-gray-50 dark:hover:bg-slate-950'}`}>
                     <span className="h-11 w-11 shrink-0 overflow-hidden rounded-full"><VoiceAvatar voice={voice} /></span>
-                    <span className="min-w-0 flex-1"><span className="block break-words text-sm font-medium">{voice.name}</span>{voice.languages?.length ? <span className="mt-0.5 block text-xs text-gray-500">{voice.languages.join(', ')}</span> : null}</span>
-                    {savingId === voice.id ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-blue-600 motion-reduce:animate-none" aria-label="Saving voice" /> : voice.id === activeVoiceId ? <Check className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" /> : null}
-                </button>) : !error && <p className="px-1 py-4 text-sm text-gray-500">{needle ? 'No voices match your search.' : 'No voices available.'}</p>}
+                    <span className="min-w-0 flex-1"><span className="block break-words text-sm font-medium">{voice.name}</span>{voice.languages?.length ? <span className="mt-0.5 block text-xs text-gray-500 dark:text-slate-400">{voice.languages.join(', ')}</span> : null}</span>
+                    {savingId === voice.id ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-blue-600 dark:text-blue-300 motion-reduce:animate-none" aria-label="Saving voice" /> : voice.id === activeVoiceId ? <Check className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" aria-hidden="true" /> : null}
+                </button>) : !error && <p className="px-1 py-4 text-sm text-gray-500 dark:text-slate-400">{needle ? 'No voices match your search.' : 'No voices available.'}</p>}
             </div>
-            {(error || selectionError) && <div className="mt-3 space-y-2"><p role="alert" className="text-sm text-red-700">{selectionError || error}</p>{error && <button type="button" disabled={loading || !!savingId} onClick={() => onRetry?.()} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Retry voices</button>}</div>}
+            {(error || selectionError) && <div className="mt-3 space-y-2"><p role="alert" className="text-sm text-red-700 dark:text-red-300">{selectionError || error}</p>{error && <button type="button" disabled={loading || !!savingId} onClick={() => onRetry?.()} className="rounded-md border border-gray-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Retry voices</button>}</div>}
         </div>}
     </div>;
 };

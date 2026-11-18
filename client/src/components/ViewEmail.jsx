@@ -153,7 +153,7 @@ const ViewEmail = () => {
         return (
             <div className="flex items-center justify-center gap-3 py-16">
                 <Spinner size={28} />
-                <span className="text-sm text-slate-500">Loading message…</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Loading message…</span>
             </div>
         );
     }
@@ -161,8 +161,8 @@ const ViewEmail = () => {
     if (!primaryEmail || loadError) {
         return (
             <div className="px-4 py-8 sm:px-6">
-                <h1 className="text-lg font-semibold text-slate-900">Could not load this message.</h1>
-                {loadError && <p className="mt-2 text-sm text-slate-600">{loadError}</p>}
+                <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Could not load this message.</h1>
+                {loadError && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{loadError}</p>}
                 <Button className="mt-4" onClick={() => navigate(backUrl)}>
                     Back to inbox
                 </Button>
@@ -445,11 +445,11 @@ const ViewEmail = () => {
         }
 
         return (
-            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-md sm:border">
+            <footer className="mx-auto mt-3 w-full border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-950/80 px-3 py-4 sm:rounded-md sm:border">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
-                        <h2 className="text-sm font-semibold text-slate-900">Attachments</h2>
-                        <p className="text-xs text-slate-500">
+                        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Attachments</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                             {messageAttachments.length} file{messageAttachments.length === 1 ? '' : 's'}
                         </p>
                     </div>
@@ -457,7 +457,7 @@ const ViewEmail = () => {
                         <button
                             type="button"
                             onClick={() => downloadMessageAttachment(`${message._id}/attachments.zip`, `${message.subject || 'attachments'}.zip`)}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-950"
                         >
                             <MailshotIcon name="download" size={20} />
                             Download all
@@ -494,24 +494,24 @@ const ViewEmail = () => {
                         return (
                             <article
                                 key={`${attachment.emailId}-${attachment.attachment_id}`}
-                                className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm"
+                                className="overflow-hidden rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
                                 onDoubleClick={openPreview}
                             >
                                 <button
                                     type="button"
                                     disabled={!canPreview}
                                     onClick={openPreview}
-                                    className="flex h-24 w-full items-center justify-center bg-slate-100 disabled:cursor-default"
+                                    className="flex h-24 w-full items-center justify-center bg-slate-100 dark:bg-slate-800 disabled:cursor-default"
                                     aria-label={canPreview ? `Preview ${filename}` : filename}
                                 >
                                     <MailshotFileIcon filename={filename} contentType={contentType} size={64} />
                                 </button>
                                 <div className="space-y-2 p-2.5">
                                     <div className="min-w-0">
-                                        <p className="truncate text-xs font-semibold text-slate-800" title={filename}>
+                                        <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100" title={filename}>
                                             {filename}
                                         </p>
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
                                             {attachment.size ? `${Math.round(Number(attachment.size) / 1024)} KB` : contentType || 'File'}
                                         </p>
                                     </div>
@@ -528,7 +528,7 @@ const ViewEmail = () => {
                                             type="button"
                                             disabled={!canPreview}
                                             onClick={openPreview}
-                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-950"
                                             aria-label={canPreview ? `Preview ${filename}` : `No preview for ${filename}`}
                                             title={canPreview ? `Preview ${filename}` : 'Preview unavailable'}
                                         >
@@ -550,13 +550,13 @@ const ViewEmail = () => {
         }
 
         return (
-            <footer className="mx-auto mt-3 w-full border-t border-slate-200 bg-slate-50/80 px-3 py-4 sm:rounded-md sm:border">
-                <h2 className="mb-3 text-sm font-semibold text-slate-900">Linked media</h2>
+            <footer className="mx-auto mt-3 w-full border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-950/80 px-3 py-4 sm:rounded-md sm:border">
+                <h2 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Linked media</h2>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {messageLinks.map((link) => (
                         <article
                             key={link.embedUrl}
-                            className="group flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+                            className="group flex min-w-0 items-center gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 shadow-sm transition hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950"
                         >
                             <button
                                 type="button"
@@ -566,7 +566,7 @@ const ViewEmail = () => {
                                     url: link.embedUrl,
                                     sourceUrl: link.url
                                 })}
-                                className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left text-slate-700"
+                                className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left text-slate-700 dark:text-slate-200"
                             >
                                 {link.type === 'youtube'
                                     ? <MailshotFileIcon filename="video.mp4" contentType="video/mp4" size={38} />
@@ -581,7 +581,7 @@ const ViewEmail = () => {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     download
-                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-blue-600 hover:bg-blue-50"
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950"
                                     aria-label={`Download ${link.label}`}
                                     title="Download"
                                 >
@@ -596,11 +596,11 @@ const ViewEmail = () => {
     };
 
     return (
-        <div className="mailshot-print-root flex h-full min-h-0 flex-col bg-white">
+        <div className="mailshot-print-root flex h-full min-h-0 flex-col bg-white dark:bg-slate-900">
             <div
                 role="toolbar"
                 aria-label="Email actions"
-                className="mailshot-no-print sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-center gap-1 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-2 py-1.5 backdrop-blur sm:justify-start sm:px-4 lg:py-2"
+                className="mailshot-no-print sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-center gap-1 border-b border-blue-100 dark:border-blue-800 bg-gradient-to-r from-white dark:from-slate-900 via-blue-50/40 dark:via-blue-950/40 to-white dark:to-slate-900 px-2 py-1.5 backdrop-blur sm:justify-start sm:px-4 lg:py-2"
             >
                 <div className="contents sm:flex sm:max-w-full sm:flex-wrap sm:items-center sm:gap-1">
                     <IconButton size="touch" label="Back" className={toolbarButtonClass} onClick={() => navigate(backUrl)}>
@@ -660,7 +660,7 @@ const ViewEmail = () => {
                             onClick={startCurrentReadSummary}
                             onContextMenu={(event) => openReadSummaryMenu(event, primaryEmail?._id)}
                             disabled={readSummaryLoading}
-                            className={`${toolbarButtonClass} ${readAloudReady ? 'text-green-600 hover:bg-green-50' : 'text-blue-600 hover:bg-blue-50'}`}
+                            className={`${toolbarButtonClass} ${readAloudReady ? 'text-green-600 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-950' : 'text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'}`}
                         >
                             {readSummaryLoading ? <MailshotIcon name="refresh" size={28} active /> : <MailshotIcon name="headphones" size={28} />}
                         </IconButton>
@@ -680,13 +680,13 @@ const ViewEmail = () => {
             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 py-4 sm:px-6">
                 <div className="mx-auto w-full max-w-[min(100%,72rem)]">
                     <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-center">
-                        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{subject}</h1>
+                        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">{subject}</h1>
                         {primaryEmail.type === 'drafts' ? (
-                            <span className="rounded-full border border-green-300 bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                            <span className="rounded-full border border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-950 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300">
                                 Draft
                             </span>
                         ) : (
-                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                            <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                                 {primaryEmail.type || 'inbox'}
                             </span>
                         )}
@@ -698,7 +698,7 @@ const ViewEmail = () => {
                                 key={label}
                                 type="button"
                                 onClick={() => saveLabels(emailLabels.filter((item) => item !== label))}
-                                className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
+                                className="rounded-full bg-blue-50 dark:bg-blue-950 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300"
                             >
                                 {getLabelDisplayName(label, labelNameMap)} ×
                             </button>
@@ -719,19 +719,19 @@ const ViewEmail = () => {
 
             {previewItem && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4" onClick={() => setPreviewItem(null)}>
-                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-                        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+                    <div className="flex h-[min(42rem,90vh)] w-[min(64rem,96vw)] flex-col overflow-hidden rounded-md bg-white dark:bg-slate-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
                             <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold text-slate-900">{previewItem.title}</p>
-                                {previewItem.sourceUrl && <p className="truncate text-xs text-slate-500">{previewItem.sourceUrl}</p>}
+                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{previewItem.title}</p>
+                                {previewItem.sourceUrl && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{previewItem.sourceUrl}</p>}
                             </div>
                             {previewItem.sourceUrl && (
-                                <a href={previewItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                <a href={previewItem.sourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-950">
                                     Open source
                                 </a>
                             )}
                             {previewItem.objectUrl && (
-                                <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-950">
                                     Open in new tab
                                 </a>
                             )}
@@ -739,12 +739,12 @@ const ViewEmail = () => {
                                 <MailshotIcon name="close" size={20} />
                             </IconButton>
                         </div>
-                        <div className="min-h-0 flex-1 bg-slate-100">
+                        <div className="min-h-0 flex-1 bg-slate-100 dark:bg-slate-800">
                             {previewItem.kind === 'image' && <img src={previewItem.url} alt="" className="h-full w-full object-contain" />}
                             {previewItem.kind === 'video' && <video src={previewItem.url} controls autoPlay className="h-full w-full bg-black" />}
                             {previewItem.kind === 'audio' && <div className="flex h-full items-center justify-center p-8"><audio src={previewItem.url} controls autoPlay className="w-full max-w-2xl" /></div>}
-                            {previewItem.kind === 'pdf' && <iframe src={`${previewItem.url}#page=1&view=FitH`} title={previewItem.title} className="h-full w-full border-0 bg-white" />}
-                            {previewItem.kind === 'embed' && <iframe src={previewItem.url} title={previewItem.title} className="h-full w-full border-0 bg-white" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
+                            {previewItem.kind === 'pdf' && <iframe src={`${previewItem.url}#page=1&view=FitH`} title={previewItem.title} className="h-full w-full border-0 bg-white dark:bg-slate-900" />}
+                            {previewItem.kind === 'embed' && <iframe src={previewItem.url} title={previewItem.title} className="h-full w-full border-0 bg-white dark:bg-slate-900" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />}
                         </div>
                     </div>
                 </div>

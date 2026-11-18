@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { buildEmailDocument } from '../../utils/emailDocument';
+import { applyEmailTheme } from '../../utils/emailTheme';
+import { useTheme } from '../../context/ThemeContext';
 
 const EmailHtml = ({ html, originalHtml, title = 'Email message' }) => {
+    const { theme } = useTheme();
     const frameRef = useRef(null);
     const cleanupRef = useRef(() => {});
     const source = useMemo(() => buildEmailDocument(html, originalHtml), [html, originalHtml]);
 
     useEffect(() => () => cleanupRef.current(), []);
+    useEffect(() => { applyEmailTheme(frameRef.current?.contentDocument, theme); }, [theme]);
 
     const resize = () => {
         cleanupRef.current();
         const frame = frameRef.current;
         const doc = frame?.contentDocument;
         if (!doc?.body) return;
+        applyEmailTheme(doc, theme);
         const updateHeight = () => {
             const body = doc.body;
             const style = frame.contentWindow.getComputedStyle(body);
@@ -33,7 +38,7 @@ const EmailHtml = ({ html, originalHtml, title = 'Email message' }) => {
 
     return <iframe ref={frameRef} title={title} srcDoc={source} onLoad={resize}
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        referrerPolicy="no-referrer" className="block w-full border-0 bg-white" />;
+        referrerPolicy="no-referrer" className="block w-full border-0 bg-white dark:bg-slate-900" />;
 };
 
 export default EmailHtml;

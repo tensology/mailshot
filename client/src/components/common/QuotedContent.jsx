@@ -22,7 +22,7 @@ const QuotedContent = ({ body, bodyHtml }) => {
     const showHtml = mainHtml && (mainHtml.replace(/<[^>]+>/g, '').trim() || /<img\b/i.test(mainHtml));
 
     return (
-        <div className="mailshot-email-content w-full min-w-0 max-w-full text-left text-sm leading-6 text-slate-800 [overflow-wrap:anywhere]">
+        <div className="mailshot-email-content w-full min-w-0 max-w-full text-left text-sm leading-6 text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">
             {showHtml ? (
                 <EmailHtml html={mainHtml} originalHtml={bodyHtml} />
             ) : (
@@ -34,18 +34,18 @@ const QuotedContent = ({ body, bodyHtml }) => {
                     {!expanded ? (
                         <button
                             type="button"
-                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-700 dark:hover:text-blue-300"
                             onClick={() => setExpanded(true)}
                         >
                             <MailshotIcon name="chevron-down" size={18} />
                             View folded message
                         </button>
                     ) : (
-                        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50/70 p-3 text-slate-600">
+                        <div className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-950/70 p-3 text-slate-600 dark:text-slate-300">
                             <IconButton
                                 label="Hide folded message"
                                 size="sm"
-                                className="mb-2 rounded-md border border-slate-200 bg-white"
+                                className="mb-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
                                 onClick={() => setExpanded(false)}
                             >
                                 <MailshotIcon name="chevron-up" size={20} />
@@ -57,7 +57,7 @@ const QuotedContent = ({ body, bodyHtml }) => {
                             )}
                             <button
                                 type="button"
-                                className="mt-3 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+                                className="mt-3 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition hover:border-blue-200 dark:hover:border-blue-800 hover:text-blue-700 dark:hover:text-blue-300"
                                 onClick={() => setExpanded(false)}
                             >
                                 Collapse folded message

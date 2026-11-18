@@ -1410,14 +1410,14 @@ const Emails = () => {
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-white">
+        <div className="flex h-full min-h-0 flex-col bg-white dark:bg-slate-900">
             {isSyncing && emails.length > 0 && (
-                <div className="h-0.5 w-full overflow-hidden bg-slate-100">
+                <div className="h-0.5 w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
                     <div className="h-full w-1/3 animate-pulse bg-blue-500" />
                 </div>
             )}
 
-            <div className="sticky top-0 z-10 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/70 px-3 py-2.5 shadow-sm backdrop-blur sm:px-4">
+            <div className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 dark:from-slate-950 via-white dark:via-slate-900 to-blue-50/70 dark:to-blue-950/70 px-3 py-2.5 shadow-sm backdrop-blur sm:px-4">
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                     <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-2 sm:justify-start">
                         <input
@@ -1430,16 +1430,16 @@ const Emails = () => {
                                 }
                             }}
                             onChange={selectAllEmails}
-                            className="h-4 w-4 rounded border-slate-300 bg-white text-blue-600 focus:ring-blue-500"
+                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-300 focus:ring-blue-500"
                         />
-                        <span className="inline-flex max-w-full items-center rounded-full border border-blue-100 bg-white px-3 py-1 text-sm font-semibold text-blue-800 shadow-sm">
+                        <span className="inline-flex max-w-full items-center rounded-full border border-blue-100 dark:border-blue-800 bg-white dark:bg-slate-900 px-3 py-1 text-sm font-semibold text-blue-800 dark:text-blue-200 shadow-sm">
                             <span className="truncate">{listTitle}</span>
                         </span>
                         <IconButton
                             label="Refresh"
                             onClick={refreshMailbox}
                             disabled={isRefreshing}
-                            className="!rounded-full !border-0 !bg-transparent !shadow-none hover:!bg-slate-100 disabled:!opacity-100"
+                            className="!rounded-full !border-0 !bg-transparent !shadow-none hover:!bg-slate-100 dark:bg-slate-800 disabled:!opacity-100"
                         >
                             <MailshotIcon name="refresh" size={24} active={isRefreshing} />
                         </IconButton>
@@ -1499,7 +1499,7 @@ const Emails = () => {
                             </IconButton>
                         )}
                         {canSelectAllMatching && (
-                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs text-blue-800">
+                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-3 py-1 text-xs text-blue-800 dark:text-blue-200">
                                 <span>
                                     All {emails.length} on this page selected.
                                 </span>
@@ -1513,7 +1513,7 @@ const Emails = () => {
                             </div>
                         )}
                         {allMatchingSelected && (
-                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-blue-200 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm">
+                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-blue-200 dark:border-blue-800 bg-blue-600 px-3 py-1 text-xs font-medium text-white shadow-sm">
                                 <span>All {totalEmails} in {selectionScopeLabel} selected.</span>
                                 <button
                                     type="button"
@@ -1526,13 +1526,13 @@ const Emails = () => {
                         )}
                         <div className="min-w-0 text-center text-xs empty:hidden sm:flex-1 sm:text-left">
                             {isSyncing && emails.length > 0 && (
-                                <span className="text-slate-500">Checking for new mail…</span>
+                                <span className="text-slate-500 dark:text-slate-400">Checking for new mail…</span>
                             )}
                             {!isSyncing && syncNotice && (
-                                <span className="font-medium text-emerald-600">{syncNotice}</span>
+                                <span className="font-medium text-emerald-600 dark:text-emerald-300">{syncNotice}</span>
                             )}
                             {!isSyncing && !syncNotice && syncError && (
-                                <span className="text-red-600">{syncError}</span>
+                                <span className="text-red-600 dark:text-red-300">{syncError}</span>
                             )}
                         </div>
                     </div>
@@ -1546,7 +1546,7 @@ const Emails = () => {
                                 className={`inline-flex h-11 min-w-0 items-center justify-center rounded-full border px-3 text-center text-sm font-semibold transition disabled:cursor-wait disabled:opacity-70 sm:h-9 sm:shrink-0 ${
                                     summarizeAllActive
                                         ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:text-emerald-700'
+                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-emerald-200 dark:hover:border-emerald-800 hover:text-emerald-700 dark:hover:text-emerald-300'
                                 }`}
                             >
                                 {summarizeAllActive
@@ -1561,23 +1561,23 @@ const Emails = () => {
                             className={`inline-flex h-11 min-w-0 items-center justify-center rounded-full border px-3 text-center text-sm font-semibold transition sm:h-9 sm:shrink-0 ${
                                 unreadFilter
                                     ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
-                                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700'
+                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-blue-200 dark:hover:border-blue-800 hover:text-blue-700 dark:hover:text-blue-300'
                             }`}
                         >
                             Unread only
                         </button>
-                        <label className={`inline-flex h-11 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-center text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 sm:col-auto sm:h-9 sm:shrink-0 ${readSummaryEnabled && isSuperuser && activeTab === 'inbox' ? 'col-span-2' : ''}`}>
+                        <label className={`inline-flex h-11 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-center text-sm font-semibold text-slate-700 dark:text-slate-200 shadow-sm transition hover:border-blue-200 dark:hover:border-blue-800 hover:text-blue-700 dark:hover:text-blue-300 sm:col-auto sm:h-9 sm:shrink-0 ${readSummaryEnabled && isSuperuser && activeTab === 'inbox' ? 'col-span-2' : ''}`}>
                             <input
                                 type="checkbox"
                                 checked={sectionOnlySearch}
                                 onChange={toggleSectionOnlySearch}
-                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-300 focus:ring-blue-500"
                             />
                             {getSectionOnlySearchLabel(activeTab, tabTitles)}
                         </label>
                         <form
                             onSubmit={submitSearch}
-                            className="col-span-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:col-auto sm:min-h-10 sm:min-w-[18rem] lg:w-80"
+                            className="col-span-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 sm:col-auto sm:min-h-10 sm:min-w-[18rem] lg:w-80"
                         >
                             <MailshotIcon name="search" size={20} />
                             <input
@@ -1587,14 +1587,14 @@ const Emails = () => {
                                 placeholder={sectionOnlySearch
                                     ? `Search ${tabTitles[activeTab] || 'section'} (from: is:unread has:attachment)`
                                     : 'Search all mail (from: to: subject: is:unread has:attachment)'}
-                                className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 placeholder:text-slate-400"
+                                className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-800 dark:text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 placeholder:text-slate-400"
                             />
                             {searchFilter && (
                                 <button
                                     type="button"
                                     onClick={clearSearch}
                                     aria-label="Clear search"
-                                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300"
                                 >
                                     <MailshotIcon name="close" size={18} />
                                 </button>
@@ -1608,7 +1608,7 @@ const Emails = () => {
                 {showBlockingLoader && (
                     <div className="flex items-center justify-center gap-3 py-16">
                         <Spinner size={28} />
-                        <span className="text-sm text-slate-500">Loading messages…</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">Loading messages…</span>
                     </div>
                 )}
 
@@ -1653,7 +1653,7 @@ const Emails = () => {
             </div>
 
             {totalPages > 1 && (
-                <div className="grid items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm text-slate-600 sm:grid-cols-[1fr_auto_1fr]">
+                <div className="grid items-center gap-3 border-t border-slate-100 dark:border-slate-800 px-4 py-3 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-[1fr_auto_1fr]">
                     <span className="text-center sm:text-left">
                         {totalEmails} messages
                     </span>
@@ -1671,7 +1671,7 @@ const Emails = () => {
                             <select
                                 value={page}
                                 onChange={(event) => setPage(Number(event.target.value))}
-                                className="h-8 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className="h-8 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900"
                             >
                                 {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
                                     <option key={pageNumber} value={pageNumber}>
@@ -1697,7 +1697,7 @@ const Emails = () => {
             )}
 
             {(searchFilter || participantFilter) && (
-                <div className="border-t border-slate-100 px-4 py-2">
+                <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-2">
                     <Button
                         variant="ghost"
                         size="sm"

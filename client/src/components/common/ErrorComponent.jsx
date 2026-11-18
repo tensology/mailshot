@@ -7,8 +7,8 @@ const ErrorComponent = () => {
 
     return (
         <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-6 text-center">
-            <h1 className="text-xl font-semibold text-slate-900">Page error</h1>
-            <p className="max-w-lg text-sm text-slate-600">{message}</p>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Page error</h1>
+            <p className="max-w-lg text-sm text-slate-600 dark:text-slate-300">{message}</p>
             <Button variant="secondary" onClick={() => window.location.assign('/emails/inbox')}>
                 Back to inbox
             </Button>

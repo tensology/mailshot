@@ -44,7 +44,7 @@ const MarqueePreview = ({ children }) => {
     }, [children]);
 
     return (
-        <span className="mailshot-marquee-viewport hidden min-w-0 flex-1 text-slate-500 sm:inline-flex">
+        <span className="mailshot-marquee-viewport hidden min-w-0 flex-1 text-slate-500 dark:text-slate-400 sm:inline-flex">
             <span
                 className="mailshot-marquee-track"
                 style={{
@@ -191,14 +191,14 @@ const Email = ({
             onKeyDown={openEmailFromKeyboard}
             data-email-row-id={email._id}
             aria-selected={isHighlighted}
-            className={`group flex w-full items-stretch gap-0 border-b border-slate-100 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 ${
+            className={`group flex w-full items-stretch gap-0 border-b border-slate-100 dark:border-slate-800 text-left transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200 dark:focus:ring-blue-800 ${
                 isDraft
-                    ? isHighlighted ? 'bg-green-100/80 hover:bg-green-100' : 'bg-green-50/80 hover:bg-green-50'
+                    ? isHighlighted ? 'bg-green-100/80 dark:bg-green-900/80 hover:bg-green-100 dark:hover:bg-green-900' : 'bg-green-50/80 dark:bg-green-950/80 hover:bg-green-50 dark:hover:bg-green-950'
                     : isHighlighted
-                        ? 'bg-blue-50/90 hover:bg-blue-50/40'
+                        ? 'bg-blue-50/90 dark:bg-blue-950/90 hover:bg-blue-50/40 dark:hover:bg-blue-950/40'
                         : rowTone === 'muted'
-                            ? 'bg-slate-50/70 hover:bg-blue-50/40'
-                            : 'bg-white hover:bg-blue-50/40'
+                            ? 'bg-slate-50/70 dark:bg-slate-950/70 hover:bg-blue-50/40 dark:hover:bg-blue-950/40'
+                            : 'bg-white dark:bg-slate-900 hover:bg-blue-50/40 dark:hover:bg-blue-950/40'
             }`}
         >
             <div
@@ -210,7 +210,7 @@ const Email = ({
                     type="checkbox"
                     checked={isChecked}
                     readOnly
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-300 focus:ring-blue-500"
                 />
             </div>
 
@@ -218,7 +218,7 @@ const Email = ({
                 <button
                     type="button"
                     onClick={toggleStarredEmail}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-amber-50 hover:text-amber-500"
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-amber-50 dark:hover:bg-amber-950 hover:text-amber-500"
                     aria-label={email.starred ? 'Unstar' : 'Star'}
                 >
                     <MailshotIcon name="star" size={24} className={email.starred ? '' : 'grayscale opacity-55'} />
@@ -233,7 +233,7 @@ const Email = ({
                         title={readSummaryLoading ? 'Preparing read summary' : readAloudReady ? 'Read summary (ready)' : 'Read summary'}
                         aria-label="Read summary"
                         className={`flex h-9 w-9 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-75 ${
-                            readAloudReady ? 'hover:bg-green-50 hover:text-green-600' : 'hover:bg-blue-50 hover:text-blue-600'
+                            readAloudReady ? 'hover:bg-green-50 dark:hover:bg-green-950 hover:text-green-600 dark:hover:text-green-300' : 'hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-300'
                         }`}
                     >
                         {readSummaryLoading ? (
@@ -248,7 +248,7 @@ const Email = ({
                     <button
                         type="button"
                         onClick={handleArchiveToggle}
-                        className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 opacity-70 transition hover:bg-blue-50 hover:text-blue-600 hover:opacity-100 focus:opacity-100 focus:outline-none"
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 opacity-70 transition hover:bg-blue-50 dark:hover:bg-blue-950 hover:text-blue-600 dark:hover:text-blue-300 hover:opacity-100 focus:opacity-100 focus:outline-none"
                         aria-label={archiveActionLabel}
                         title={archiveActionLabel}
                     >
@@ -262,7 +262,7 @@ const Email = ({
                     <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                         <div className="flex min-w-0 items-center overflow-hidden text-sm leading-5 sm:shrink-0">
                             <span
-                                className={`flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden whitespace-nowrap sm:w-[var(--mail-sender-width)] ${unread ? 'font-semibold text-slate-950' : 'font-medium text-slate-700'}`}
+                                className={`flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden whitespace-nowrap sm:w-[var(--mail-sender-width)] ${unread ? 'font-semibold text-slate-950 dark:text-slate-50' : 'font-medium text-slate-700 dark:text-slate-200'}`}
                                 style={{ '--mail-sender-width': `${senderColumnWidthCh || 14}ch` }}
                                 title={senderSource || senderName}
                             >
@@ -275,22 +275,22 @@ const Email = ({
                                     </span>
                                 )) : senderName}
                                 {hiddenSenderCount > 0 && (
-                                    <span className="shrink-0 text-xs font-medium text-slate-500">+{hiddenSenderCount}</span>
+                                    <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">+{hiddenSenderCount}</span>
                                 )}
                             </span>
                         </div>
 
                         <div className="flex min-w-0 items-center gap-2 overflow-hidden text-sm leading-5 sm:flex-1">
-                            <span className={`min-w-0 shrink truncate ${unread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                            <span className={`min-w-0 shrink truncate ${unread ? 'font-semibold text-slate-900 dark:text-slate-100' : 'font-medium text-slate-700 dark:text-slate-200'}`}>
                                 {isDraft && (
-                                    <span className="mr-1.5 inline-flex rounded-full bg-green-100 px-1.5 py-0.5 align-middle text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-200">
+                                    <span className="mr-1.5 inline-flex rounded-full bg-green-100 dark:bg-green-900 px-1.5 py-0.5 align-middle text-xs font-semibold text-green-700 dark:text-green-300 ring-1 ring-inset ring-green-200 dark:ring-green-800">
                                         Draft
                                     </span>
                                 )}
                                 {subject}
                             </span>
                             {email.thread_count > 1 && (
-                                <span className="shrink-0 text-xs font-medium text-slate-500">
+                                <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">
                                     ({email.thread_count})
                                 </span>
                             )}
@@ -309,7 +309,7 @@ const Email = ({
                             {(email.labels || []).slice(0, 2).map((label) => (
                                 <span
                                     key={label}
-                                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+                                    className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300"
                                 >
                                     {getLabelDisplayName(label, labelNameMap)}
                                 </span>
@@ -317,7 +317,7 @@ const Email = ({
                         </div>
                     )}
                 </div>
-                <div className="mt-0.5 flex shrink-0 items-center justify-end gap-1 text-right text-xs leading-4 text-slate-500 sm:gap-1.5">
+                <div className="mt-0.5 flex shrink-0 items-center justify-end gap-1 text-right text-xs leading-4 text-slate-500 dark:text-slate-400 sm:gap-1.5">
                     <div>
                         <div className="whitespace-nowrap">{dateParts.date}</div>
                         <div className="whitespace-nowrap text-slate-400">{dateParts.time}</div>

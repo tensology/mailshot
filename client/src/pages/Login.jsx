@@ -40,18 +40,18 @@ const Login = () => {
     };
 
     return (
-        <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-b from-slate-100 to-slate-50 px-4 py-8">
-            <div className="w-full max-w-md rounded-md border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+        <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-b from-slate-100 dark:from-slate-800 to-slate-50 dark:to-slate-950 px-4 py-8">
+            <div className="w-full max-w-md rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-xl sm:p-8">
                 <div className="mb-6 flex items-center gap-3">
                     <MailshotIcon name="mail" size={44} />
                     <div>
-                        <h1 className="text-xl font-semibold text-slate-900">Sign in to Mailshot</h1>
-                        <p className="text-sm text-slate-500">Use your Mailshot account credentials</p>
+                        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Sign in to Mailshot</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Use your Mailshot account credentials</p>
                     </div>
                 </div>
 
                 {error && (
-                    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <div className="mb-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 px-3 py-2 text-sm text-red-700 dark:text-red-300">
                         {error}
                     </div>
                 )}

@@ -193,7 +193,7 @@ const ReadSummaryPlayer = ({
                     type="button"
                     onClick={togglePlay}
                     disabled={!audioUrl}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 shadow transition hover:scale-105 disabled:opacity-40"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow transition hover:scale-105 disabled:opacity-40"
                     aria-label={playing ? 'Pause' : 'Play'}
                 >
                     {playing
@@ -633,7 +633,7 @@ export const ReadSummaryProvider = ({ children }) => {
             {contextMenu.open && (
                 <div
                     role="menu"
-                    className="fixed z-[90] min-w-[12rem] overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl"
+                    className="fixed z-[90] min-w-[12rem] overflow-hidden rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 shadow-xl"
                     style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
                 >
                     <button
@@ -644,7 +644,7 @@ export const ReadSummaryProvider = ({ children }) => {
                             setContextMenu((menu) => ({ ...menu, open: false }));
                             startReadSummary(targetId, { force: true });
                         }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800"
                     >
                         <MailshotIcon name="refresh" size={18} />
                         Rebuild summary

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Button from './Button';
 import IconButton from './IconButton';
@@ -14,6 +14,10 @@ const Dialog = ({
     maxWidthClassName = 'max-w-lg'
 }) => {
     const bodyRef = useRef(null);
+    const dialogRef = useRef(null);
+    const titleId = useId();
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
 
     useLayoutEffect(() => {
         if (!open) {
@@ -31,9 +35,24 @@ const Dialog = ({
             return undefined;
         }
 
+        const previousFocus = document.activeElement;
+        const focusable = () => [...(dialogRef.current?.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"], [contenteditable="true"]') || [])].filter((element) => element.getClientRects().length);
+        focusable()[0]?.focus();
         const onKeyDown = (event) => {
             if (event.key === 'Escape') {
-                onClose();
+                onCloseRef.current();
+            }
+            if (event.key === 'Tab') {
+                const items = focusable();
+                const first = items[0];
+                const last = items[items.length - 1];
+                if (event.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+                    event.preventDefault();
+                    last?.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first?.focus();
+                }
             }
         };
 
@@ -42,8 +61,9 @@ const Dialog = ({
         return () => {
             document.body.style.overflow = '';
             window.removeEventListener('keydown', onKeyDown);
+            previousFocus?.focus();
         };
-    }, [open, onClose]);
+    }, [open]);
 
     if (!open) {
         return null;
@@ -58,18 +78,22 @@ const Dialog = ({
                 onClick={closeOnOverlayClick ? onClose : undefined}
             />
             <div
-                className={`relative z-10 flex w-full ${maxWidthClassName} flex-col overflow-hidden rounded-md bg-white shadow-2xl`}
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                className={`relative z-10 flex w-full ${maxWidthClassName} flex-col overflow-hidden rounded-md bg-white dark:bg-slate-900 shadow-2xl`}
                 style={{ maxHeight: 'calc(100dvh - 2rem)' }}
             >
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
-                    <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3 sm:px-5">
+                    <h2 id={titleId} className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
                     <IconButton label="Close" size="sm" onClick={onClose}>
                         <MailshotIcon name="close" size={20} />
                     </IconButton>
                 </div>
                 <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
                 {footer && (
-                    <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 px-4 py-3 sm:px-5">
+                    <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-3 sm:px-5">
                         {footer}
                     </div>
                 )}

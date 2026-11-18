@@ -1,8 +1,8 @@
 const variants = {
     primary: 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm',
-    secondary: 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50',
+    secondary: 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-950',
     danger: 'bg-red-600 text-white hover:bg-red-700',
-    ghost: 'text-slate-600 hover:bg-slate-100'
+    ghost: 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
 };
 
 const sizes = {
