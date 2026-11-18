@@ -717,7 +717,8 @@ const DevAgentPanel = () => {
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }}
-                    rows={1}
+                    rows={isMobile ? 1 : 2}
+                    aria-label="Describe a change"
                     placeholder={isMobile ? 'Make a change…' : 'Make a change to PlanMyCharter…\nEnter to run · Shift+Enter for a new line'}
                     className="max-h-[40vh] min-h-[2.5rem] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2 text-sm leading-6 outline-none md:max-h-28"
                 />
