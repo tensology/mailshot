@@ -8,11 +8,13 @@ const AttachmentPreview = ({ item, onClose }) => {
     const closeRef = useRef(onClose);
     const titleId = useId();
     const [failed, setFailed] = useState(false);
+    const [expanded, setExpanded] = useState(false);
     closeRef.current = onClose;
 
     useEffect(() => {
         if (!item) return undefined;
         setFailed(false);
+        setExpanded(false);
         const previousFocus = document.activeElement;
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
@@ -49,10 +51,11 @@ const AttachmentPreview = ({ item, onClose }) => {
     const pdfUnavailable = item.kind === 'pdf' && navigator.pdfViewerEnabled === false;
     const linkClass = 'inline-flex min-h-10 shrink-0 items-center rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800';
     return createPortal(
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 p-3 sm:p-4"
+        <div className={`fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 ${expanded ? '' : 'p-3 sm:p-4'}`}
             onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
             <section ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId}
-                className="flex h-[min(42rem,calc(100dvh-2rem))] w-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-2xl dark:bg-slate-900">
+                onKeyDown={(event) => event.stopPropagation()}
+                className={`flex w-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-slate-900 ${expanded ? 'h-dvh' : 'h-[min(42rem,calc(100dvh-2rem))] max-w-5xl rounded-md'}`}>
                 <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700 sm:px-4">
                     <div className="min-w-0 flex-1">
                         <h2 id={titleId} className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{item.title}</h2>
@@ -62,7 +65,14 @@ const AttachmentPreview = ({ item, onClose }) => {
                         {item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className={linkClass}>Open source</a>}
                         {item.objectUrl && <a href={item.url} target="_blank" rel="noopener noreferrer" className={linkClass}>Open in new tab</a>}
                     </div>
-                    <IconButton label="Close preview" onClick={onClose}><MailshotIcon name="close" size={20} /></IconButton>
+                    <IconButton
+                        label={expanded ? 'Restore preview to normal size' : 'Expand preview'}
+                        className="shrink-0"
+                        onClick={() => setExpanded((current) => !current)}
+                    >
+                        <MailshotIcon name={expanded ? 'collapse' : 'expand'} size={20} />
+                    </IconButton>
+                    <IconButton label="Close preview" className="shrink-0" onClick={onClose}><MailshotIcon name="close" size={20} /></IconButton>
                 </header>
                 <div className="min-h-0 flex-1 overflow-auto bg-slate-100 dark:bg-slate-800">
                     {failed || pdfUnavailable ? (
