@@ -940,12 +940,12 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
                 {!compactMinimized && <div className="flex items-center">
                     {!isMinimized && (
                         <IconButton
-                            label={composeState === 'expanded' ? 'Restore' : 'Expand'}
+                            label={isExpanded ? 'Restore to normal size' : 'Expand'}
                             size="sm"
                             className="text-white hover:bg-white/10 dark:hover:bg-slate-900/10"
-                            onClick={() => setComposeState(composeId, composeState === 'expanded' ? 'normal' : 'expanded')}
+                            onClick={() => setComposeState(composeId, isExpanded ? 'normal' : 'expanded')}
                         >
-                            <MailshotIcon name={composeState === 'expanded' ? 'minimize' : 'expand'} size={22} />
+                            <MailshotIcon name={isExpanded ? 'collapse' : 'expand'} size={22} />
                         </IconButton>
                     )}
                     <IconButton
