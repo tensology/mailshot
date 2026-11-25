@@ -758,8 +758,22 @@ const Emails = () => {
         selectionAnchorIndex.current = index;
     };
 
+    const requestDeleteSelectedEmails = () => {
+        if (!hasSelection) {
+            return;
+        }
+        setDeleteTargetIds(allMatchingSelected ? [] : [...selectedEmails]);
+        setConfirmDeleteOpen(true);
+    };
+
     const handleKeyboardDelete = (email) => {
-        setAllMatchingSelected(false);
+        if (confirmDeleteOpen) {
+            return;
+        }
+        if (hasSelection) {
+            requestDeleteSelectedEmails();
+            return;
+        }
         setDeleteTargetIds(getEmailSelectionIds(email));
         setConfirmDeleteOpen(true);
     };
@@ -807,12 +821,23 @@ const Emails = () => {
 
     useEffect(() => {
         const onKeyDown = (event) => {
-            const tag = String(event.target?.tagName || '').toLowerCase();
-            if (tag === 'input' || tag === 'textarea' || event.target?.isContentEditable) {
+            if (event.defaultPrevented || confirmDeleteOpen) {
                 return;
             }
 
             const key = event.key.toLowerCase();
+            const tag = String(event.target?.tagName || '').toLowerCase();
+            if ((tag === 'input' && event.target.type !== 'checkbox') || tag === 'textarea' || event.target?.isContentEditable) {
+                return;
+            }
+            if ((key === 'delete' || key === 'backspace') && hasSelection) {
+                event.preventDefault();
+                requestDeleteSelectedEmails();
+                return;
+            }
+            if (tag === 'input') {
+                return;
+            }
             if (key === 'c' && !event.metaKey && !event.ctrlKey) {
                 event.preventDefault();
                 openComposeDraft({});
@@ -1076,14 +1101,6 @@ const Emails = () => {
             previousPage: page,
             cacheParams
         });
-    };
-
-    const requestDeleteSelectedEmails = () => {
-        if (!hasSelection) {
-            return;
-        }
-        setDeleteTargetIds(allMatchingSelected ? [] : [...selectedEmails]);
-        setConfirmDeleteOpen(true);
     };
 
     const markSelectedAsSpam = async () => {
