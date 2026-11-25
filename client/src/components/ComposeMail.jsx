@@ -916,12 +916,16 @@ const ComposeWindow = ({ item, minimizedCount, minimizedIndex, onSent }) => {
             <div
                 className={`group relative flex min-h-11 items-center bg-slate-800 text-white ${compactMinimized ? 'justify-center px-2' : 'justify-between px-3'}`}
                 onClick={isMinimized ? () => setComposeState(composeId, 'normal') : undefined}
-                onKeyDown={isMinimized ? (event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
+                onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') {
+                        return;
+                    }
+                    event.stopPropagation();
+                    if (isMinimized && event.target === event.currentTarget) {
                         event.preventDefault();
                         setComposeState(composeId, 'normal');
                     }
-                } : undefined}
+                }}
                 role={isMinimized ? 'button' : 'presentation'}
                 tabIndex={isMinimized ? 0 : undefined}
                 aria-label={isMinimized ? `Restore ${composeTitle}` : undefined}
