@@ -324,7 +324,7 @@ export const moveEmailsToLabel = async (request, response) => {
             updatedCount += 1;
         }
 
-        if (!isDbConnected()) {
+        if (!isMailboxStoreReady() && !isDbConnected()) {
             saveMailboxCacheToDisk();
         }
 

@@ -152,6 +152,7 @@ const Emails = () => {
         sectionOnly: sectionOnlySearch,
         activeTab
     });
+    const isPermanentDelete = listMailboxType === 'bin';
     const listCacheParams = {
         activeTab: listMailboxType,
         labelFilter,
@@ -368,23 +369,21 @@ const Emails = () => {
         previousTotal,
         previousPage,
         cacheParams,
-        bulkPayload = null
+        refreshOnUndo = false
     }) => {
         const message = count === 1 ? 'Message moved to Bin' : `${count} messages moved to Bin`;
 
         showUndoDelete({
             message,
             restore: async () => {
-                const result = bulkPayload
-                    ? await restoreEmailsFromBin.call(bulkPayload)
-                    : await restoreEmailsFromBin.call(ids);
+                const result = await restoreEmailsFromBin.call(ids);
 
                 if (result.error) {
                     showActionToast(result.error, 'error');
                     throw new Error(result.error);
                 }
 
-                if (bulkPayload) {
+                if (refreshOnUndo) {
                     setPage(previousPage || 1);
                     await fetchEmailList({ silent: true, pageOverride: previousPage || 1 });
                 } else {
@@ -408,8 +407,7 @@ const Emails = () => {
         previousEmails,
         previousTotal,
         previousPage,
-        cacheParams,
-        bulkPayload = null
+        cacheParams
     }) => {
         const undoService = action?.archived ? archiveEmailsService : restoreArchivedEmailsService;
         const message = count === 1
@@ -419,9 +417,7 @@ const Emails = () => {
         showUndoDelete({
             message,
             restore: async () => {
-                const result = bulkPayload
-                    ? await undoService.call(bulkPayload)
-                    : await undoService.call(ids);
+                const result = await undoService.call(ids);
 
                 if (result.error) {
                     showActionToast(result.error, 'error');
@@ -592,6 +588,7 @@ const Emails = () => {
         setSelectedEmails([]);
         setAllMatchingSelected(false);
         setHighlightedEmail('');
+        setConfirmDeleteOpen(false);
         setDeleteTargetIds([]);
         setPage(1);
         setTotalEmails(0);
@@ -880,15 +877,19 @@ const Emails = () => {
             if (!hasSelection) {
                 return;
             }
-            if (key === 'e') {
+            if (key === 'e' && type !== 'bin') {
                 event.preventDefault();
                 archiveSelectedEmails();
             } else if (key === 'u') {
                 event.preventDefault();
                 markSelectedReadState(false);
-            } else if (key === 's' && !event.metaKey && !event.ctrlKey) {
+            } else if (key === 's' && type !== 'bin' && !event.metaKey && !event.ctrlKey) {
                 event.preventDefault();
-                markSelectedAsSpam();
+                if (type === 'spam') {
+                    restoreSelectedFromSpam();
+                } else {
+                    markSelectedAsSpam();
+                }
             } else if (key === 'b') {
                 event.preventDefault();
                 requestDesktopNotifications().then((ok) => {
@@ -953,6 +954,8 @@ const Emails = () => {
         }
         const countBeforeAction = selectionCount;
         const payload = getBulkPayload();
+        const action = archiveToggleAction;
+        const service = action.archived ? restoreArchivedEmailsService : archiveEmailsService;
         const previousPage = page;
         const idsToRemove = allMatchingSelected ? [] : [...selectedEmails];
         const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly: sectionOnlySearch, page };
@@ -960,26 +963,23 @@ const Emails = () => {
         const previousTotal = totalEmails;
 
         if (allMatchingSelected) {
-            const result = await archiveEmailsService.call(payload);
+            const result = await service.call(payload);
             if (result.error) {
                 showActionToast(result.error, 'error');
                 return;
             }
-            const count = Number(result.data?.count) || countBeforeAction;
+            const ids = result.data?.ids;
+            const count = Number(result.data?.count ?? countBeforeAction);
             clearBulkSelection();
             clearEmailListCache();
-            setEmails([]);
-            setTotalEmails(0);
-            setTotalPages(1);
             setPage(1);
+            fetchEmailList({ silent: true, pageOverride: 1 });
             requestMailboxCountsRefresh();
-            offerArchiveUndo({
-                count,
-                ids: [],
-                action: getArchiveToggleAction(activeTab),
-                previousPage,
-                bulkPayload: payload
-            });
+            if (ids?.length) {
+                offerArchiveUndo({ count, ids, action, previousPage });
+            } else {
+                showActionToast(`${count} messages ${action.pastTense}`);
+            }
             return;
         }
 
@@ -991,7 +991,7 @@ const Emails = () => {
         removeEmailsFromListCache(idsToRemove);
         writeEmailListCache(cacheParams, nextEmails);
 
-        const result = await archiveEmailsService.call(payload);
+        const result = await service.call(payload);
         if (result.error) {
             setEmails(previousEmails);
             setTotalEmails(previousTotal);
@@ -1002,11 +1002,12 @@ const Emails = () => {
 
         const count = Number(result.data?.count) || countBeforeAction;
         clearEmailListCache();
+        fetchEmailList({ silent: true });
         requestMailboxCountsRefresh();
         offerArchiveUndo({
             count,
             ids: idsToRemove,
-            action: getArchiveToggleAction(activeTab),
+            action,
             previousEmails,
             previousTotal,
             previousPage,
@@ -1262,44 +1263,20 @@ const Emails = () => {
         showActionToast('Woken');
     };
 
-    const moveSelectedToLabel = (labelSlug, ids, error, affectedCount) => {
+    const moveSelectedToLabel = (_labelSlug, _ids, error) => {
         if (error) {
-            setSyncError(error);
+            showActionToast(error, 'error');
             return;
         }
 
-        const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly: sectionOnlySearch, page };
-        const previousEmails = emails;
-        const shouldRemoveFromView = activeTab === 'inbox' || activeTab === 'bin' || labelFilter;
-
-        if (!shouldRemoveFromView) {
-            clearBulkSelection();
-            return;
-        }
-
-        if (allMatchingSelected) {
-            clearBulkSelection();
-            clearEmailListCache();
-            setEmails([]);
-            setTotalEmails(0);
-            setTotalPages(1);
-            setPage(1);
-            requestMailboxCountsRefresh();
-            return;
-        }
-
-        const nextEmails = previousEmails.filter((email) => !emailMatchesRemoval(email, ids));
-        const removedRows = previousEmails.length - nextEmails.length;
-        setEmails(nextEmails);
-        setTotalEmails(Math.max(0, totalEmails - (affectedCount || removedRows)));
         clearBulkSelection();
-        removeEmailsFromListCache(ids);
-        writeEmailListCache(cacheParams, nextEmails);
+        clearEmailListCache();
+        fetchEmailList({ silent: true });
     };
 
     const confirmMoveToLabel = (labelSlug, ids, affectedCount) => {
         const labelName = getLabelDisplayName(labelSlug, labelNameMap);
-        const count = Number(affectedCount) || ids.length;
+        const count = Number(affectedCount ?? ids.length);
         const message = count === 1
             ? `Moved to ${labelName}`
             : `${count} messages moved to ${labelName}`;
@@ -1315,7 +1292,6 @@ const Emails = () => {
 
         if (allMatchingSelected && !deleteTargetIds.length) {
             const count = selectionCount;
-            const isPermanentDelete = type === 'bin';
             const payload = getBulkPayload();
             setConfirmDeleteOpen(false);
             setDeleteTargetIds([]);
@@ -1338,25 +1314,24 @@ const Emails = () => {
                     return;
                 }
 
-                const affectedCount = Number(result.data?.count) || count;
+                const affectedCount = Number(result.data?.count ?? count);
                 requestMailboxCountsRefresh();
                 if (isPermanentDelete) {
                     showActionToast(`${affectedCount} message${affectedCount === 1 ? '' : 's'} deleted permanently`);
                     return;
                 }
 
-                offerBinUndo({
-                    count: affectedCount,
-                    ids: [],
-                    bulkPayload: payload,
-                    previousPage: 1
-                });
+                const ids = result.data?.ids;
+                if (ids?.length) {
+                    offerBinUndo({ count: affectedCount, ids, refreshOnUndo: true, previousPage: 1 });
+                } else {
+                    showActionToast(`${affectedCount} messages moved to Bin`);
+                }
             });
             return;
         }
 
         const idsToRemove = [...idsForDelete];
-        const isPermanentDelete = type === 'bin';
         const cacheParams = { activeTab: listMailboxType, labelFilter, searchFilter, participantFilter, unreadFilter, sectionOnly: sectionOnlySearch, page };
         const previousEmails = emails;
         const previousTotal = totalEmails;
@@ -1461,8 +1436,8 @@ const Emails = () => {
                             <MailshotIcon name="refresh" size={24} active={isRefreshing} />
                         </IconButton>
                         {hasSelection && type !== 'bin' && (
-                            <IconButton label="Archive" onClick={archiveSelectedEmails}>
-                                <MailshotIcon name="archive" size={22} />
+                            <IconButton label={archiveToggleAction.label} onClick={archiveSelectedEmails}>
+                                <MailshotIcon name={archiveToggleAction.archived ? 'unarchive' : 'archive'} size={22} />
                             </IconButton>
                         )}
                         {hasSelection && (
@@ -1500,7 +1475,7 @@ const Emails = () => {
                                 <MailshotIcon name="mute" size={22} />
                             </IconButton>
                         )}
-                        {hasSelection && type !== 'spam' && availableLabels.length > 0 && (
+                        {type !== 'spam' && availableLabels.length > 0 && (
                             <MoveToLabelMenu
                                 emailIds={selectedEmails}
                                 selectionPayload={allMatchingSelected ? { scope: buildBulkScope() } : null}
@@ -1727,11 +1702,11 @@ const Emails = () => {
 
             <ConfirmDialog
                 open={confirmDeleteOpen}
-                title={type === 'bin' ? 'Delete forever?' : 'Move to Bin?'}
-                message={type === 'bin'
+                title={isPermanentDelete ? 'Delete forever?' : 'Move to Bin?'}
+                message={isPermanentDelete
                     ? `Permanently delete ${(deleteTargetIds.length || selectionCount)} selected message${(deleteTargetIds.length || selectionCount) === 1 ? '' : 's'}? This cannot be undone.`
                     : `Move ${(deleteTargetIds.length || selectionCount)} selected message${(deleteTargetIds.length || selectionCount) === 1 ? '' : 's'} to Bin?`}
-                confirmLabel={type === 'bin' ? 'Delete forever' : 'Move to Bin'}
+                confirmLabel={isPermanentDelete ? 'Delete forever' : 'Move to Bin'}
                 onConfirm={deleteSelectedEmails}
                 onCancel={() => {
                     setConfirmDeleteOpen(false);

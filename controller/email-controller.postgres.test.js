@@ -14,6 +14,8 @@ import {
     toggleReadEmail,
     archiveEmails,
     restoreArchivedEmails,
+    moveEmailsToBin,
+    isMailTypeRoute,
     deleteEmails,
     saveDraftEmail,
     parseForwardedAttachmentRefs,
@@ -24,6 +26,7 @@ import {
     runWithCleanupOnFailure,
     __setMailboxStoreForTests
 } from './email-controller.js';
+import { moveEmailsToLabel } from './label-controller.js';
 import { ATTACHMENTS_DIR } from '../services/attachments.js';
 
 const createJailedFixture = (name = 'fixture.bin', contents = 'fixture-bytes') => {
@@ -739,4 +742,86 @@ test('restoreArchivedEmails unarchives Postgres-backed emails', async () => {
             bin: false
         }
     });
+});
+
+test('scoped archive, unarchive and Bin moves return the exact message IDs for Undo', async () => {
+    const ids = ['email-1', 'email-2', 'email-3'];
+    const filters = [];
+    const updates = [];
+    __setMailboxStoreForTests({
+        ready: true,
+        repository: {
+            list: async (filter) => {
+                filters.push(filter);
+                return ids.map((_id) => ({ _id }));
+            },
+            updateMany: async (selectedIds) => {
+                updates.push(selectedIds);
+                return selectedIds.length;
+            }
+        }
+    });
+
+    assert.equal(isMailTypeRoute('snoozed'), true);
+    for (const [handler, type, status] of [
+        [archiveEmails, 'snoozed', 200],
+        [restoreArchivedEmails, 'archived', 200],
+        [moveEmailsToBin, 'snoozed', 201]
+    ]) {
+        const response = createResponse();
+        await handler({ body: { scope: { all: true, type } } }, response);
+        assert.equal(response.state.statusCode, status);
+        assert.equal(response.state.payload.count, ids.length);
+        assert.deepEqual(response.state.payload.ids, ids);
+    }
+    assert.deepEqual(updates, [ids, ids, ids]);
+    assert.equal(filters[0].snoozed_active, true);
+    assert.equal(filters[1].archived, true);
+    assert.equal(filters[2].snoozed_active, true);
+});
+
+test('moving checked or matching messages to a label keeps each message’s existing labels', async () => {
+    const records = [
+        { _id: 'email-1', labels: ['first'], from: 'first@example.test' },
+        { _id: 'email-2', labels: ['second', 'target'], from: 'second@example.test' }
+    ];
+    const updates = [];
+    __setMailboxStoreForTests({
+        ready: true,
+        pool: {
+            query: async (_sql, values) => {
+                assert.deepEqual(values, ['target']);
+                return { rows: [{ id: 'label-target', slug: 'target', name: 'Target' }] };
+            }
+        },
+        repository: {
+            list: async (filter) => {
+                assert.equal(filter.label, 'current');
+                return records;
+            },
+            findById: async (id) => records.find(({ _id }) => _id === id),
+            updateMany: async (ids, payload) => {
+                updates.push({ ids, payload });
+                return ids.length;
+            }
+        }
+    });
+
+    for (const selection of [
+        { ids: ['email-1', 'email-2'] },
+        { scope: { all: true, type: 'allmail', label: 'current' } }
+    ]) {
+        const response = createResponse();
+        await moveEmailsToLabel({ body: { ...selection, label: 'target' } }, response);
+        assert.equal(response.state.statusCode, 200);
+        assert.deepEqual(response.state.payload, {
+            label: 'target',
+            updated: 2,
+            senders: ['first@example.test', 'second@example.test']
+        });
+        assert.deepEqual(updates.splice(0), [
+            { ids: ['email-1'], payload: { labels: ['first', 'target'], in_inbox: false } },
+            { ids: ['email-2'], payload: { labels: ['second', 'target'], in_inbox: false } }
+        ]);
+    }
 });

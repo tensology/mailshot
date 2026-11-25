@@ -42,7 +42,7 @@ import {
 } from '../services/postgres-mailbox-store.js';
 import { assertOutboundSendAllowed } from '../services/rate-limit.js';
 
-const MAIL_TYPES = new Set(['inbox', 'starred', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived', 'everywhere']);
+const MAIL_TYPES = new Set(['inbox', 'starred', 'snoozed', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived', 'everywhere']);
 const COUNT_MAIL_TYPES = ['inbox', 'starred', 'snoozed', 'sent', 'drafts', 'bin', 'spam', 'allmail', 'archived'];
 const RESERVED_SYSTEM_LABELS = new Set(['archived', 'archive', 'spam']);
 const MAX_OUTBOUND_BYTES = Number(process.env.MAIL_SEND_MAX_BYTES || 25 * 1024 * 1024);
@@ -1186,7 +1186,7 @@ export const moveEmailsToBin = async (request, response) => {
             const repository = getMailboxRepository();
             const ids = await resolveBulkEmailSelection(request.body, 'inbox');
             await repository.updateMany(ids, { bin: true, spam: false, starred: false, type: '', archived: false });
-            return response.status(201).json({ message: 'emails moved to bin', count: ids.length });
+            return response.status(201).json({ message: 'emails moved to bin', count: ids.length, ids });
         }
 
         const ids = await resolveBulkEmailSelection(request.body, 'inbox');
@@ -1212,7 +1212,7 @@ export const moveEmailsToBin = async (request, response) => {
         }
 
         saveMailboxCacheToDisk();
-        response.status(201).json({ message: 'emails moved to bin', count: ids.length });
+        response.status(201).json({ message: 'emails moved to bin', count: ids.length, ids });
     } catch (error) {
         respondServerError(response, error);
     }
@@ -1454,7 +1454,7 @@ export const archiveEmails = async (request, response) => {
                 bin: false,
                 starred: false
             });
-            return response.status(200).json({ message: 'emails archived', count: ids.length });
+            return response.status(200).json({ message: 'emails archived', count: ids.length, ids });
         }
 
         const ids = await resolveBulkEmailSelection(request.body, 'inbox');
@@ -1490,7 +1490,7 @@ export const archiveEmails = async (request, response) => {
         }
 
         saveMailboxCacheToDisk();
-        response.status(200).json({ message: 'emails archived', count: ids.length });
+        response.status(200).json({ message: 'emails archived', count: ids.length, ids });
     } catch (error) {
         respondServerError(response, error);
     }
@@ -1507,7 +1507,7 @@ export const restoreArchivedEmails = async (request, response) => {
                 spam: false,
                 bin: false
             });
-            return response.status(200).json({ message: 'emails unarchived', count: ids.length });
+            return response.status(200).json({ message: 'emails unarchived', count: ids.length, ids });
         }
 
         const ids = await resolveBulkEmailSelection(request.body, 'archived');
@@ -1542,7 +1542,7 @@ export const restoreArchivedEmails = async (request, response) => {
         }
 
         saveMailboxCacheToDisk();
-        response.status(200).json({ message: 'emails unarchived', count: ids.length });
+        response.status(200).json({ message: 'emails unarchived', count: ids.length, ids });
     } catch (error) {
         respondServerError(response, error);
     }

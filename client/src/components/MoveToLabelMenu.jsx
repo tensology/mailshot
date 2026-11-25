@@ -57,7 +57,7 @@ const MoveToLabelMenu = ({
             : { ids: emailIds, label: labelSlug };
 
         moveToLabelService.call(payload, '', { silent: true }).then((result) => {
-            const affectedCount = Number(result.data?.updated) || selectedCount;
+            const affectedCount = Number(result.data?.updated ?? selectedCount);
             if (result.error) {
                 if (onMoved) {
                     onMoved(labelSlug, emailIds, result.error, affectedCount);
@@ -123,12 +123,12 @@ const MoveToLabelMenu = ({
 
     return (
         <>
-            <div className="relative shrink-0" ref={menuRef}>
+            {hasSelection && <div className="relative shrink-0" ref={menuRef}>
                 <IconButton
                     label={buttonLabel}
                     size={buttonSize}
                     className={buttonClassName}
-                    disabled={disabled || !hasSelection}
+                    disabled={disabled}
                     onClick={() => setOpen((value) => !value)}
                 >
                     <MailshotIcon name="tag" size={iconSize} />
@@ -152,7 +152,7 @@ const MoveToLabelMenu = ({
                         ))}
                     </div>
                 )}
-            </div>
+            </div>}
 
             <Dialog
                 open={Boolean(pendingRule)}
